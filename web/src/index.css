@@ -1,0 +1,102 @@
+:root {
+  color-scheme: light;
+
+  --color-bg: #f5f2f3;
+  --color-card: #ffffff;
+  --color-ink: #21181c;
+  --color-muted: #6e6268;
+  --color-line: #e6dee1;
+  --color-brand: #7b2346;
+  --color-brand-dark: #5a1832;
+  --color-brand-soft: #f5e8ed;
+  --color-accent: #b8892b;
+  --color-accent-soft: #f8f0dc;
+  --color-red: #b8352a;
+  --color-red-soft: #fbebe9;
+  --color-green: #1d7a4f;
+  --color-green-soft: #e6f4ec;
+  --color-nav-ink: #4a3f44;
+  --color-nav-icon: #8a7d83;
+  --color-badge-ink: #7c5a12;
+  --color-badge-line: #ecd9a8;
+  --color-focus: #5aa2ff;
+
+  --font-site: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  --text-body: 14px;
+  --text-logo: 16px;
+  --text-logo-sub: 11.5px;
+  --text-badge: 11px;
+  --text-nav: 13px;
+  --text-crumbs: 12.5px;
+  --text-title: 20px;
+  --text-description: 13.5px;
+  --line-height-logo: 1.05;
+  --line-height-title: 1.25;
+  --letter-spacing-tight: -0.01em;
+
+  --space-hairline: 1px;
+  --space-0-5: 2px;
+  --space-1: 3px;
+  --space-2: 7px;
+  --space-2-5: 8px;
+  --space-3: 9px;
+  --space-3-5: 10px;
+  --space-4: 12px;
+  --space-4-5: 14px;
+  --space-5: 16px;
+  --space-6: 18px;
+  --space-7: 28px;
+
+  --size-header-height: 52px;
+  --size-logo-mark: 30px;
+  --size-nav-icon: 16px;
+  --size-nav-indicator: 2px;
+  --size-focus-ring: 2px;
+  --size-description-max: 64ch;
+
+  --radius-badge: 5px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-site);
+  font-size: var(--text-body);
+}
+
+#root {
+  height: 100%;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus);
+  outline-offset: var(--size-focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

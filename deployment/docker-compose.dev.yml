@@ -1,0 +1,24 @@
+# Local use only. Gelistirme: sadece PostgreSQL; servisler ve web bilgisayarda calisir.
+name: rag-dev
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.1-pg18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres-local
+      ASSISTANT_DB_PASSWORD: assistant-local
+      RETRIEVAL_DB_PASSWORD: retrieval-local
+    volumes:
+      - pgdata-dev:/var/lib/postgresql
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata-dev:

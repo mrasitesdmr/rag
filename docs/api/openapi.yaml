@@ -1,0 +1,103 @@
+# AMAÇ: Bu repodaki iki servisin REST API sözleşmesi. Tek doğru kaynak.
+# - /api/assistant/**  → assistant-api (konuşma, cevap akışı, geri bildirim, aktarma, değerlendirme)
+# - /api/workspaces/** → retrieval-api (kaynak, sürüm, parça, içe alma, vektör arama); hem web hem assistant-api çağırır
+# Planner günceller; backend-coder buna göre endpoint yazar, frontend-coder buna göre çağrı yapar, qa uyumu kontrol eder.
+# Uyum kontrolünde her servisin /v3/api-docs.yaml çıktısı bu dosyanın kendi path önekiyle karşılaştırılır.
+# Cevap akışının (SSE) olayları docs/api/sse.md'dedir; burada sadece akış endpoint'inin kendisi ve akış öncesi hataları tanımlanır.
+# Durum: iskelet (TASK-002). Endpoint yok; sadece iki servisin de kullanacağı ortak hata şeması ve sayfa parametreleri var.
+# Ortak davranış (TASK-002): iki serviste de tanımsız bir path'e gelen her istek 404 + application/problem+json + errorCode NOT_FOUND döner
+#   (ör. GET /api/assistant/yok). web'in nginx'i /api/assistant/ ve /api/workspaces/ dışındaki /api/** isteklerine aynı biçimde 404 NOT_FOUND döner.
+# Sağlık ucu (GET /actuator/health, her servisin kendi portunda) işletim ucudur; bu sözleşmenin parçası değildir ve web üzerinden yayınlanmaz.
+openapi: 3.1.0
+info:
+  title: RAG Asistan API
+  version: 0.0.0
+paths: {}
+components:
+  parameters:
+    Page:
+      name: page
+      in: query
+      required: false
+      description: Zero-based page index. `VALIDATION_FAILED` if < 0.
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      required: false
+      description: Page size, 1-100. `VALIDATION_FAILED` if outside the range.
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+  responses:
+    ValidationFailed:
+      description: '`VALIDATION_FAILED`: request validation failed (`violations[].field` names the field)'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    NotFound:
+      description: '`NOT_FOUND`: no endpoint at this path (framework). Domain "not found" codes are added by the task that introduces them.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    InternalError:
+      description: '`INTERNAL_ERROR`: unexpected server error'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+  schemas:
+    ProblemDetail:
+      type: object
+      description: RFC 9457 Problem Details with the project's `errorCode` extension
+      required: [type, title, status, errorCode]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+          description: English, for humans only. Clients decide by `errorCode`.
+        instance:
+          type: string
+        errorCode:
+          type: string
+          description: Stable error code. Domain codes are added by the task that introduces them.
+          enum:
+            - VALIDATION_FAILED
+            - BAD_REQUEST
+            - NOT_FOUND
+            - METHOD_NOT_ALLOWED
+            - NOT_ACCEPTABLE
+            - UNSUPPORTED_MEDIA_TYPE
+            - INTERNAL_ERROR
+        violations:
+          type: array
+          description: Only for `VALIDATION_FAILED`
+          items:
+            $ref: '#/components/schemas/Violation'
+    Violation:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          example: page
+        message:
+          type: string
+          description: Fixed English message
+          example: must be greater than or equal to 0

@@ -1,0 +1,15 @@
+.DS_Store
+.idea/
+*.iml
+# Backend servisleri
+assistant-api/target/
+retrieval-api/target/
+# Web
+web/node_modules/
+web/dist/
+# Ortam
+.env
+*.env.local
+# Geçici
+scratch/
+.claude/settings.local.json

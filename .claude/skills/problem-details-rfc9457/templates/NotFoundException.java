@@ -1,0 +1,10 @@
+package com.rasitbank.assistant.exception;
+
+import org.springframework.http.HttpStatus;
+
+public class NotFoundException extends BaseException {
+
+    public NotFoundException(String errorCode, String message) {
+        super(errorCode, HttpStatus.NOT_FOUND, message);
+    }
+}

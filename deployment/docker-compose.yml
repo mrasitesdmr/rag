@@ -1,0 +1,75 @@
+# Local use only: sifreler sadece bu makinede kullanilir, gercek gizli bilgi degildir.
+name: rag
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.1-pg18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres-local
+      ASSISTANT_DB_PASSWORD: assistant-local
+      RETRIEVAL_DB_PASSWORD: retrieval-local
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  assistant-api:
+    build: ../assistant-api
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/assistant
+      DATABASE_USER: assistant
+      DATABASE_PASSWORD: assistant-local
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8090/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  retrieval-api:
+    build: ../retrieval-api
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/retrieval
+      DATABASE_USER: retrieval
+      DATABASE_PASSWORD: retrieval-local
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build: ../web
+    ports:
+      - "3000:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      assistant-api:
+        condition: service_healthy
+      retrieval-api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
