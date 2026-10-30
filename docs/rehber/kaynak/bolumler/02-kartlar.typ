@@ -3,7 +3,7 @@
 = Kartlar <bolum-kartlar>
 
 == Raşit Banka Kartı <banka-karti>
-Raşit Banka Kartı, vadesiz Türk lirası hesabınıza bağlı çalışan banka kartıdır. Alışveriş ve nakit çekme tutarları doğrudan hesabınızdaki paradan düşer; kartın borcu ya da ekstresi olmaz. Kart Mastercard altyapısıyla çalışır, temassız ödeme özelliğine sahiptir ve Türkiye'de ve yurt dışında kullanılabilir.
+Raşit Banka Kartı, vadesiz Türk lirası hesabınıza bağlı çalışan banka kartıdır. Alışveriş ve nakit çekme tutarları doğrudan hesabınızdaki paradan düşer; kartın borcu ya da ekstresi olmaz. Kart uluslararası kart altyapısıyla çalışır, temassız ödeme özelliğine sahiptir ve Türkiye'de ve yurt dışında kullanılabilir.
 
 - Banka kartı için yıllık ücret alınmaz.
 - Müşteri olduğunuzda banka kartınız kendiliğinden basılır ve kayıtlı adresinize kuryeyle gönderilir. İl merkezlerinde 3 iş günü, diğer yerlerde 5 iş günü içinde teslim edilir.
@@ -35,7 +35,7 @@ Banka kartıyla ATM'de para yatırma ve ATM ücretleri için #bkz(<atm-limit>) v
 - Otel ve araç kiralama gibi işyerleri ödeme öncesinde kartınızdaki tutarı geçici olarak bloke edebilir. Bloke tutar işlem tamamlandığında ya da en geç 30 gün içinde kalkar.
 
 == Kredi kartı türleri <kart-turleri>
-Raşit Bankası'nın bireysel kredi kartlarının hepsi Mastercard altyapısıyla çalışır, temassız ödeme özelliğine sahiptir, taksitli alışverişe uygundur ve RaşitPuan kazandırır (#bkz(<rasitpuan>)). Kartlar yıllık üyelik ücretine, ücretsiz olma koşuluna ve sağladığı ayrıcalıklara göre ayrılır.
+Raşit Bankası'nın bireysel kredi kartlarının hepsi uluslararası kart altyapısıyla çalışır, temassız ödeme özelliğine sahiptir, taksitli alışverişe uygundur ve RaşitPuan kazandırır (#bkz(<rasitpuan>)). Kartlar yıllık üyelik ücretine, ücretsiz olma koşuluna ve sağladığı ayrıcalıklara göre ayrılır.
 
 #tablo(("Kart", "Yıllık üyelik ücreti", "Ücretsiz olma koşulu", "RaşitPuan"),
   ("Raşit Classic", "650 TL", "Yıllık 60.000 TL harcama", "Harcamanın binde 3'ü"),
@@ -295,7 +295,7 @@ Raşit Bankası kartlarının hepsi temassız ödeme özelliğine sahiptir.
 - Kartınızı Raşit Mobil'e tanımlayarak telefonunuzla da temassız ödeme yapabilirsiniz. Telefonla ödemede tutardan bağımsız olarak telefonunuzun ekran kilidi doğrulaması istenir.
 
 == Yurt dışında kullanım ve kur <yurt-disi-kart>
-Kartlarınız yurt dışında Mastercard logosu bulunan her yerde kullanılabilir. Yurt dışı kullanım yeni kartlarda kapalıdır; seyahatten önce Raşit Mobil'de kart ayarlarından "Yurt dışı kullanım" seçeneğini açmanız gerekir.
+Kartlarınız yurt dışında, kartınızın üzerindeki uluslararası kart logosunun bulunduğu her yerde kullanılabilir. Yurt dışı kullanım yeni kartlarda kapalıdır; seyahatten önce Raşit Mobil'de kart ayarlarından "Yurt dışı kullanım" seçeneğini açmanız gerekir.
 
 #ara[Kur ve ücretler]
 - *Banka kartı:* Yurt dışı harcama ve nakit çekim tutarı, işlemin hesabınıza yansıdığı günün Raşit Bankası döviz satış kuruyla Türk lirasına çevrilir.
@@ -366,7 +366,7 @@ Ekstrenizde tanımadığınız, tutarı hatalı ya da ürünü veya hizmeti size
 )
 
 #ara[İtiraz süreci]
-- Raşit Bankası, işlemi yapan işyerinin bankasından Mastercard kuralları çerçevesinde belge ister.
+- Raşit Bankası, işlemi yapan işyerinin bankasından uluslararası kurallar çerçevesinde belge ister.
 - Süreç ortalama 45 gün, yurt dışı işlemlerde 90 güne kadar sürebilir. Sonuç size SMS ve Raşit Mobil bildirimiyle iletilir.
 - İtiraz incelenirken itiraz edilen tutar için ödeme yapmanız ve bu tutara faiz ödemeniz gerekmez.
 - İtiraz lehinize sonuçlanırsa tutar kartınıza alacak olarak geçer. Aleyhinize sonuçlanırsa tutar ve işlemiş faizi bir sonraki ekstrenize yansıtılır.

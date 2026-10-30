@@ -49,7 +49,7 @@ Bu rehber bilgilendirme amaçlıdır.
 Raşit Bankası kurgusal bir bankadır; bu rehber bir eğitim demosu için hazırlanmıştır.
 
 [GERCEK_BANKA]
-# D12: metinde geçmemesi gereken gerçek banka adları (Türkçe küçük harfe çevrilip tam kelime olarak aranır)
+# D12: metinde geçmemesi gereken gerçek banka ve kart şeması adları (Türkçe küçük harfe çevrilip tam kelime olarak aranır)
 Ziraat
 İş Bankası
 Garanti BBVA
@@ -74,6 +74,17 @@ Türkiye Finans
 Anadolubank
 Alternatif Bank
 Burgan
+Mastercard
+Visa
+VISA
+American Express
+AMERICAN EXPRESS
+Amex
+Troy
+Maestro
+UnionPay
+JCB
+Diners Club
 
 [DEGISMEYEN_BOLUMLER]
 # D9: iki sürümde sayfa metni (üst ve alt bilgi hariç) birebir aynı olması gereken bölümler

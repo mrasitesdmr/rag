@@ -52,7 +52,7 @@ Repo kökünden ya da bu klasörden çalışır.
 | D8 | Değişiklik özetindeki her fark yazılan sayfada; eski değerler yeni sürümde yok |
 | D9 | Bölüm başlangıç sayfaları iki sürümde aynı; değişmeyen bölümlerin sayfaları birebir aynı |
 | D10 | "Rehberde olmayan konular"ın yasak kelimeleri iki PDF'te de geçmiyor |
-| D12 | Kapak notları var; gerçek banka adı geçmiyor; adresler yalnızca `rasitbank.example` alan adında |
+| D12 | Kapak notları var; gerçek banka ve kart şeması adı geçmiyor; adresler yalnızca `rasitbank.example` alan adında |
 
 Beklenen dizeler `dogrulama/kontroller.txt` dosyasındadır. D8 beklentilerini `degisiklik-ozeti-2026.11.md`, D10 yasak kelimelerini `rehberde-olmayan-konular.md` dosyasından okur.
 
@@ -66,6 +66,7 @@ Beklenen dizeler `dogrulama/kontroller.txt` dosyasındadır. D8 beklentilerini `
 ## Yazım kuralları
 - Tutarlar `1.450 TL` (binlik nokta, para birimi sonda), oranlar `%3,25`, tarihler `1 Kasım 2026`, saatler `09.00-17.00`, süreler "3 iş günü" biçimindedir.
 - Kesme işareti düz yazılır (`Raşit Mobil'de`); Typst'in akıllı tırnağı kapalıdır.
+- Gerçek kart şeması markası (Mastercard, Visa, American Express, Troy vb.) yazılmaz; yerine "uluslararası kart altyapısı", "uluslararası kart logosu", "uluslararası kurallar" ifadeleri kullanılır. D12 bu adları arar.
 - Kelime bölme ve bitişik harfler kapalıdır. Tireli sözcükler ve aralıklar (`e-posta`, `5.000-20.000 TL`) satır sonunda bölünmez.
 - Tablo hücreleri tek satırdır. Bir satır sayfaya sığmazsa derleme hata verir (`kaynak/ortak.typ`, `tablo`).
 - Sürüme göre değişen her değer yalnızca `kaynak/surum.typ` içinde durur. Yeni bir fark eklenirse değişiklik özetinin "Ayrıntı" tablosuna her geçişi için bir satır eklenir ve `dogrula.sh` çalıştırılır.
