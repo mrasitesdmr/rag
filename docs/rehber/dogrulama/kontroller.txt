@@ -1,0 +1,80 @@
+# RehberDogrulama.java'nın beklenen dizeleri. Satır başı "#" yorumdur.
+# Değişiklik özeti (D8) ve yasak kelimeler (D10) burada değil, kendi dosyalarındadır:
+# degisiklik-ozeti-2026.11.md ve rehberde-olmayan-konular.md.
+
+[SAYFA_ARALIGI]
+# D1: onay kartında kesinleşen aralık (hedef 72)
+68-76
+
+[CUMLE]
+# D3: iki PDF'in metninde birebir (boşluklar tek boşluğa indirilerek) bulunması gereken cümleler
+Kayıp ya da çalıntı bildirimi
+Şikâyet, itiraz ve kişisel veriler
+Kâğıt ekstre isteğe bağlıdır ve her gönderim için 4,90 TL posta ücreti alınır.
+İhtiyaç kredisi, harcamanızın amacını belgelemeniz gerekmeyen ve eşit taksitlerle geri ödenen tüketici kredisidir.
+Yurt dışında kullanım ve kur
+Çipli T.C. kimlik kartınızın çipi telefonun NFC özelliğiyle okunur.
+Ödenmeyen taksit için, gecikmenin ilk gününden itibaren sözleşmedeki akdi faiz oranının %30 fazlası gecikme faizi olarak işler.
+Hesabınıza geçen faiz, stopaj kesildikten sonraki net tutardır.
+Vefat hâlinde hesaplar
+İşitme engelli müşterilerimiz
+Görme engelli müşterilerimiz
+Ödediğiniz faturanın dekontunu Raşit Mobil'den PDF olarak indirebilirsiniz.
+
+[SATIR]
+# D4: "<sürüm>: hücre | hücre | ..." — hücreler aynı çıkarılan satırda ve bu sırayla bulunur. "*" iki sürüm.
+2026.10: Raşit Gold | 1.450 TL | Yıllık 150.000 TL harcama | Harcamanın binde 5'i
+2026.11: Raşit Gold | 1.650 TL | Yıllık 150.000 TL harcama | Harcamanın binde 5'i
+2026.11: Raşit Genç | Alınmaz | Koşul yok | Harcamanın binde 3'ü
+*: Konut kredisi (sabit faizli) | 36 aydan uzun | %2
+*: İhtiyaç ve taşıt kredisi | 12 ay ve altı | %0,5
+*: Değişken faizli krediler | Tümü | Alınmaz
+*: Raşit Mobil | 7/24 | Kartlarım > kartı seçin > Kayıp/çalıntı bildir
+*: Müşteri Hizmetleri | 7/24 | Kartlar menüsü > Kayıp/çalıntı (bkz. 8.7)
+2026.10: Banka kartıyla Raşit Bankası ATM'lerinden nakit çekme | Günlük 25.000 TL
+2026.11: Banka kartıyla Raşit Bankası ATM'lerinden nakit çekme | Günlük 30.000 TL
+2026.10: Raşit Bankası ATM'lerinden nakit çekme | 25.000 TL | 50.000 TL
+2026.11: Raşit Bankası ATM'lerinden nakit çekme | 30.000 TL | 50.000 TL
+*: FAST, 6.000,01-100.000 TL | 6,49 TL | 9,90 TL | 74,50 TL
+*: Kâğıt ekstre (gönderim başına) | 4,90 TL
+*: Kayıp ya da çalıntı kartın yenilenmesi, aynı yıldaki sonraki bildirimler | 100 TL
+*: 32 gün | %38,50 | %40,25 | %41,00
+*: Başka kişilere havale, EFT ve FAST (toplam) | 250.000 TL | 1.000.000 TL
+2026.10: Raşit Gold yıllık üyelik ücreti | 1.450 TL
+2026.11: Raşit Gold yıllık üyelik ücreti | 1.650 TL
+
+[KAPAK]
+# D12: kapakta birebir bulunması gereken notlar
+Bu rehber bilgilendirme amaçlıdır.
+Raşit Bankası kurgusal bir bankadır; bu rehber bir eğitim demosu için hazırlanmıştır.
+
+[GERCEK_BANKA]
+# D12: metinde geçmemesi gereken gerçek banka adları (Türkçe küçük harfe çevrilip tam kelime olarak aranır)
+Ziraat
+İş Bankası
+Garanti BBVA
+Akbank
+Yapı Kredi
+Halkbank
+VakıfBank
+Vakıflar Bankası
+QNB
+Finansbank
+DenizBank
+TEB
+ING
+HSBC
+Enpara
+Şekerbank
+Odeabank
+Fibabanka
+Kuveyt Türk
+Albaraka
+Türkiye Finans
+Anadolubank
+Alternatif Bank
+Burgan
+
+[DEGISMEYEN_BOLUMLER]
+# D9: iki sürümde sayfa metni (üst ve alt bilgi hariç) birebir aynı olması gereken bölümler
+3, 4, 5, 7, 9, 11
