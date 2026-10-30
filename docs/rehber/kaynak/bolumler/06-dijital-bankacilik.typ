@@ -189,7 +189,7 @@ Yeni telefonunuzda Raşit Mobil'i kurduğunuzda cihaz eşleme adımlarını yeni
 #soru[Yüz tanıma ile giriş neden kapandı?][Telefonunuza yeni bir yüz ya da parmak izi kaydı eklendiğinde biyometrik giriş güvenlik nedeniyle kapanır. Şifrenizle girip yeniden açabilirsiniz (#bkz(<biyometrik>)).]
 #soru[Telefonum çalındı. Hesaplarım güvende mi?][Hemen Müşteri Hizmetleri'ni arayıp dijital bankacılık erişiminizi kapattırın ve hattınızı operatörünüze kapattırın. Eşli cihazı İnternet Şubesi'nden kaldırabilirsiniz (#bkz(<telefon-kaybi>)).]
 #soru[Mobilden günde ne kadar transfer yapabilirim?][Başka kişilere havale, EFT ve FAST için varsayılan günlük limit toplam 250.000 TL'dir; Raşit Mobil'den 1.000.000 TL'ye kadar artırabilirsiniz (#bkz(<dijital-limit>)).]
-#soru[Transfer limitimi artırdım ama hâlâ işlem yapamıyorum.][Limit artırma güvenlik nedeniyle 24 saat sonra geçerli olur. Yeni cihaz eşlediyseniz 24 saatlik 10.000 TL sınırı da uygulanıyor olabilir (#bkz(<dijital-limit>)).]
+#soru[Transfer limitimi artırdım ama hâlâ işlem yapamıyorum.][Limit artırma güvenlik nedeniyle 24 saat sonra geçerli olur. Yeni cihaz eşlediyseniz 24 saatlik 10.000 TL sınırı da uygulanıyor olabilir (#bkz(<cihaz>) ve #bkz(<dijital-limit>)).]
 #soru[İlk kez para gönderdiğim kişi için neden onay istendi?][Daha önce para göndermediğiniz bir alıcıya 50.000 TL'yi aşan ilk transferde ayrıca onay istenir. Bu kontrol dolandırıcılığa karşı yapılır (#bkz(<dijital-limit>)).]
 #soru[Raşit Bankası SMS'leri hangi başlıkla gelir?][RASITBANK başlığıyla. Bu başlıkla gelmeyen mesajlara güvenmeyin (#bkz(<bildirim>)).]
 #soru[Root yapılmış telefonda uygulama çalışır mı?][Hayır. Güvenlik nedeniyle Raşit Mobil root ya da jailbreak yapılmış cihazlarda açılmaz (#bkz(<mobil>)).]

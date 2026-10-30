@@ -202,7 +202,7 @@ Alıcı adı ile IBAN sahibi uyuşmadığı, IBAN geçersiz olduğu ya da alıc�
 Dolandırıcılık sonucu yapılmış transferler için #bkz(<dolandiricilik>).
 
 #sss()
-#soru[FAST ile en fazla ne kadar gönderebilirim?][Tek seferde en fazla 100.000 TL. Daha yüksek tutarlar iş günlerinde 09.00-17.00 arasında EFT ile gönderilir (#bkz(<fast>)).]
+#soru[FAST ile en fazla ne kadar gönderebilirim?][Tek seferde en fazla 100.000 TL. Daha yüksek tutarlar iş günlerinde 09.00-17.00 arasında EFT ile gönderilir (#bkz(<eft>) ve #bkz(<fast>)).]
 #soru[Akşam saat 20.00'de 250.000 TL EFT yaparsam ne zaman gider?][Talimatınız ileri tarihli olarak kaydedilir ve izleyen ilk iş günü saat 09.00'dan itibaren gönderilir (#bkz(<eft>)).]
 #soru[Mobilden EFT ücreti ne kadar?][Raşit Mobil ve İnternet Şubesi'nden EFT ücreti 11,95 TL'dir. Raşit Bankası'ndan maaş alıyorsanız ücretsizdir (#bkz(<transfer-limit-ucret>)).]
 #soru[Bankanızın SWIFT kodu nedir?][Raşit Bankası'nın SWIFT kodu RSBKTRIS'tir (#bkz(<gelen-swift>)).]

@@ -1,16 +1,21 @@
 # TASK-021: Rehber kontrol betiklerinin sağlamlaştırılması
 
 ## Ne isteniyor
-TASK-004'ün QA raporundaki iki Optional ve bir Nit bulgu ile TASK-023'ün QA raporundaki bir Optional bulgu kapatılır. Rehber kontrol betikleri (`docs/rehber/uret.sh`, `dogrula.sh`, `dogrulama/`) hatalı girdide sessizce "GEÇTİ" demez ve verilen klasör yolunu beklendiği gibi çözer. Rehberin içeriği ve PDF'ler değişmez. Kaynak: `docs/tasks/TASK-004/handoff/05-qa-report.md` (Bulgular tablosu) ve `docs/tasks/TASK-023/handoff/05-qa-report.md` (Kod review bulguları, Optional).
+TASK-004'ün QA raporundaki iki Optional ve bir Nit bulgu, TASK-023'ün QA raporundaki bir Optional bulgu ve TASK-020'nin QA raporundaki üç Optional ve bir Nit bulgu kapatılır. Rehber kontrol betikleri (`docs/rehber/uret.sh`, `dogrula.sh`, `dogrulama/`) hatalı girdide sessizce "GEÇTİ" demez ve verilen klasör yolunu beklendiği gibi çözer. Rehberin içeriği ve PDF'ler değişmez. Kaynak: `docs/tasks/TASK-004/handoff/05-qa-report.md` (Bulgular tablosu), `docs/tasks/TASK-023/handoff/05-qa-report.md` (Kod review bulguları, Optional) ve `docs/tasks/TASK-020/handoff/05-qa-report.md` (Optional-1…3, Nit-1).
 
 ## Kurallar
 1. `kontroller.txt`'de bir kontrolün beklediği bölüm (`[CUMLE]`, `[SATIR]`, `[KAPAK]`, `[GERCEK_BANKA]`, `[DEGISMEYEN_BOLUMLER]`, `[SAYFA_ARALIGI]`) yoksa ya da boşsa o kontrol KALDI der ve nedenini yazar. Tanınmayan bölüm adı da (ör. `[SATIRR]`) hata sayılır.
 2. `uret.sh <klasör>` ve `dogrula.sh <klasör>` komutlarında göreli yol, komutun çalıştırıldığı dizine göre çözülür. Mutlak yol olduğu gibi kullanılır.
 3. D4 tablo satırı eşleşmesi hücre sınırlarına bakar. Örneğin `1.450 TL` aranırken `11.450 TL` eşleşmez.
-4. Mevcut 11 kontrolün sonucu değişmez: repodaki PDF'lerle hepsi GEÇTİ der.
+4. Mevcut 13 kontrolün sonucu değişmez: repodaki PDF'lerle hepsi GEÇTİ der.
 5. Her yeni koruma için bir negatif deneme yapılır ve KALDI dediği raporda gösterilir.
 6. D12, gerçek kart şeması adlarını (`[GERCEK_BANKA]` listesindeki Mastercard, Visa, Amex, Troy vb.) kesme işaretsiz Türkçe ek almış hâlde de yakalar (ör. `Mastercardla`, `Visayla`). Bu genişletme yanlış alarm üretmez: repodaki PDF'lerle D12 GEÇTİ der; kart şeması adlarını içeren sıradan Türkçe sözcükler (varsa) planda değerlendirilir.
-7. Yeni dependency eklenmez.
+7. D13 (tarife tutarlılığı) aşağıdaki durumları sessizce geçmez (TASK-020 QA bulguları):
+   - **Optional-1:** "ücret almaz/alınmaz" geçen bir cümleye sonradan bir tutar eklenirse bu tutar da tarifeyle karşılaştırılır. Bugün ücretsiz sözcüğü ilk değer sayıldığı için tutar gözden kaçıyor.
+   - **Optional-2:** `SMS ile kart harcama bildirimi` girdisinin genel kalıbı (`^hizmet(?= )`), 6.7'deki "Hizmet ücretsizdir" cümlesini belirgin biçimde yakalayan bir kalıpla değiştirilir.
+   - **Optional-3:** Tarife hücresinde aynı türden birden çok değer varsa (erken ödeme tazminatındaki "üstü %1" ve "üstü %2") bunlar da bölümdeki karşılıklarıyla karşılaştırılır. Bugün yalnız ilki karşılaştırılıyor, diğerlerini yalnız D4 koruyor.
+   - **Nit-1:** `[TARIFE]` kalıplarındaki kademe adları ("6.000 TL'ye kadar", "12 ay ve altı", "36 ay ve altı") bir sürümde değişirse kalıbın nasıl güncelleneceği README'de yazar. Gerekirse kalıp, kademe adına bağlı kalmayacak biçimde yazılır.
+8. Yeni dependency eklenmez.
 
 ## Örnek senaryolar
 - `kontroller.txt`'de `[SATIR]` yanlışlıkla `[SATIRR]` yazılır. Bugün D4 "0 satır kontrolü" ile GEÇTİ diyor; bu task'tan sonra KALDI der.
@@ -18,12 +23,12 @@ TASK-004'ün QA raporundaki iki Optional ve bir Nit bulgu ile TASK-023'ün QA ra
 - Rehbere yanlışlıkla "Mastercardla ödeme yapabilirsiniz" yazılır. Bugün D12 bunu kaçırıyor (tam kelime araması); bu task'tan sonra KALDI der ve adı gösterir.
 
 ## Kabul kriterleri
-- `./docs/rehber/dogrula.sh` repodaki PDF'lerle 11/11 GEÇTİ.
-- Kural 1, 2, 3 ve 6 için negatif denemelerin çıktısı raporda.
+- `./docs/rehber/dogrula.sh` repodaki PDF'lerle 13/13 GEÇTİ.
+- Kural 1, 2, 3, 6 ve 7 için negatif denemelerin çıktısı raporda.
 - `docs/rehber/README.md` yeni davranışı anlatıyor.
 
 ## Kapsam dışı
-- Olgu tutarlılığı kontrolü (TASK-020).
+- Olgu tutarlılığı kontrolünün kendisi (TASK-020'de yapıldı); bu task yalnız Kural 7'deki eksiklerini kapatır.
 - Rehber içeriği ve PDF'ler.
 
 ## Etkilenen katmanlar

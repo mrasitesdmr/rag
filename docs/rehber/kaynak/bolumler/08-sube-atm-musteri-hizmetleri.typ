@@ -151,4 +151,4 @@ Yerleşim yeri adresiniz e-Devlet'teki adres kayıt sisteminden alınır. Taşı
 #soru[Müşteri Hizmetleri'nin numarası nedir?][0850 724 72 74. Yurt dışından +90 216 724 72 74 numarasını arayabilirsiniz. İki hat da 7 gün 24 saat açıktır (#bkz(<musteri-hizmetleri>)).]
 #soru[İşitme engelliyim. Sizinle nasıl iletişim kurabilirim?][Raşit Mobil'deki "Görüntülü destek" seçeneğiyle hafta içi 09.00-18.00 saatleri arasında işaret dili bilen temsilcimizle görüşebilirsiniz (#bkz(<engelli>)).]
 #soru[Kiralık kasa ücreti ne kadar?][Kasa boyutuna göre yıllık 2.400 TL ile 11.200 TL arasındadır. Ayrıca 2.000 TL iade edilen anahtar teminatı alınır (#bkz(<sube-islemleri>)).]
-#soru[Kartım yanımda değil. ATM'den para çekebilir miyim?][Evet. Raşit Mobil'den alacağınız 6 haneli kodla ya da ATM ekranındaki karekodu okutarak işlem başına en fazla 5.000 TL çekebilirsiniz (#bkz(<atm>)).]
+#soru[Kartım yanımda değil. ATM'den para çekebilir miyim?][Evet. Raşit Mobil'den alacağınız 6 haneli kodla ya da ATM ekranındaki karekodu okutarak işlem başına en fazla 5.000 TL çekebilirsiniz (#bkz(<atm>) ve #bkz(<atm-limit>)).]

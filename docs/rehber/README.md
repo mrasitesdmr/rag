@@ -53,8 +53,12 @@ Repo kökünden ya da bu klasörden çalışır.
 | D9 | Bölüm başlangıç sayfaları iki sürümde aynı; değişmeyen bölümlerin sayfaları birebir aynı |
 | D10 | "Rehberde olmayan konular"ın yasak kelimeleri iki PDF'te de geçmiyor |
 | D12 | Kapak notları var; gerçek banka ve kart şeması adı geçmiyor; adresler yalnızca `rasitbank.example` alan adında |
+| D13 | Ücret tarifesindeki (10.1-10.7) her satırın değeri, 1-9. bölümlerde o ücretin anıldığı her cümle ve tablo satırında aynı; her satırın `kontroller.txt` `[TARIFE]` girdisi var ve "yalnız tarifede" işaretli değilse bölümlerde en az bir yerde doğrulanıyor |
+| D14 | Her "Sık sorulanlar" cevabındaki tutar, oran, süre ve saat, cevabın "bkz." ile gösterdiği başlıklardan birinde yazılı; PDF'teki soru sayısı kaynaktaki `#soru` sayısıyla aynı |
 
 Beklenen dizeler `dogrulama/kontroller.txt` dosyasındadır. D8 beklentilerini `degisiklik-ozeti-2026.11.md`, D10 yasak kelimelerini `rehberde-olmayan-konular.md` dosyasından okur.
+
+D13 ve D14 hiçbir ücret ya da oranı listeden okumaz; değerleri her sürümün kendi PDF'inden alır, böylece sürüme göre değişen değerler yalnızca `kaynak/surum.typ`'de kalır. Karşılaştırılan değerler: TL tutarı, ABD doları ve euro, yüzde, binde ve on binde, puan, süre (dakika, saat, gün, iş günü, hafta, ay, yıl) ve saat (`09.00`). Adetler ("ayda 4 kez", "en fazla 2 cihaz") ve sorudaki sayılar karşılaştırılmaz. D13'ün tarife satırlarını bölümlerde bulduğu kalıplar `kontroller.txt` dosyasının `[TARIFE]` bölümündedir; biçimi ve kuralları bölümün başında yazar. Tarifeye yeni satır eklenirse oraya da bir girdi eklenir, yoksa D13 KALDI der.
 
 ## İçe alma için notlar (TASK-005)
 - **Metin çıkarma:** `PDFTextStripper` varsayılan ayarlarıyla (`setSortByPosition(false)`) kullanıldı. Bu ayarla her sayfanın ilk satırı üst bilgi, son satırı alt bilgi olur ve tablo satırları tek satır olarak gelir.
@@ -68,6 +72,8 @@ Beklenen dizeler `dogrulama/kontroller.txt` dosyasındadır. D8 beklentilerini `
 - Kesme işareti düz yazılır (`Raşit Mobil'de`); Typst'in akıllı tırnağı kapalıdır.
 - Gerçek kart şeması markası (Mastercard, Visa, American Express, Troy vb.) yazılmaz; yerine "uluslararası kart altyapısı", "uluslararası kart logosu", "uluslararası kurallar" ifadeleri kullanılır. D12 bu adları arar.
 - Kelime bölme ve bitişik harfler kapalıdır. Tireli sözcükler ve aralıklar (`e-posta`, `5.000-20.000 TL`) satır sonunda bölünmez.
+- "Sık sorulanlar" cevabındaki her tutar, oran, süre ve saat, cevabın atıf yaptığı başlıklardan birinde yazılıdır. Değer başka bir başlıktaysa o başlık da atfa eklenir: `(bkz. 2.2 ve bkz. 2.4)`. D14 bunu kontrol eder.
+- Bir ücret tarifede (10. bölüm) ve bölüm metninde aynı yazılır. Yeni tarife satırı için `dogrulama/kontroller.txt` `[TARIFE]` bölümüne bir girdi eklenir. D13 bunu kontrol eder.
 - Tablo hücreleri tek satırdır. Bir satır sayfaya sığmazsa derleme hata verir (`kaynak/ortak.typ`, `tablo`).
 - Sürüme göre değişen her değer yalnızca `kaynak/surum.typ` içinde durur. Yeni bir fark eklenirse değişiklik özetinin "Ayrıntı" tablosuna her geçişi için bir satır eklenir ve `dogrula.sh` çalıştırılır.
 - Değişen bölümler (1, 2, 6, 8, 10) iki sürümde aynı sayfa sayısını korumalıdır; D9 bunu kontrol eder.

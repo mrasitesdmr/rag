@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rehber PDF'lerini Apache PDFBox ile okur ve kontrolleri (D1-D10, D12) çalıştırır.
+# Rehber PDF'lerini Apache PDFBox ile okur ve kontrolleri (D1-D10, D12-D14) çalıştırır.
 # Kullanım: ./docs/rehber/dogrula.sh                (docs/rehber/pdf altındaki PDF'ler)
 #           ./docs/rehber/dogrula.sh <pdf klasörü>  (ör. negatif deneme için başka bir klasör)
 # Her kontrol için GEÇTİ ya da KALDI yazar; bir kontrol kalırsa çıkış kodu 1'dir.

@@ -398,13 +398,13 @@ Kredi kartınızı Raşit Mobil'de Kartlarım > kartı seçin > Kartı kapat ad�
 Banka kartınızı Raşit Mobil'den ya da şubeden kapatabilirsiniz; bağlı olduğu vadesiz hesap açık kalır. Bağlı olduğu vadesiz hesap kapatıldığında banka kartı da kendiliğinden kapanır. Kapatılan banka kartına bağlı sanal banka kartı ve "Küsurat biriktir" özelliği de kapanır (#bkz(<kumbara>)).
 
 #sss()
-#soru[Raşit Gold kartın yıllık üyelik ücreti ne kadar?][Raşit Gold'un yıllık üyelik ücreti #S.gold-yillik-ucret'dir. Önceki 12 ayda kartla toplam 150.000 TL alışveriş yaptıysanız ücret alınmaz (#bkz(<yillik-ucret>)).]
+#soru[Raşit Gold kartın yıllık üyelik ücreti ne kadar?][Raşit Gold'un yıllık üyelik ücreti #S.gold-yillik-ucret'dir. Önceki 12 ayda kartla toplam 150.000 TL alışveriş yaptıysanız ücret alınmaz (#bkz(<kart-turleri>) ve #bkz(<yillik-ucret>)).]
 #soru[Son ödeme tarihim hafta sonuna denk gelirse ne olur?][Son ödeme tarihi izleyen ilk iş gününe kayar. O güne kadar yaptığınız ödemeler için gecikme faizi uygulanmaz (#bkz(<ekstre>)).]
 #soru[Kartımı nereye koyduğumu bilmiyorum. İptal etmeden kapatabilir miyim?][Evet. Raşit Mobil'deki "Geçici kapat" seçeneğiyle kartınızı kapatabilir, bulduğunuzda aynı ekrandan yeniden açabilirsiniz. Kart numaranız değişmez (#bkz(<kayip-calinti>)).]
 #soru[Kartımın borcunu başka bir bankadan ödeyebilir miyim?][Evet. Başka bir bankadan kart numaranıza EFT ya da FAST ile ödeme yapabilirsiniz. Ödeme, gönderildiği anda kartınıza yansır (#bkz(<asgari-odeme>)).]
 #soru[Kart şifremi 3 kez yanlış girdim. Kartım kilitlendi mi?][Kartınız şifreli işlemlere kapanır. Raşit Mobil'de "Kart şifremi unuttum" adımıyla yeni şifre belirlediğinizde kart hemen yeniden açılır (#bkz(<kart-sifresi>)).]
 #soru[Harcama itirazı ne kadar sürüyor?][Süreç ortalama 45 gün, yurt dışı işlemlerde 90 güne kadar sürebilir. Bu sürede itiraz edilen tutarı ödemeniz gerekmez (#bkz(<harcama-itirazi>)).]
-#soru[Kart aidatından muaf olmak için ne kadar harcamam gerekiyor?][Önceki 12 aydaki alışveriş toplamınız Raşit Classic'te 60.000 TL, Raşit Gold'da 150.000 TL, Raşit Platinum'da 400.000 TL'ye ulaşırsa o yıl yıllık üyelik ücreti alınmaz (#bkz(<yillik-ucret>)).]
+#soru[Kart aidatından muaf olmak için ne kadar harcamam gerekiyor?][Önceki 12 aydaki alışveriş toplamınız Raşit Classic'te 60.000 TL, Raşit Gold'da 150.000 TL, Raşit Platinum'da 400.000 TL'ye ulaşırsa o yıl yıllık üyelik ücreti alınmaz (#bkz(<kart-turleri>) ve #bkz(<yillik-ucret>)).]
 #soru[Aidat ödendikten sonra kartı kapatırsam param geri gelir mi?][Ücretin yansıdığı tarihten sonraki 30 gün içinde kapatırsanız tamamı, daha sonra kapatırsanız kalan tam aylara düşen kısmı iade edilir (#bkz(<yillik-ucret>)).]
 #soru[Tatile gidiyorum. Limitimi geçici olarak yükseltebilir miyim?][Evet. Limitinizin %30'una kadar, en fazla 30 gün geçerli geçici limit artışı alabilirsiniz. Bir yılda en fazla 2 kez kullanılabilir (#bkz(<kart-limiti>)).]
 #soru[Kart limitim neden düşük belirlendi?][Limit gelirinize, başka bankalardaki borçlarınıza ve KKB kayıtlarınıza göre belirlenir. Bütün bankalardaki kart limitlerinizin toplamı ilk yıl aylık gelirinizin 2 katını geçemez (#bkz(<kart-limiti>)).]

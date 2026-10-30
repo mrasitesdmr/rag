@@ -89,3 +89,90 @@ Diners Club
 [DEGISMEYEN_BOLUMLER]
 # D9: iki sürümde sayfa metni (üst ve alt bilgi hariç) birebir aynı olması gereken bölümler
 3, 4, 5, 7, 9, 11
+
+[TARIFE]
+# D13: 10. bölümdeki ücret tarifesinin her satırı için bir girdi. Biçim:
+#   <tarife etiketi, PDF'teki gibi birebir> => <kalıp> || <kalıp> ...
+#   <tarife etiketi> => yalniz-tarife      (ücret 1-9. bölümlerde değeriyle anılmıyor)
+# Etiket, tarife satırının değer hücresinden önceki kısmıdır. Tarifede girdisi olmayan satır D13'ü KALDI yapar.
+# Kalıp bir Java düzenli ifadesidir. 1-9. bölümlerdeki her cümlede ve tablo satırında aranır; metin Türkçe
+# küçük harfe çevrilmiş (I → ı, İ → i; "SWIFT" → "swıft"), boşlukları teke indirilmiş ve "bkz. X.Y" atıfları
+# "bkz." olarak kısaltılmıştır. "Örnek:" ile başlayan paragraflar aranmaz.
+# Karşılaştırma eşleşmenin bittiği yerden cümlenin ya da satırın sonuna kadar yapılır: oradaki ilk değer
+# tarifedekiyle aynı türdense aynı olmalıdır (ücretsiz satırda ilk değer "ücretsiz/alınmaz/ücret almaz" olmalıdır).
+# Kalıp, ücretin konusunu tarif eder; değerin kendisi kalıba yazılmaz.
+# 3.8'deki madde listesinin değeri giriş cümlesindedir ("Şu hizmetler de ücretsizdir:"); listedeki
+# hizmetlerin girdisi bu cümleyi kullanabilir.
+Banka kartı yıllık ücreti => banka kartı için yıllık ücret
+Raşit Classic yıllık üyelik ücreti => ^raşit classic(?= \d)
+Raşit Gold yıllık üyelik ücreti => ^raşit gold(?= \d) || raşit gold'un yıllık üyelik ücreti
+Raşit Platinum yıllık üyelik ücreti => ^raşit platinum(?= \d)
+Raşit Genç yıllık üyelik ücreti => ^raşit genç(?= \p{L})
+Raşit Classic ve Raşit Gold ek kart ücreti => raşit classic ve raşit gold'a bağlı ek kartlar
+Raşit Platinum ek kart yıllık ücreti => raşit platinum'a bağlı her ek kart
+Kayıp ya da çalıntı kartın yenilenmesi, yılın ilk bildirimi => ilk kayıp ya da çalıntı bildiriminde yeni kart
+Kayıp ya da çalıntı kartın yenilenmesi, aynı yıldaki sonraki bildirimler => aynı yıldaki sonraki bildirimlerde kart yenileme ücreti
+Süresi dolan, yıpranan ya da ATM'de kalan kartın yenilenmesi => ^yenileme || yeni kart talebi ekranından
+Sanal kart => sanal kart ekranından
+Dijital ekstre => dijital ekstre
+Kâğıt ekstre (gönderim başına) => kâğıt ekstre || her gönderim için
+Nakit avans işlem ücreti => nakit avans işlem ücreti || çekilen tutarın
+Başka banka ATM'sinden nakit avans (ek ücret) => başka banka atm'lerinden çekimde ayrıca || ^kredi kartıyla nakit avans(?= \d)
+Yurt dışı kart işlemi => yurt dışında yapılan her kart işleminde || ^işlemlerde(?= %)
+Yurt dışı ATM'den nakit çekme (ek ücret) => yurt dışındaki atm'lerden nakit çekimde
+Vadesiz hesap işletim ücreti => hesap işletim ücreti
+Hesap açma ve kapatma (bütün hesap türleri) => ^hesap kapatma || ek vadesiz hesapları raşit mobil'den istediğiniz sayıda || döviz hesapları raşit mobil'den
+Dijital hesap belgesi ve IBAN belgesi => ^şu hizmetler de
+Şubeden kâğıt hesap belgesi (belge başına) => yalniz-tarife
+Kâğıt hesap cüzdanı => yalniz-tarife
+Efektif döviz yatırma ve çekme => efektif çekimde
+Müşteri ilişkisini sonlandırma => ^hesap ve ürün kapatma
+Kredi tahsis ücreti (ihtiyaç, taşıt, konut) => kredi tahsis ücreti || kredilerinde yalnızca
+Konut kredisi ekspertiz ücreti => ekspertiz ücreti || konut kredisinde ayrıca(?= \S+ tl ekspertiz ücreti)
+Taşıt rehin tesis ücreti => rehin tesis ücreti
+Erken ödeme tazminatı, ihtiyaç ve taşıt kredisi => ^ihtiyaç ve taşıt kredisi(?= 12 ay ve altı)
+Erken ödeme tazminatı, sabit faizli konut kredisi => ^konut kredisi \(sabit faizli\)(?= 36 ay ve altı)
+Erken ödeme tazminatı, değişken faizli krediler ve Ek Hesap => ^değişken faizli krediler tümü || ^ek hesap \(kredili mevduat hesabı\) — || değişken faizli kredilerde
+Ek Hesap kullandırım ücreti => ek hesap kullandırım ücreti
+Yapılandırma => yapılandırma için
+Borcu yoktur yazısı (dijital ya da ıslak imzalı) => ıslak imzalı yazı istiyorsanız şubenizden
+Rehin ve ipotek kaldırma (banka ücreti) => ipotek kaldırma için
+Havale (bütün kanallar) => şubeden yapılan havaleler || ^havale(?= ücretsiz)
+FAST, 6.000 TL'ye kadar (Raşit Mobil ve İnternet Şubesi) => ^fast, 6.000 tl'ye kadar
+FAST, 6.000,01-100.000 TL (Raşit Mobil ve İnternet Şubesi) => ^fast, 6.000,01-100.000 tl
+FAST (Raşit Bankası ATM'si) => ^fast, 6.000 tl'ye kadar ücretsiz || ^fast, 6.000,01-100.000 tl \S+ tl
+EFT (Raşit Mobil ve İnternet Şubesi) => ^eft(?= \d) || internet şubesi'nden eft ücreti
+FAST ve EFT (şube) => ^fast, 6.000 tl'ye kadar ücretsiz \S+ tl || ^fast, 6.000,01-100.000 tl \S+ tl \S+ tl || ^eft \S+ tl yapılmaz || fast ve eft işlemlerinin ücreti
+Cepten Cebe gönderim => gönderilebilir; işlem ücreti
+SWIFT gönderim (Raşit Mobil ve İnternet Şubesi) => ^swıft gönderim ücreti
+SWIFT gönderim (şube) => ^swıft gönderim ücreti \S+ abd doları karşılığı
+SWIFT OUR seçeneği (ek ücret) => ^our seçeneği için ek ücret
+Gelen SWIFT => gelen swıft
+SWIFT iade, iptal ya da değişiklik talebi => ^swıft iade, iptal ya da değişiklik talebi
+Fatura ödeme (dijital kanallar ve ATM) => fatura ödemeleri dijital kanallarda
+Fatura ödeme (şube, fatura başına) => şubede fatura başına
+Vergi ödemeleri (vadesiz hesaptan) => vergi ödemeleri vadesiz hesaptan
+Karekod ile ödeme => karekodla ödeme ve transfer için
+Raşit Mobil ve İnternet Şubesi kullanımı => iki kanal da
+Uygulama bildirimleri => uygulama bildirimleri
+Güvenlik SMS'leri => ^güvenlik sms'leri(?! *:)
+SMS ile kart harcama bildirimi => ^hizmet(?= )
+Şifre cihazı (ilk cihaz ya da yenisi) => şifre cihazı şubelerden
+Yatırım hesabı açma => yatırım hesabı aç adımıyla || yatırım hesabı raşit mobil'den
+Yatırım fonu alım satımı => fon alım satımında
+Hisse senedi alım satım komisyonu => ^komisyon işlem tutarının || hisse alım satımında
+Hisse senedi, tahvil ve bono saklama => ^saklama ücreti || eurobond için saklama ücreti
+Devlet tahvili ve hazine bonosu alım satımı => yalniz-tarife
+Eurobond alım satımı => yalniz-tarife
+Döviz ve altın alım satımı => döviz alım satımında || ^alım satımda
+Fiziki altını hesaba yatırma => ölçüm ve aktarım için || ^gram başına
+Raşit Bankası ATM'lerindeki bütün işlemler => raşit bankası atm'lerinde yapılan işlemler
+Başka banka ATM'sinden banka kartıyla nakit çekme => ^banka kartıyla nakit çekme(?= \d)
+Şubeden nakit çekme ve yatırma => yalniz-tarife
+Kiralık kasa, küçük (yıllık) => ^küçük(?= \d)
+Kiralık kasa, orta (yıllık) => ^orta(?= \d)
+Kiralık kasa, büyük (yıllık) => ^büyük(?= \d)
+Kiralık kasa, çok büyük (yıllık) => ^çok büyük(?= \d)
+Kiralık kasa anahtar teminatı (iade edilir) => ayrıca(?= \S+ tl anahtar teminatı)
+Kasa kilidinin değiştirilmesi (anahtar kaybı) => kilit değişim ücreti
+Braille alfabesiyle ya da büyük puntolu belge => braille alfabesiyle

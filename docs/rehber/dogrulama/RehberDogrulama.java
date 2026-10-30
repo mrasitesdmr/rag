@@ -1,8 +1,9 @@
-// Rehber PDF'lerini Apache PDFBox ile okuyup TASK-004 kontrollerini (D1-D10, D12) çalıştırır.
+// Rehber PDF'lerini Apache PDFBox ile okuyup TASK-004 ve TASK-020 kontrollerini (D1-D10, D12-D14) çalıştırır.
 // Çalıştırma: ../dogrula.sh (PDFBox jar'ını indirir ve bu dosyayı java ile başlatır).
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,6 +26,7 @@ import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlin
 import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineNode;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.pdfbox.text.TextPosition;
 
 public class RehberDogrulama {
 
@@ -36,14 +38,77 @@ public class RehberDogrulama {
     static final String YENI = "2026.11";
     static final Pattern TOC_SATIRI = Pattern.compile("^(\\d+(?:\\.\\d+)?) (.+) (\\d+)$");
     static final Pattern ATIF = Pattern.compile("bkz\\. (\\d+(?:\\.\\d+)?)");
+    static final String TARIFE_BOLUMU = "10";
+    // Aynı sayfada iki gövde satırı arasındaki dikey mesafe bundan büyükse yeni paragraf başlar
+    // (satır aralığı yaklaşık 15 pt, paragraf aralığı yaklaşık 19 pt).
+    static final float PARAGRAF_ARALIGI = 17f;
+    // Madde işareti, numaralı adım ya da örnek her zaman yeni paragraf başlatır (sayfa başında da).
+    static final Pattern PARAGRAF_BASI = Pattern.compile("• |\\d+\\. |Örnek:");
+    static final Pattern CUMLE_SONU = Pattern.compile("(?<=[.!?])\\s+(?=[\\p{Lu}\"(])");
+    static final Pattern UCRETSIZ_DEGER = Pattern.compile("ücretsiz|alınmaz|komisyon alınmaz");
+    static final Pattern UCRETSIZ_SOZ = Pattern.compile("(?<!\\p{L})(?:ücretsiz|alınmaz|ücreti? almaz)");
+    static final String SAYI = "\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)?|\\d+(?:,\\d+)?";
+    // D13 ve D14'ün karşılaştırdığı değerler: tutar, döviz, yüzde, binde, puan, süre ve saat. Adet ve sayı değer değildir.
+    static final Pattern BELIRTEC = Pattern.compile(
+            "(?<![\\p{L}\\d.,])(?:(?<ilk>" + SAYI + ")\\s?-\\s?)?(?<sayi>" + SAYI + ") (?<birim>tl|abd doları|euro|iş günü|iş gün|dakika|saniye|saat|gün|hafta|ay|yıl|puan)(?<ek>\\p{L}*)"
+                    + "|%(?<yuzde>" + SAYI + ")"
+                    + "|(?<binde>on binde|binde) (?<bsayi>" + SAYI + ")"
+                    + "|(?<![\\p{L}\\d.,])(?<saat>(?:[01]\\d|2[0-3])\\.[0-5]\\d)(?!\\d)");
+    static final Map<String, String> BIRIM_ADI = Map.ofEntries(
+            Map.entry("tl", "TL"), Map.entry("abd doları", "ABD doları"), Map.entry("euro", "euro"), Map.entry("iş günü", "iş günü"),
+            Map.entry("iş gün", "iş günü"), Map.entry("dakika", "dakika"), Map.entry("saniye", "saniye"), Map.entry("saat", "saat"),
+            Map.entry("gün", "gün"), Map.entry("hafta", "hafta"), Map.entry("ay", "ay"), Map.entry("yıl", "yıl"), Map.entry("puan", "puan"));
 
     record Toc(String no, String baslik, int sayfa) {}
+
+    // Bölüm içinde numaralı başlığın (ör. "2.7"), bölüm girişinin ("2") ya da sık sorulanların ("2 SSS") satırları.
+    record Kisim(String no, String bolum, List<PdfSatiri> satirlar) {
+        boolean sss() {
+            return no.endsWith(" SSS");
+        }
+
+        String ad() {
+            return sss() ? bolum + ". bölüm Sık sorulanlar" : no.equals(bolum) ? bolum + ". bölüm girişi" : no;
+        }
+    }
+
+    // D13'ün karşılaştırma birimi: düzyazıda bir cümle ya da bir tablo satırı.
+    record Birim(Kisim kisim, int sayfa, String metin, String kucuk) {}
+
+    record Soru(String soru, String cevap, int sayfa) {}
+
+    record Belirtec(String tur, String deger, String yazim, int bas) {
+        String anahtar() {
+            return tur + ":" + deger;
+        }
+    }
+
+    // kontroller.txt [TARIFE] girdisi: tarife satırının etiketi ve satırın bölümlerde anıldığı yerleri bulan kalıplar.
+    record Tarife(String etiket, boolean yalnizTarife, List<Pattern> kaliplar) {}
+
+    record TarifeSatiri(Tarife giris, String deger, String kisim, int sayfa) {}
+
+    // Yazı tipi bilgisiyle bir metin satırı (üst ve alt bilgi hariç). D13 ve D14 bunlardan bölüm yapısını kurar.
+    record PdfSatiri(int sayfa, String metin, float boyut, String agirlik, float y, float x) {
+        boolean tablo() {
+            return boyut < 10f;
+        }
+
+        boolean govde() {
+            return boyut >= 10.5f && boyut < 12f;
+        }
+
+        boolean duz() {
+            return agirlik.equals("Regular");
+        }
+    }
 
     static class Rehber {
         final String surum;
         final List<String> sayfalar = new ArrayList<>();
         final List<String> yerImleri = new ArrayList<>();
         final Map<String, Integer> yerImiSayfasi = new LinkedHashMap<>();
+        final List<PdfSatiri> satirlar = new ArrayList<>();
         int goruntuSayisi;
 
         Rehber(String surum) {
@@ -94,6 +159,12 @@ public class RehberDogrulama {
         d9(eski, yeni, toclar, k);
         d10(rehberler, yasaklar);
         d12(rehberler, k);
+        Map<String, List<Kisim>> kisimlar = new LinkedHashMap<>();
+        for (Rehber r : rehberler.values()) {
+            kisimlar.put(r.surum, kisimlar(r, bolumBaslangiclari(toclar.get(r.surum)).get("1")));
+        }
+        d13(rehberler, kisimlar, k);
+        d14(rehberler, kisimlar, soruSayisi(Path.of("kaynak/bolumler")));
 
         System.out.println();
         System.out.println("Toplam: " + gecen + " GEÇTİ, " + kalan + " KALDI");
@@ -398,6 +469,144 @@ public class RehberDogrulama {
                 hatalar.isEmpty() ? "kapak notları var; " + k.gercekBankalar.size() + " gerçek banka adı geçmiyor; adresler " + adresler : String.join("; ", hatalar));
     }
 
+
+    static void d13(Map<String, Rehber> rehberler, Map<String, List<Kisim>> kisimlar, Kontroller k) {
+        List<String> hatalar = new ArrayList<>();
+        StringBuilder ozet = new StringBuilder();
+        Set<String> kullanilanEtiketler = new LinkedHashSet<>();
+        for (Rehber r : rehberler.values()) {
+            List<Kisim> ks = kisimlar.get(r.surum);
+            List<Birim> birimler = birimler(ks);
+            List<TarifeSatiri> tarife = new ArrayList<>();
+            for (Kisim kisim : ks) {
+                if (!kisim.bolum.equals(TARIFE_BOLUMU) || kisim.no.equals(TARIFE_BOLUMU)) {
+                    continue;
+                }
+                for (PdfSatiri s : kisim.satirlar) {
+                    if (!s.tablo() || !s.duz()) {
+                        continue;
+                    }
+                    Tarife giris = k.tarifeGirisi(s.metin());
+                    if (giris == null) {
+                        hatalar.add(r.surum + " kontroller.txt [TARIFE] içinde girdisi olmayan tarife satırı: " + kisim.no + " s." + s.sayfa() + " '" + s.metin() + "'");
+                        continue;
+                    }
+                    if (!kullanilanEtiketler.add(r.surum + "\u0000" + giris.etiket())) {
+                        hatalar.add(r.surum + " tarife satırı iki kez geçiyor: " + giris.etiket());
+                    }
+                    tarife.add(new TarifeSatiri(giris, s.metin().substring(giris.etiket().length()).strip(), kisim.no, s.sayfa()));
+                }
+            }
+            int dogrulanan = 0;
+            int yer = 0;
+            int yalniz = 0;
+            for (TarifeSatiri t : tarife) {
+                if (t.giris().yalnizTarife()) {
+                    yalniz++;
+                    continue;
+                }
+                List<Belirtec> tarifeDegerleri = belirtecler(kucuk(t.deger()));
+                String tur = UCRETSIZ_DEGER.matcher(kucuk(t.deger())).matches() ? "ucretsiz" : tarifeDegerleri.isEmpty() ? "metin" : "tutar";
+                int gecis = 0;
+                for (Birim b : birimler) {
+                    Set<String> celiskiler = new LinkedHashSet<>();
+                    boolean ayni = false;
+                    for (Pattern kalip : t.giris().kaliplar()) {
+                        Matcher m = kalip.matcher(b.kucuk());
+                        while (m.find()) {
+                            String sonuc = karsilastir(tur, tarifeDegerleri, b.kucuk().substring(m.end()));
+                            if (sonuc == null) {
+                                continue;
+                            }
+                            if (sonuc.isEmpty()) {
+                                ayni = true;
+                            } else {
+                                celiskiler.add(sonuc);
+                            }
+                        }
+                    }
+                    for (String c : celiskiler) {
+                        hatalar.add(r.surum + " çelişki: '" + t.giris().etiket() + "' " + t.kisim() + " s." + t.sayfa() + " '" + t.deger() + "' ↔ "
+                                + b.kisim().ad() + " s." + b.sayfa() + " '" + kisalt(b.metin()) + "' (" + c + ")");
+                    }
+                    if (ayni && celiskiler.isEmpty()) {
+                        gecis++;
+                    }
+                }
+                if (gecis == 0) {
+                    hatalar.add(r.surum + " bölümlerde doğrulanan geçiş bulunamadı: '" + t.giris().etiket() + "' (" + t.kisim() + " s." + t.sayfa() + ")");
+                } else {
+                    dogrulanan++;
+                    yer += gecis;
+                }
+            }
+            ozet.append(r.surum).append(": ").append(tarife.size()).append(" tarife satırı, ").append(dogrulanan).append("'i bölümlerde ").append(yer)
+                    .append(" yerde doğrulandı, ").append(yalniz).append("'i yalnız tarifede; ");
+        }
+        for (Tarife giris : k.tarife) {
+            if (kullanilanEtiketler.stream().noneMatch(e -> e.endsWith("\u0000" + giris.etiket()))) {
+                hatalar.add("kontroller.txt [TARIFE] girdisi iki sürümün tarifesinde de yok: " + giris.etiket());
+            }
+        }
+        if (k.tarife.isEmpty()) {
+            hatalar.add("kontroller.txt [TARIFE] bölümü boş");
+        }
+        sonuc("D13", "Tarife tutarlılığı", hatalar.isEmpty(), hatalar.isEmpty() ? ozet.toString() : String.join("; ", hatalar));
+    }
+
+    static void d14(Map<String, Rehber> rehberler, Map<String, List<Kisim>> kisimlar, int kaynaktakiSoru) {
+        List<String> hatalar = new ArrayList<>();
+        StringBuilder ozet = new StringBuilder();
+        for (Rehber r : rehberler.values()) {
+            List<Kisim> ks = kisimlar.get(r.surum);
+            int soruSayisi = 0;
+            int degerSayisi = 0;
+            for (Kisim kisim : ks) {
+                if (!kisim.sss()) {
+                    continue;
+                }
+                for (Soru soru : sorular(kisim)) {
+                    soruSayisi++;
+                    String yer = r.surum + " " + kisim.ad() + " s." + soru.sayfa() + " '" + kisalt(soru.soru()) + "'";
+                    if (soru.cevap().isEmpty()) {
+                        hatalar.add(yer + ": cevap yok");
+                        continue;
+                    }
+                    List<String> hedefler = new ArrayList<>();
+                    Matcher m = ATIF.matcher(soru.cevap());
+                    while (m.find()) {
+                        hedefler.add(m.group(1));
+                    }
+                    if (hedefler.isEmpty()) {
+                        hatalar.add(yer + ": cevapta 'bkz.' atfı yok");
+                        continue;
+                    }
+                    List<Belirtec> hedefDegerleri = new ArrayList<>();
+                    for (String h : hedefler) {
+                        hedefDegerleri.addAll(belirtecler(atifsiz(kucuk(kisimMetni(ks, h)))));
+                    }
+                    Set<String> hedefAnahtarlari = new LinkedHashSet<>();
+                    hedefDegerleri.forEach(b -> hedefAnahtarlari.add(b.anahtar()));
+                    for (Belirtec b : belirtecler(atifsiz(kucuk(soru.cevap())))) {
+                        degerSayisi++;
+                        if (!hedefAnahtarlari.contains(b.anahtar())) {
+                            Set<String> ayniTur = new LinkedHashSet<>();
+                            hedefDegerleri.stream().filter(h -> h.tur().equals(b.tur())).forEach(h -> ayniTur.add(h.yazim()));
+                            hatalar.add(yer + ": '" + b.yazim() + "' atıf yapılan başlıkta (bkz. " + String.join(", ", hedefler) + ") yok; oradaki aynı türden değerler: "
+                                    + (ayniTur.isEmpty() ? "yok" : String.join(", ", ayniTur)));
+                        }
+                    }
+                }
+            }
+            if (soruSayisi != kaynaktakiSoru) {
+                hatalar.add(r.surum + " PDF'te " + soruSayisi + " soru bulundu, kaynakta " + kaynaktakiSoru + " soru var");
+            }
+            ozet.append(r.surum).append(": ").append(soruSayisi).append(" soru, ").append(degerSayisi).append(" değer; ");
+        }
+        sonuc("D14", "Sık sorulanlar ve atıflar", hatalar.isEmpty(),
+                hatalar.isEmpty() ? ozet + "her değer atıf yapılan başlıkta yazılı" : String.join("; ", hatalar));
+    }
+
     // --- Yardımcılar ---
 
     static Rehber yukle(Path klasor, String surum) throws IOException {
@@ -411,6 +620,11 @@ public class RehberDogrulama {
                 stripper.setEndPage(i);
                 r.sayfalar.add(stripper.getText(doc));
             }
+            SatirToplayici toplayici = new SatirToplayici();
+            for (int i = 2; i <= doc.getNumberOfPages(); i++) {
+                List<PdfSatiri> sayfaSatirlari = toplayici.topla(doc, i);
+                r.satirlar.addAll(sayfaSatirlari.subList(1, sayfaSatirlari.size() - 1));
+            }
             for (PDPage sayfa : doc.getPages()) {
                 for (COSName ad : sayfa.getResources().getXObjectNames()) {
                     if (sayfa.getResources().getXObject(ad) instanceof PDImageXObject) {
@@ -423,6 +637,271 @@ public class RehberDogrulama {
             }
         }
         return r;
+    }
+
+    static List<Kisim> kisimlar(Rehber r, int ilkSayfa) {
+        List<Kisim> kisimlar = new ArrayList<>();
+        Pattern bolumBasligi = Pattern.compile("^(\\d+) .+");
+        Pattern altBaslik = Pattern.compile("^(\\d+\\.\\d+) .+");
+        Kisim simdiki = null;
+        String bolum = null;
+        for (PdfSatiri s : r.satirlar) {
+            if (s.sayfa() < ilkSayfa) {
+                continue;
+            }
+            Matcher b = bolumBasligi.matcher(s.metin());
+            Matcher a = altBaslik.matcher(s.metin());
+            if (s.boyut() >= 15f && s.agirlik().equals("Bold") && b.matches()) {
+                bolum = b.group(1);
+                simdiki = new Kisim(bolum, bolum, new ArrayList<>());
+                kisimlar.add(simdiki);
+            } else if (s.boyut() >= 12f && s.boyut() < 15f && s.agirlik().equals("Bold") && bolum != null && (a.matches() || s.metin().equals("Sık sorulanlar"))) {
+                simdiki = new Kisim(a.matches() ? a.group(1) : bolum + " SSS", bolum, new ArrayList<>());
+                kisimlar.add(simdiki);
+            } else if (simdiki != null) {
+                simdiki.satirlar().add(s);
+            }
+        }
+        return kisimlar;
+    }
+
+    static List<Birim> birimler(List<Kisim> kisimlar) {
+        List<Birim> birimler = new ArrayList<>();
+        for (Kisim kisim : kisimlar) {
+            if (Integer.parseInt(kisim.bolum()) >= Integer.parseInt(TARIFE_BOLUMU)) {
+                continue;
+            }
+            StringBuilder paragraf = new StringBuilder();
+            List<int[]> satirBaslari = new ArrayList<>();
+            PdfSatiri onceki = null;
+            for (PdfSatiri s : kisim.satirlar()) {
+                boolean govde = s.govde() && s.duz();
+                if (govde) {
+                    boolean yeni = paragraf.isEmpty() || PARAGRAF_BASI.matcher(s.metin()).lookingAt() || onceki == null
+                            || (onceki.sayfa() == s.sayfa() && s.y() - onceki.y() > PARAGRAF_ARALIGI);
+                    if (yeni) {
+                        paragrafBirimleri(kisim, paragraf, satirBaslari, birimler);
+                    } else {
+                        paragraf.append(' ');
+                    }
+                    satirBaslari.add(new int[] {paragraf.length(), s.sayfa()});
+                    paragraf.append(s.metin());
+                    onceki = s;
+                    continue;
+                }
+                paragrafBirimleri(kisim, paragraf, satirBaslari, birimler);
+                onceki = null;
+                if (s.tablo() && s.duz()) {
+                    birimler.add(birim(kisim, s.sayfa(), s.metin()));
+                }
+            }
+            paragrafBirimleri(kisim, paragraf, satirBaslari, birimler);
+        }
+        return birimler;
+    }
+
+    static void paragrafBirimleri(Kisim kisim, StringBuilder paragraf, List<int[]> satirBaslari, List<Birim> birimler) {
+        String metin = paragraf.toString();
+        if (!metin.replaceFirst("^• ", "").startsWith("Örnek:")) {
+            Matcher m = CUMLE_SONU.matcher(metin);
+            int bas = 0;
+            while (bas < metin.length()) {
+                int bit = m.find() ? m.start() : metin.length();
+                int sayfa = satirBaslari.get(0)[1];
+                for (int[] sb : satirBaslari) {
+                    if (sb[0] <= bas) {
+                        sayfa = sb[1];
+                    }
+                }
+                birimler.add(birim(kisim, sayfa, metin.substring(bas, bit)));
+                bas = bit == metin.length() ? bit : m.end();
+            }
+        }
+        paragraf.setLength(0);
+        satirBaslari.clear();
+    }
+
+    static Birim birim(Kisim kisim, int sayfa, String metin) {
+        return new Birim(kisim, sayfa, metin.strip(), atifsiz(kucuk(bosluk(metin))));
+    }
+
+    static List<Soru> sorular(Kisim kisim) {
+        List<Soru> sorular = new ArrayList<>();
+        StringBuilder soru = null;
+        StringBuilder cevap = null;
+        int sayfa = 0;
+        for (PdfSatiri s : kisim.satirlar()) {
+            if (!s.govde()) {
+                continue;
+            }
+            if (!s.duz()) {
+                if (soru == null || !cevap.isEmpty()) {
+                    if (soru != null) {
+                        sorular.add(new Soru(bosluk(soru.toString()), bosluk(cevap.toString()), sayfa));
+                    }
+                    soru = new StringBuilder();
+                    cevap = new StringBuilder();
+                    sayfa = s.sayfa();
+                }
+                soru.append(' ').append(s.metin());
+            } else if (soru != null) {
+                cevap.append(' ').append(s.metin());
+            }
+        }
+        if (soru != null) {
+            sorular.add(new Soru(bosluk(soru.toString()), bosluk(cevap.toString()), sayfa));
+        }
+        return sorular;
+    }
+
+    static String kisimMetni(List<Kisim> kisimlar, String no) {
+        StringBuilder metin = new StringBuilder();
+        for (Kisim k : kisimlar) {
+            if (no.contains(".") ? k.no().equals(no) : k.bolum().equals(no) && !k.sss()) {
+                k.satirlar().forEach(s -> metin.append(s.metin()).append('\n'));
+            }
+        }
+        return bosluk(metin.toString());
+    }
+
+    static List<Belirtec> belirtecler(String kucukMetin) {
+        List<Belirtec> sonuc = new ArrayList<>();
+        Matcher m = BELIRTEC.matcher(kucukMetin);
+        while (m.find()) {
+            if (m.group("sayi") != null) {
+                String birim = m.group("birim");
+                String ek = m.group("ek");
+                if (birim.equals("ay") && (ek.startsWith("r") || ek.startsWith("n"))) {
+                    continue;
+                }
+                String ad = BIRIM_ADI.get(birim);
+                if (m.group("ilk") != null) {
+                    sonuc.add(new Belirtec(ad, sayi(m.group("ilk")), m.group("ilk") + " " + ad, m.start("ilk")));
+                }
+                sonuc.add(new Belirtec(ad, sayi(m.group("sayi")), m.group("sayi") + " " + ad, m.start("sayi")));
+            } else if (m.group("yuzde") != null) {
+                sonuc.add(new Belirtec("%", sayi(m.group("yuzde")), "%" + m.group("yuzde"), m.start()));
+            } else if (m.group("binde") != null) {
+                sonuc.add(new Belirtec(m.group("binde"), sayi(m.group("bsayi")), m.group("binde") + " " + m.group("bsayi"), m.start()));
+            } else {
+                sonuc.add(new Belirtec("saat (ss.dd)", m.group("saat"), m.group("saat"), m.start()));
+            }
+        }
+        return sonuc;
+    }
+
+    static String sayi(String yazim) {
+        return new BigDecimal(yazim.replace(".", "").replace(',', '.')).stripTrailingZeros().toPlainString();
+    }
+
+    // Sonuç: null = pencerede karşılaştırılacak değer yok; "" = değer tarifeyle aynı; diğer = çelişkinin açıklaması.
+    static String karsilastir(String tur, List<Belirtec> tarifeDegerleri, String pencere) {
+        List<Belirtec> degerler = belirtecler(pencere);
+        Matcher u = UCRETSIZ_SOZ.matcher(pencere);
+        int ucretsiz = u.find() ? u.start() : Integer.MAX_VALUE;
+        int ilkDeger = degerler.isEmpty() ? Integer.MAX_VALUE : degerler.get(0).bas();
+        switch (tur) {
+            case "ucretsiz" -> {
+                if (ilkDeger < ucretsiz) {
+                    return "bölümde " + degerler.get(0).yazim() + ", tarifede ücretsiz";
+                }
+                return ucretsiz < Integer.MAX_VALUE ? "" : null;
+            }
+            case "metin" -> {
+                return degerler.isEmpty() ? "" : "bölümde " + degerler.get(0).yazim() + ", tarifede değer yok";
+            }
+            default -> {
+                if (ucretsiz < ilkDeger) {
+                    return "bölümde ücretsiz, tarifede " + tarifeDegerleri.get(0).yazim();
+                }
+                Map<String, Belirtec> ilkler = new LinkedHashMap<>();
+                degerler.forEach(d -> ilkler.putIfAbsent(d.tur(), d));
+                Map<String, Belirtec> tarifeIlkleri = new LinkedHashMap<>();
+                tarifeDegerleri.forEach(d -> tarifeIlkleri.putIfAbsent(d.tur(), d));
+                int karsilastirilan = 0;
+                for (Belirtec t : tarifeIlkleri.values()) {
+                    Belirtec d = ilkler.get(t.tur());
+                    if (d == null) {
+                        continue;
+                    }
+                    karsilastirilan++;
+                    if (!d.deger().equals(t.deger())) {
+                        return "bölümde " + d.yazim() + ", tarifede " + t.yazim();
+                    }
+                }
+                return karsilastirilan > 0 ? "" : null;
+            }
+        }
+    }
+
+    static String atifsiz(String kucukMetin) {
+        return ATIF.matcher(kucukMetin).replaceAll("bkz.");
+    }
+
+    static String kisalt(String metin) {
+        return metin.length() <= 100 ? metin : metin.substring(0, 99) + "…";
+    }
+
+    static int soruSayisi(Path klasor) throws IOException {
+        int sayi = 0;
+        try (var dosyalar = Files.list(klasor)) {
+            for (Path p : dosyalar.filter(d -> d.toString().endsWith(".typ")).sorted().toList()) {
+                String metin = Files.readString(p, StandardCharsets.UTF_8);
+                for (int i = metin.indexOf("#soru["); i >= 0; i = metin.indexOf("#soru[", i + 1)) {
+                    sayi++;
+                }
+            }
+        }
+        return sayi;
+    }
+
+    static String agirlik(String yaziTipi) {
+        return yaziTipi.contains("Semibold") ? "Semibold" : yaziTipi.contains("Bold") ? "Bold" : "Regular";
+    }
+
+    // Her satırı ilk karakterinin yazı tipi boyutu, ağırlığı ve konumuyla toplar.
+    static class SatirToplayici extends PDFTextStripper {
+        private final List<PdfSatiri> satirlar = new ArrayList<>();
+        private final StringBuilder metin = new StringBuilder();
+        private TextPosition ilk;
+        private int sayfa;
+
+        List<PdfSatiri> topla(PDDocument doc, int sayfa) throws IOException {
+            this.sayfa = sayfa;
+            satirlar.clear();
+            setStartPage(sayfa);
+            setEndPage(sayfa);
+            getText(doc);
+            satiriBitir();
+            return new ArrayList<>(satirlar);
+        }
+
+        @Override
+        protected void writeString(String text, List<TextPosition> konumlar) {
+            if (ilk == null && !konumlar.isEmpty()) {
+                ilk = konumlar.get(0);
+            }
+            metin.append(text);
+        }
+
+        @Override
+        protected void writeWordSeparator() {
+            metin.append(' ');
+        }
+
+        @Override
+        protected void writeLineSeparator() {
+            satiriBitir();
+        }
+
+        private void satiriBitir() {
+            String s = metin.toString().strip();
+            if (!s.isEmpty() && ilk != null) {
+                satirlar.add(new PdfSatiri(sayfa, s, ilk.getFontSizeInPt(), agirlik(ilk.getFont().getName()), ilk.getYDirAdj(), ilk.getXDirAdj()));
+            }
+            metin.setLength(0);
+            ilk = null;
+        }
     }
 
     static void yerImleriniTopla(PDDocument doc, PDOutlineNode dugum, Rehber r) throws IOException {
@@ -574,10 +1053,21 @@ public class RehberDogrulama {
         final List<String> gercekBankalar = new ArrayList<>();
         final List<String> kapakNotlari = new ArrayList<>();
         final List<String> degismeyenBolumler = new ArrayList<>();
+        final List<Tarife> tarife = new ArrayList<>();
         int enAzSayfa;
         int enCokSayfa;
 
         record Satir(String surum, List<String> hucreler) {}
+
+        Tarife tarifeGirisi(String satir) {
+            Tarife bulunan = null;
+            for (Tarife t : tarife) {
+                if (satir.startsWith(t.etiket() + " ") && (bulunan == null || t.etiket().length() > bulunan.etiket().length())) {
+                    bulunan = t;
+                }
+            }
+            return bulunan;
+        }
 
         static Kontroller oku(Path dosya) throws IOException {
             Kontroller k = new Kontroller();
@@ -609,6 +1099,20 @@ public class RehberDogrulama {
                 for (String b : s.split(",")) {
                     k.degismeyenBolumler.add(b.strip());
                 }
+            }
+            for (String s : ham.getOrDefault("TARIFE", List.of())) {
+                int ok = s.indexOf(" => ");
+                if (ok < 0) {
+                    throw new IllegalArgumentException("kontroller.txt [TARIFE] satırında ' => ' yok: " + s);
+                }
+                String sag = s.substring(ok + 4).strip();
+                List<Pattern> kaliplar = new ArrayList<>();
+                if (!sag.equals("yalniz-tarife")) {
+                    for (String kalip : sag.split(" \\|\\| ")) {
+                        kaliplar.add(Pattern.compile(kalip.strip()));
+                    }
+                }
+                k.tarife.add(new Tarife(s.substring(0, ok).strip(), sag.equals("yalniz-tarife"), kaliplar));
             }
             String[] aralik = ham.get("SAYFA_ARALIGI").get(0).split("-");
             k.enAzSayfa = Integer.parseInt(aralik[0].strip());
