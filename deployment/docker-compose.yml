@@ -26,6 +26,12 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/assistant
       DATABASE_USER: assistant
       DATABASE_PASSWORD: assistant-local
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      CHAT_MODEL: qwen3.5:9b
+      RERANKER_URL: http://host.docker.internal:8081
+      RERANKER_MODEL: bge-reranker-v2-m3
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8090:8090"
     healthcheck:
@@ -44,6 +50,11 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/retrieval
       DATABASE_USER: retrieval
       DATABASE_PASSWORD: retrieval-local
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      EMBEDDING_MODEL: bge-m3
+      EMBEDDING_DIMENSIONS: "1024"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
     healthcheck:

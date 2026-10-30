@@ -1,6 +1,6 @@
 <!--
 AMAÇ: Claude (ve ekip üyeleri) deployment/ altında bir dosyayı okuyunca ya da düzenleyince yüklenir.
-Durum: TASK-002 ile compose dosyaları var (4 servis). pgAdmin, Ollama ve reranker bağlantısı sonraki task'larda eklenir.
+Durum: TASK-002 ile compose dosyaları var (4 servis); TASK-003 ile lokal modeller Mac'te çalışıyor ve ortam değişkenleri verildi. pgAdmin sonraki task'ta eklenir.
 -->
 
 # Deployment (Docker)
@@ -13,8 +13,8 @@ Durum: TASK-002 ile compose dosyaları var (4 servis). pgAdmin, Ollama ve rerank
 | `retrieval-api` | Kaynak, sürüm, içe alma, parçalama, embedding, vektör arama | `8080` |
 | `postgres` | pgvector'lü PostgreSQL (lab: `pgvector/pgvector:0.8.1-pg18`); iki veritabanı: `assistant` (assistant-api) ve `retrieval` (retrieval-api), ayrı kullanıcılarla | `127.0.0.1:5432` |
 | `pgadmin` | (henüz yok) Veritabanı arayüzü | `127.0.0.1:5050` |
-| Ollama (Mac'te, henüz bağlı değil) | Dil modeli `qwen3.5:9b` (assistant-api), embedding `bge-m3` 1024 boyut (retrieval-api) (lab; kesin modeller kullanıcı onayıyla) | `11434` |
-| Reranker, llama-server (Mac'te, henüz bağlı değil) | `POST /v1/rerank`, `bge-reranker-v2-m3` (lab) | `8081` |
+| Ollama (Mac'te çalışıyor, TASK-003; servisler TASK-005/008'de bağlanır) | Dil modeli `qwen3.5:9b` (assistant-api), embedding `bge-m3` 1024 boyut (retrieval-api) (lab; kesin modeller kullanıcı onayıyla) | `11434` |
+| Reranker, llama-server (Mac'te çalışıyor, TASK-003; TASK-009'da bağlanır; başlatma komutu `ollama.md`'de) | `POST /v1/rerank`, `bge-reranker-v2-m3` Q8_0 | `8081` |
 
 Geliştirme: `cd assistant-api && ./mvnw spring-boot:run` → 8090, `cd retrieval-api && ./mvnw spring-boot:run` → 8080, `cd web && npm run dev` → 5173 (Vite proxy: `/api/assistant` → `http://localhost:8090`, `/api/workspaces` → `http://localhost:8080`).
 
@@ -33,13 +33,19 @@ Tek PostgreSQL sunucusu (pgvector'lü imaj), iki ayrı veritabanı: `assistant` 
 - nginx: `/api/assistant/` → assistant-api:8090, `/api/workspaces/` → retrieval-api:8080, diğer `/api/` → 404 problem+json `NOT_FOUND`, `/` → SPA fallback. `/actuator` web'den yayınlanmaz (SPA HTML'i döner). SSE tampon ayarları ve yükleme sınırı ilgili task'larda eklenecek.
 - E2E: sistem açıkken `cd web && npx playwright install chromium && npm run test:e2e` (`E2E_BASE_URL` varsayılan http://localhost:3000).
 
+## Gerçek yapı (TASK-003)
+- `docker-compose.yml`: assistant-api'ye `OLLAMA_BASE_URL`, `CHAT_MODEL`, `RERANKER_URL`, `RERANKER_MODEL`; retrieval-api'ye `OLLAMA_BASE_URL`, `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`; ikisine de `extra_hosts: host.docker.internal:host-gateway`. Adresler `http://host.docker.internal:11434` ve `:8081`. Servis kodu bunları henüz okumaz.
+- Reranker Compose'da değildir: Mac'te Homebrew llama-server (`ollama.md`), ön planda ayrı terminal, `--host 127.0.0.1` (container erişimi bu şekilde doğrulandı). Ollama `brew services start ollama` ile `127.0.0.1:11434`.
+- llama-server `-hf` modeli `~/.cache/huggingface/hub/`'a indirir (llama.cpp önbelleği değil).
+- Model kapalıyken dört servis `healthy` kalır (doğrulandı).
+
 ## Ayarlar
 - Değerler compose dosyalarında düz yazılır; şifreler sadece local kullanım içindir (dosya başında "local use only" yorumu). Dockerfile'a ya da imaja gömülmez. Gerçek gizli bilgi bu yapıya girmez.
 - Model adları ve adresleri servislere ortam değişkeniyle verilir (`assistant-api/CLAUDE.md`, `retrieval-api/CLAUDE.md`).
 
 ## Komutlar
 Hepsi repo kökünden çalıştırılır. - Önce kontrol: `docker info`. Hata verirse Docker Desktop kapalıdır; kendin düzeltmeye çalışma, lead'e bildir.
-- Lokal modeller: `curl -s localhost:11434/api/tags` (Ollama açık mı, modeller indirilmiş mi). Reranker: `curl -s localhost:8081/health`. Model indirme komutları `ollama.md`'dedir (ilk model task'ında oluşturulur).
+- Lokal modeller: `curl -s localhost:11434/api/tags` (Ollama açık mı, modeller indirilmiş mi). Reranker: `curl -s localhost:8081/health`. Model indirme ve reranker başlatma komutları `ollama.md`'dedir.
 - Tam sistem: `docker compose -f deployment/docker-compose.yml up --build -d`; durum `… ps` (tüm servisler `healthy`); log `… logs --tail=100 assistant-api`; durdur `… down`; veriyi sıfırla `… down -v`.
 
 ## Dosya sahipliği
