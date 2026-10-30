@@ -24,6 +24,7 @@ Kaynak detay ekranındaki "Yeni sürüm yükle" düğmesi çalışır. Kullanıc
 9. **Düğme davranışı:** Lab'da 2026.11 yüklendikten sonra düğme "Güncel sürüm yüklü" olup kapanıyordu, çünkü demoda sadece iki sürüm vardı. Gerçek üründe iş sürmüyorsa düğme her zaman açıktır; sonraki sürümler de yüklenebilir.
 10. **Sürümün izi:** Önceki turlar kendi rehber sürümünü (2026.10) korur. Yeni turlar 2026.11 ile kaydedilir. Yapılandırma şeridindeki "Rehber" değeri güncellenir.
 11. Eski sürümün PDF'i ve iş geçmişi saklanır. Eski sürüm parçalarının saklanıp saklanmayacağı (sadece güncel sürüm aranır) onay kartında belirlenir; değerlendirme geçmişi ve konuşma detayı bundan etkilenir.
+12. **Bellekte PDF:** Kuyrukta bekleyen işler yüklenen PDF'in baytlarını bellekte tutmaz; iş, çalışmaya başladığında dosyayı saklandığı yerden okur. 20 MB'lık bir yükleme kuyrukta beklerken servisin belleği yükleme sayısıyla büyümez. Kaynak: `docs/tasks/TASK-005/handoff/05-qa-report.md` (Kod review bulguları, Optional: `IngestionJobRunner.submit`, `IngestionService.queueIngestion`).
 
 ## Örnek senaryolar
 - Kullanıcı 2026.11 PDF'ini seçer, "2026.11" etiketini girer, "Yükle ve işle"ye basar. Kart aşamaları gösterir. EMBEDDING sırasında Önizleme'de sorulan "Raşit Gold yıllık üyelik ücreti ne kadar?" sorusu 1.450 TL cevabını alır. İş `DONE` olduktan sonra aynı soru 1.650 TL cevabını alır.
