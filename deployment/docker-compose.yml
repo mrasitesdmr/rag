@@ -53,6 +53,9 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       EMBEDDING_MODEL: bge-m3
       EMBEDDING_DIMENSIONS: "1024"
+      INGESTION_BOOTSTRAP_FILE: /app/rehber/Rasit-Bankasi-Urun-Hizmet-Rehberi-2026.10.pdf
+    volumes:
+      - ../docs/rehber/pdf:/app/rehber:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

@@ -4,7 +4,9 @@
 # Planner günceller; backend-coder buna göre endpoint yazar, frontend-coder buna göre çağrı yapar, qa uyumu kontrol eder.
 # Uyum kontrolünde her servisin /v3/api-docs.yaml çıktısı bu dosyanın kendi path önekiyle karşılaştırılır.
 # Cevap akışının (SSE) olayları docs/api/sse.md'dedir; burada sadece akış endpoint'inin kendisi ve akış öncesi hataları tanımlanır.
-# Durum: iskelet (TASK-002). Endpoint yok; sadece iki servisin de kullanacağı ortak hata şeması ve sayfa parametreleri var.
+# Durum: TASK-005. retrieval-api'de ilk uç: içe alma işinin durumu (GET .../ingestion-jobs/{jobId}). assistant-api'de henüz uç yok.
+# İçe alma işini başlatan bir REST ucu yok: rehberin ilk sürümü retrieval-api açılışında yapılandırılmış dosyadan içe alınır (TASK-005);
+#   yeni sürüm yükleme ucu TASK-015'te eklenir.
 # Ortak davranış (TASK-002): iki serviste de tanımsız bir path'e gelen her istek 404 + application/problem+json + errorCode NOT_FOUND döner
 #   (ör. GET /api/assistant/yok). web'in nginx'i /api/assistant/ ve /api/workspaces/ dışındaki /api/** isteklerine aynı biçimde 404 NOT_FOUND döner.
 # Sağlık ucu (GET /actuator/health, her servisin kendi portunda) işletim ucudur; bu sözleşmenin parçası değildir ve web üzerinden yayınlanmaz.
@@ -12,9 +14,61 @@ openapi: 3.1.0
 info:
   title: RAG Asistan API
   version: 0.0.0
-paths: {}
+tags:
+  - name: Ingestion jobs
+    description: Background ingestion jobs of a workspace (retrieval-api)
+paths:
+  /api/workspaces/{workspaceId}/ingestion-jobs/{jobId}:
+    get:
+      tags: [Ingestion jobs]
+      operationId: getIngestionJob
+      summary: Get the stage and progress of an ingestion job
+      description: |
+        retrieval-api. Polled while the job runs. Stages advance QUEUED → PARSING → CHUNKING → EMBEDDING → WRITING → DONE;
+        on error the job becomes FAILED, keeps the stage it failed in (`failedStage`) and carries a fixed `errorCode`
+        (`IngestionErrorCode`). Chunks are written in a single transaction at WRITING; a FAILED job never leaves chunks behind.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - name: jobId
+          in: path
+          required: true
+          description: Ingestion job id
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '200':
+          description: The job
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionJobResponse'
+        '400':
+          description: '`BAD_REQUEST`: `workspaceId` or `jobId` is not an integer (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`WORKSPACE_NOT_FOUND`: no workspace with this id (only 42 exists); `INGESTION_JOB_NOT_FOUND`: no job with this id in the workspace'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   parameters:
+    WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      description: Workspace id. There is exactly one workspace, 42 ("Raşit Bankası · Dijital Asistan").
+      schema:
+        type: integer
+        format: int64
+        example: 42
     Page:
       name: page
       in: query
@@ -85,6 +139,8 @@ components:
             - NOT_ACCEPTABLE
             - UNSUPPORTED_MEDIA_TYPE
             - INTERNAL_ERROR
+            - WORKSPACE_NOT_FOUND
+            - INGESTION_JOB_NOT_FOUND
         violations:
           type: array
           description: Only for `VALIDATION_FAILED`
@@ -101,3 +157,96 @@ components:
           type: string
           description: Fixed English message
           example: must be greater than or equal to 0
+    IngestionStage:
+      type: string
+      description: QUEUED → PARSING → CHUNKING → EMBEDDING → WRITING → DONE; FAILED on error
+      enum: [QUEUED, PARSING, CHUNKING, EMBEDDING, WRITING, DONE, FAILED]
+    IngestionErrorCode:
+      type: string
+      description: |
+        Why a job is FAILED. Not an HTTP error; carried in the job body.
+        - `PDF_UNREADABLE`: the file cannot be opened as a PDF (corrupt, encrypted, not a PDF)
+        - `PDF_NO_SECTIONS`: the PDF has no numbered chapter bookmarks or no text under them
+        - `EMBEDDING_UNAVAILABLE`: the embedding model did not answer, answered with an error or returned a wrong number of vectors (after retries)
+        - `EMBEDDING_DIMENSION_MISMATCH`: the embedding model returned a vector whose size is not the workspace's (1024)
+        - `EMBEDDING_MODEL_MISMATCH`: the configured embedding model is not the workspace's (`bge-m3@1024`)
+        - `INGESTION_INTERRUPTED`: the service stopped while the job was active; marked on the next start
+        - `INTERNAL_ERROR`: unexpected error
+      enum:
+        - PDF_UNREADABLE
+        - PDF_NO_SECTIONS
+        - EMBEDDING_UNAVAILABLE
+        - EMBEDDING_DIMENSION_MISMATCH
+        - EMBEDDING_MODEL_MISMATCH
+        - INGESTION_INTERRUPTED
+        - INTERNAL_ERROR
+    IngestionJobResponse:
+      type: object
+      description: One ingestion job (one file, one version label)
+      required: [jobId, workspaceId, sourceId, version, fileName, stage, failedStage, progress, embeddedChunks, totalChunks, errorCode, createdAt, startedAt, finishedAt, statusUrl]
+      properties:
+        jobId:
+          type: integer
+          format: int64
+          example: 1
+        workspaceId:
+          type: integer
+          format: int64
+          example: 42
+        sourceId:
+          type: integer
+          format: int64
+          example: 10001
+        version:
+          type: string
+          description: Version label of the ingested file
+          example: '2026.10'
+        fileName:
+          type: string
+          example: Rasit-Bankasi-Urun-Hizmet-Rehberi-2026.10.pdf
+        stage:
+          $ref: '#/components/schemas/IngestionStage'
+        failedStage:
+          description: The stage the job was in when it failed; null unless `stage` is FAILED
+          oneOf:
+            - $ref: '#/components/schemas/IngestionStage'
+            - type: 'null'
+        progress:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: |
+            QUEUED 0, PARSING 0.05, CHUNKING 0.1, EMBEDDING 0.1 + 0.8 × embeddedChunks / totalChunks, WRITING 0.9, DONE 1.0.
+            A FAILED job keeps the value it had when it failed.
+          example: 0.1
+        embeddedChunks:
+          type: integer
+          format: int32
+          description: Chunks embedded so far. Chunks are not written until WRITING.
+          example: 0
+        totalChunks:
+          type: [integer, 'null']
+          format: int32
+          description: Number of chunks of the document; null until CHUNKING finishes
+          example: 152
+        errorCode:
+          description: Null unless `stage` is FAILED
+          oneOf:
+            - $ref: '#/components/schemas/IngestionErrorCode'
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: [string, 'null']
+          format: date-time
+          description: When PARSING started
+        finishedAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the job became DONE or FAILED. For a DONE job this is the source version's "last sync" time.
+        statusUrl:
+          type: string
+          description: This resource's path (same as the `Location` header of the endpoints that will start jobs, TASK-015)
+          example: /api/workspaces/42/ingestion-jobs/1

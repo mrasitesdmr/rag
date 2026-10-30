@@ -13,7 +13,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 /**
  * GlobalExceptionHandler'ın her hata türünü sabit errorCode'lu RFC 9457 yanıtına çevirdiğini doğrular.
  */
-@WebMvcTest
+@WebMvcTest(controllers = ErrorProbeController.class)
 @Import({ErrorProbeController.class, GlobalExceptionHandler.class})
 class GlobalExceptionHandlerTest {
 
@@ -117,5 +117,23 @@ class GlobalExceptionHandlerTest {
 
         assertThat(result).hasStatus(400);
         assertThat(result).bodyJson().extractingPath("$.violations[0].field").isEqualTo("pageNumber");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "unavailable,503,Service Unavailable,EMBEDDING_UNAVAILABLE,embedding-unavailable",
+            "conflict,409,Conflict,EMBEDDING_MODEL_MISMATCH,embedding-model-mismatch",
+            "unprocessable,422,Unprocessable Content,PDF_UNREADABLE,pdf-unreadable"})
+    void givenDomainException_whenGet_thenProblemCarriesStatusTitleErrorCodeTypeAndInstance(String path, int status,
+            String title, String errorCode, String typeSuffix) {
+        var result = mvc.get().uri("/api/workspaces/probe-ws/probe/" + path).exchange();
+
+        assertThat(result).hasStatus(status).hasContentType(PROBLEM_JSON);
+        assertThat(result).bodyJson().extractingPath("$.errorCode").isEqualTo(errorCode);
+        assertThat(result).bodyJson().extractingPath("$.title").isEqualTo(title);
+        assertThat(result).bodyJson().extractingPath("$.type")
+                .isEqualTo("https://rag.example/errors/" + typeSuffix);
+        assertThat(result).bodyJson().extractingPath("$.instance")
+                .isEqualTo("/api/workspaces/probe-ws/probe/" + path);
     }
 }

@@ -38,13 +38,14 @@ class RetrievalApplicationIntegrationTest {
     private JdbcTemplate jdbc;
 
     @Test
-    void givenFreshDatabase_whenContextStarts_thenFlywayAppliedVersion1() {
+    void givenFreshDatabase_whenContextStarts_thenFlywayAppliedVersions1To4() {
         var applied = flyway.info().applied();
 
-        assertThat(applied).hasSize(1);
+        assertThat(applied).hasSize(4);
         assertThat(applied[0].getVersion().getVersion()).isEqualTo("1");
         assertThat(applied[0].getDescription()).isEqualTo("enable vector extension");
-        assertThat(applied[0].getState().isApplied()).isTrue();
+        assertThat(applied[3].getVersion().getVersion()).isEqualTo("4");
+        assertThat(applied).allSatisfy(migration -> assertThat(migration.getState().isApplied()).isTrue());
         assertThat(flyway.info().pending()).isEmpty();
     }
 

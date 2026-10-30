@@ -1,6 +1,6 @@
 <!--
 AMAÇ: Claude (ve ekip üyeleri) deployment/ altında bir dosyayı okuyunca ya da düzenleyince yüklenir.
-Durum: TASK-002 ile compose dosyaları var (4 servis); TASK-003 ile lokal modeller Mac'te çalışıyor ve ortam değişkenleri verildi. pgAdmin sonraki task'ta eklenir.
+Durum: TASK-002 ile compose dosyaları var (4 servis); TASK-003 ile lokal modeller Mac'te çalışıyor; TASK-005 ile retrieval-api rehberi açılışta içe alıyor. pgAdmin sonraki task'ta eklenir.
 -->
 
 # Deployment (Docker)
@@ -38,6 +38,14 @@ Tek PostgreSQL sunucusu (pgvector'lü imaj), iki ayrı veritabanı: `assistant` 
 - Reranker Compose'da değildir: Mac'te Homebrew llama-server (`ollama.md`), ön planda ayrı terminal, `--host 127.0.0.1` (container erişimi bu şekilde doğrulandı). Ollama `brew services start ollama` ile `127.0.0.1:11434`.
 - llama-server `-hf` modeli `~/.cache/huggingface/hub/`'a indirir (llama.cpp önbelleği değil).
 - Model kapalıyken dört servis `healthy` kalır (doğrulandı).
+
+## Gerçek yapı (TASK-005)
+- retrieval-api: `../docs/rehber/pdf:/app/rehber:ro` bağlanır, `INGESTION_BOOTSTRAP_FILE=/app/rehber/Rasit-Bankasi-Urun-Hizmet-Rehberi-2026.10.pdf`. PDF imaja girmez; `app` (uid 999) dosyayı okuyabilir (host 644).
+- Açılışta servis rehberi içe alır (iş arka planda; servis hemen `healthy` olur, içe alma ~10 sn sürer). Yeniden başlatmada `ALREADY_INGESTED`, yeni iş yok. Yarıda kalan iş `FAILED` + `INGESTION_INTERRUPTED` olur.
+- Ollama Compose'dan önce açık olmalı. Kapalıysa iş `EMBEDDING_UNAVAILABLE` ile FAILED; Ollama açılınca `restart retrieval-api` yeni iş başlatır. Durum: `curl localhost:8080/api/workspaces/42/ingestion-jobs/<id>`.
+- Ollama'ya ulaşılamama denemesi: OLLAMA_BASE_URL'i geçersiz veren geçici override dosyasıyla (`-f docker-compose.yml -f override.yml`); Ollama'yı durdurmaya gerek yok.
+- Port 5432: dev postgres (`rag-dev`) açıkken tam sistem açılamaz; önce `docker compose -f deployment/docker-compose.dev.yml stop`.
+- Temiz başlangıç için `down -v` (volume `rag_pgdata` silinir).
 
 ## Ayarlar
 - Değerler compose dosyalarında düz yazılır; şifreler sadece local kullanım içindir (dosya başında "local use only" yorumu). Dockerfile'a ya da imaja gömülmez. Gerçek gizli bilgi bu yapıya girmez.

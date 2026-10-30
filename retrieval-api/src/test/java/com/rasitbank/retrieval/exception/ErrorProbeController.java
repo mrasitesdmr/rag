@@ -44,6 +44,21 @@ class ErrorProbeController {
         return "page " + page;
     }
 
+    @GetMapping("/unavailable")
+    String unavailable() {
+        throw new ServiceUnavailableException("EMBEDDING_UNAVAILABLE", "model down");
+    }
+
+    @GetMapping("/conflict")
+    String conflict() {
+        throw new ConflictException("EMBEDDING_MODEL_MISMATCH", "mismatch");
+    }
+
+    @GetMapping("/unprocessable")
+    String unprocessable() {
+        throw new UnprocessableContentException("PDF_UNREADABLE", "bad pdf");
+    }
+
     @GetMapping("/boom")
     String boom() {
         throw new IllegalStateException("boom-secret");

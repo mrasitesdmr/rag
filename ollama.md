@@ -134,17 +134,20 @@ Makine: Apple M5, 16 GB, Metal'in kullanılabilir belleği ~12 GB. Üç model bi
 - Üç model birlikteyken başka büyük model (ör. diskteki `qwen3-vl:8b`) açma; swap artar ve her şey yavaşlar.
 
 ## 8. Servislerin kullanacağı ortam değişkenleri
-Compose'da ayarlıdır. Servis kodu bunları sonraki task'larda okur.
+Compose'da ayarlıdır. retrieval-api değişkenlerini TASK-005'ten beri okur; assistant-api olanları sonraki task'larda okunur.
 
 | Servis | Değişken | Docker değeri | Lokal varsayılan | Okuyacak task |
 |--------|----------|---------------|------------------|---------------|
-| retrieval-api | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | `http://localhost:11434` | TASK-005 |
-| retrieval-api | `EMBEDDING_MODEL` | `bge-m3` | `bge-m3` | TASK-005 |
-| retrieval-api | `EMBEDDING_DIMENSIONS` | `1024` | `1024` | TASK-005 |
+| retrieval-api | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | `http://localhost:11434` | TASK-005 (okunuyor) |
+| retrieval-api | `EMBEDDING_MODEL` | `bge-m3` | `bge-m3` | TASK-005 (okunuyor) |
+| retrieval-api | `EMBEDDING_DIMENSIONS` | `1024` | `1024` | TASK-005 (okunuyor) |
 | assistant-api | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | `http://localhost:11434` | TASK-008 |
 | assistant-api | `CHAT_MODEL` | `qwen3.5:9b` | `qwen3.5:9b` | TASK-008 |
 | assistant-api | `RERANKER_URL` | `http://host.docker.internal:8081` | `http://localhost:8081` | TASK-009 |
 | assistant-api | `RERANKER_MODEL` | `bge-reranker-v2-m3` | `bge-reranker-v2-m3` | TASK-009 |
+
+### Rehberin ilk içe alınması (TASK-005)
+retrieval-api açılışta rehberi (`docs/rehber/pdf/…2026.10.pdf`, container'da `/app/rehber` salt okunur) kendiliğinden `bge-m3` ile içe alır; yaklaşık 154 parça, ~9 sn. **Sıra: Ollama açık → Compose.** Ollama kapalıyken açılırsa iş `FAILED` + `EMBEDDING_UNAVAILABLE` olur (servis yine `healthy`); Ollama'yı açıp `docker compose -f deployment/docker-compose.yml restart retrieval-api` yeterlidir, rehber girer. Durum: `curl localhost:8080/api/workspaces/42/ingestion-jobs/1`.
 
 ## 9. Sorun giderme
 - `curl: (7) Failed to connect` (11434 / 8081): sunucu kapalı. `brew services start ollama` ya da reranker komutunu çalıştır.
