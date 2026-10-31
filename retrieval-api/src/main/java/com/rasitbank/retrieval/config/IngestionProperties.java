@@ -1,10 +1,9 @@
 package com.rasitbank.retrieval.config;
 
-import java.nio.file.Path;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * İçe alma hattının parçalama, embedding grubu, sayfa üst/alt bilgi kalıbı ve rehberin ilk giriş ayarlarını taşır.
+ * İçe alma hattının parçalama, embedding grubu ve tekrar eden sayfa üst/alt bilgisini ayıklama ayarlarını taşır.
  */
 @ConfigurationProperties("ingestion")
 public record IngestionProperties(
@@ -13,10 +12,7 @@ public record IngestionProperties(
         int overlapChars,
         int charsPerToken,
         int embeddingBatchSize,
-        String pageHeaderPattern,
-        String pageFooterPattern,
-        Bootstrap bootstrap) {
-
-    public record Bootstrap(boolean enabled, Path file, String sourceName, String version) {
-    }
+        int repeatedLineMinPages,
+        double repeatedLineMinShare,
+        int repeatedLineMaxPerEdge) {
 }

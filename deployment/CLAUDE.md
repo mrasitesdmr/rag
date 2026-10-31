@@ -1,6 +1,6 @@
 <!--
 AMAÇ: Claude (ve ekip üyeleri) deployment/ altında bir dosyayı okuyunca ya da düzenleyince yüklenir.
-Durum: TASK-002 ile compose dosyaları var (4 servis); TASK-003 ile lokal modeller Mac'te çalışıyor; TASK-005 ile retrieval-api rehberi açılışta içe alıyor. pgAdmin sonraki task'ta eklenir.
+Durum: TASK-002 ile compose dosyaları var (4 servis); TASK-003 ile lokal modeller Mac'te çalışıyor; TASK-027 ile açılışta otomatik içe alma kalktı, belgeler yüklenir. pgAdmin sonraki task'ta eklenir.
 -->
 
 # Deployment (Docker)
@@ -30,7 +30,7 @@ Tek PostgreSQL sunucusu (pgvector'lü imaj), iki ayrı veritabanı: `assistant` 
 - Şifreler (local): `postgres-local`, `assistant-local`, `retrieval-local`; servislere `DATABASE_URL/USER/PASSWORD` ortam değişkeniyle gider.
 - Veritabanı ayrımı: `assistant` ve `retrieval` rolleri kendi veritabanının sahibidir; `assistant`, `retrieval` ve `postgres` veritabanlarında `CONNECT` PUBLIC'ten alındı. Çapraz bağlantı `permission denied for database` verir. `vector` eklentisini init script süper kullanıcıyla `retrieval` içine kurar.
 - Healthcheck'ler: postgres `pg_isready -h 127.0.0.1` (TCP; init bitmeden healthy olmaz), servisler `curl -sf /actuator/health`, web `wget`. Health gövdesi `{"groups":["liveness","readiness"],"status":"UP"}`.
-- nginx: `/api/assistant/` → assistant-api:8090, `/api/workspaces/` → retrieval-api:8080, diğer `/api/` → 404 problem+json `NOT_FOUND`, `/` → SPA fallback. `/actuator` web'den yayınlanmaz (SPA HTML'i döner). SSE tampon ayarları ve yükleme sınırı ilgili task'larda eklenecek.
+- nginx: `/api/assistant/` → assistant-api:8090, `/api/workspaces/` → retrieval-api:8080, diğer `/api/` → 404 problem+json `NOT_FOUND`, `/` → SPA fallback. `/actuator` web'den yayınlanmaz (SPA HTML'i döner). Yükleme sınırı TASK-027'de eklendi; SSE tampon ayarları ilgili task'ta eklenecek.
 - E2E: sistem açıkken `cd web && npx playwright install chromium && npm run test:e2e` (`E2E_BASE_URL` varsayılan http://localhost:3000).
 
 ## Gerçek yapı (TASK-003)
@@ -39,13 +39,21 @@ Tek PostgreSQL sunucusu (pgvector'lü imaj), iki ayrı veritabanı: `assistant` 
 - llama-server `-hf` modeli `~/.cache/huggingface/hub/`'a indirir (llama.cpp önbelleği değil).
 - Model kapalıyken dört servis `healthy` kalır (doğrulandı).
 
-## Gerçek yapı (TASK-005)
-- retrieval-api: `../docs/rehber/pdf:/app/rehber:ro` bağlanır, `INGESTION_BOOTSTRAP_FILE=/app/rehber/Rasit-Bankasi-Urun-Hizmet-Rehberi-2026.10.pdf`. PDF imaja girmez; `app` (uid 999) dosyayı okuyabilir (host 644).
-- Açılışta servis rehberi içe alır (iş arka planda; servis hemen `healthy` olur, içe alma ~10 sn sürer). Yeniden başlatmada `ALREADY_INGESTED`, yeni iş yok. Yarıda kalan iş `FAILED` + `INGESTION_INTERRUPTED` olur.
-- Ollama Compose'dan önce açık olmalı. Kapalıysa iş `EMBEDDING_UNAVAILABLE` ile FAILED; Ollama açılınca `restart retrieval-api` yeni iş başlatır. Durum: `curl localhost:8080/api/workspaces/42/ingestion-jobs/<id>`.
+## Gerçek yapı (TASK-005, TASK-027 ile güncel)
+- Açılışta otomatik içe alma yoktur (TASK-027); rehber klasörü bağlantısı ve `INGESTION_BOOTSTRAP_*` ayarları kalktı. Açılışta servis sadece yarıda kalan işleri `FAILED` + `INGESTION_INTERRUPTED` yapar.
+- Ollama Compose'dan önce açık olmalı (yükleme sırasında embedding gerekir). Kapalıyken yüklenen belgenin işi `FAILED` + `EMBEDDING_UNAVAILABLE` olur; Ollama açılınca yeniden dene (aşağıda).
 - Ollama'ya ulaşılamama denemesi: OLLAMA_BASE_URL'i geçersiz veren geçici override dosyasıyla (`-f docker-compose.yml -f override.yml`); Ollama'yı durdurmaya gerek yok.
 - Port 5432: dev postgres (`rag-dev`) açıkken tam sistem açılamaz; önce `docker compose -f deployment/docker-compose.dev.yml stop`.
-- Temiz başlangıç için `down -v` (volume `rag_pgdata` silinir).
+
+## Gerçek yapı (TASK-027)
+- Açılışta bilgi bankası **boştur**: `curl localhost:8080/api/workspaces/42/sources` → `content: []`.
+- Belge yükleme (`version` zorunlu), doğrudan retrieval-api ya da web adresi (nginx) üzerinden:
+  - `curl -F file=@rehber.pdf -F name="Ürün ve Hizmet Rehberi" -F version=2026.10 localhost:8080/api/workspaces/42/sources`
+  - `curl -F file=@rehber.pdf -F name="Ürün ve Hizmet Rehberi" -F version=2026.10 localhost:3000/api/workspaces/42/sources`
+  - Cevap 202 + `Location` (iş adresi); durum: `curl localhost:8080/api/workspaces/42/ingestion-jobs/<id>`.
+- Yeniden dene (tamamlanmış sürümü olmayan, işi sürmeyen kaynak): `curl -X POST localhost:8080/api/workspaces/42/sources/<id>/ingestion-jobs`.
+- nginx `/api/workspaces/` location'ında `client_max_body_size 21m`; retrieval-api sınırı 20 MB (aşılırsa 413 `FILE_TOO_LARGE`, problem+json).
+- **Eski rehber verisinin temizliği (TASK-005'ten kalan kaynak 10001 ve parçaları):** tam sistem için `docker compose -f deployment/docker-compose.yml down -v`; geliştirme postgres'i için `docker compose -f deployment/docker-compose.dev.yml down -v`. Bu komutlar veritabanını kalıcı siler; sadece kullanıcı onayıyla çalıştırılır.
 
 ## Ayarlar
 - Değerler compose dosyalarında düz yazılır; şifreler sadece local kullanım içindir (dosya başında "local use only" yorumu). Dockerfile'a ya da imaja gömülmez. Gerçek gizli bilgi bu yapıya girmez.

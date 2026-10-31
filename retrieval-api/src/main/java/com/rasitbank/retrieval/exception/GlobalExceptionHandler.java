@@ -22,9 +22,11 @@ import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -37,6 +39,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private static final String ERROR_TYPE_BASE_URI = "https://rag.example/errors/";
+    private static final String VALIDATION_FAILED = "VALIDATION_FAILED";
+    private static final String VALIDATION_FAILED_TITLE = "Validation Failed";
+    private static final String FILE_TOO_LARGE = "FILE_TOO_LARGE";
 
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException exception,
@@ -48,6 +53,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleHandlerMethodValidationException(HandlerMethodValidationException exception,
             HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         return validationFailed(toViolations(exception));
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException exception,
+            HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONTENT_TOO_LARGE,
+                "The uploaded file is larger than the allowed size");
+        problem.setType(typeUri(FILE_TOO_LARGE));
+        problem.setTitle("Content Too Large");
+        problem.setProperty("errorCode", FILE_TOO_LARGE);
+        return handleExceptionInternal(exception, problem, headers, HttpStatus.CONTENT_TOO_LARGE, request);
     }
 
     @Override
@@ -69,6 +85,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle(status.getReasonPhrase());
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("errorCode", exception.getErrorCode());
+        if (exception instanceof ValidationFailedException validationFailed) {
+            problem.setTitle(VALIDATION_FAILED_TITLE);
+            problem.setProperty("violations", validationFailed.getViolations().stream()
+                    .map(violation -> violation(violation.field(), violation.message()))
+                    .toList());
+        }
         return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problem);
     }
 
@@ -100,9 +122,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static ResponseEntity<Object> validationFailed(List<Map<String, String>> violations) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Request validation failed");
-        problem.setType(typeUri("VALIDATION_FAILED"));
-        problem.setTitle("Validation Failed");
-        problem.setProperty("errorCode", "VALIDATION_FAILED");
+        problem.setType(typeUri(VALIDATION_FAILED));
+        problem.setTitle(VALIDATION_FAILED_TITLE);
+        problem.setProperty("errorCode", VALIDATION_FAILED);
         problem.setProperty("violations", violations);
         return ResponseEntity.badRequest().body(problem);
     }
@@ -134,6 +156,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         RequestParam requestParam = parameter.getParameterAnnotation(RequestParam.class);
         if (requestParam != null && !requestParam.name().isEmpty()) {
             return requestParam.name();
+        }
+        RequestPart requestPart = parameter.getParameterAnnotation(RequestPart.class);
+        if (requestPart != null && !requestPart.name().isEmpty()) {
+            return requestPart.name();
         }
         return Objects.requireNonNullElse(parameter.getParameterName(), "parameter");
     }

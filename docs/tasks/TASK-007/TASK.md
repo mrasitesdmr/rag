@@ -12,41 +12,46 @@ Lab'ın sol yarısındaki Bilgi kaynakları ekranı ve kaynak detay ekranı ger�
    - Liste ekranının başlığında "Belge ekle" düğmesi vardır.
    - Pencerede dosya seçimi ve kaynak adı alanı vardır; ad boşsa dosya adı (uzantısız) kullanılır. Kabul edilen türler ve sınırlar TASK-027'deki kurallardır.
    - "Vazgeç" ve "Yükle ve işle" düğmeleri vardır. Yükleme başlayınca pencere kapanır, yeni kaynak listede iş aşamasıyla görünür.
-   - Doğrulama hataları (boş dosya, 20 MB üstü, desteklenmeyen tür, aynı ad) Türkçe mesajla pencerede gösterilir.
+   - Sürüm etiketi alanı zorunludur (TASK-027).
+   - Doğrulama hataları (boş dosya, 20 MB üstü, PDF olmayan dosya, aynı ad, eksik sürüm) Türkçe mesajla pencerede gösterilir.
+   - Yer imi (başlık) olmayan, metni olmayan ya da açılamayan PDF reddedilir; mesaj belgenin nasıl düzeltileceğini anlatır (ör. Word'de başlık stilleri ve PDF'e kaydederken "yer imi oluştur"). Metinler onay kartında belirlenir.
    - Pencere odak yönetimiyle çalışır: açılınca ilk alana odaklanır, Esc ile kapanır, odak düğmeye döner.
    - Görünüm ve metinler onay kartında lab'ın "Yeni sürüm yükle" penceresine benzetilerek gösterilir.
-3. **Boş durum:** Hiç belge yoksa liste yerine bir boş durum ve "Belge ekle" çağrısı gösterilir. Metni onay kartında belirlenir.
-4. **Detay ekranı (`/kaynaklar/{id}`):**
+3. **Yeniden dene:** İçe alma işi başarısız olmuş ve hiç tamamlanmış sürümü olmayan belgenin satırında "Yeniden dene" düğmesi vardır. Basınca TASK-027'deki yeniden deneme ucu çağrılır; satır yeniden iş aşamasını gösterir.
+4. **Boş durum:** Hiç belge yoksa liste yerine bir boş durum ve "Belge ekle" çağrısı gösterilir. Metni onay kartında belirlenir.
+5. **Detay ekranı (`/kaynaklar/{id}`):**
    - Breadcrumb ve başlık; alt başlıkta dosya adı, bayt, sürüm ve son senkron.
    - "PDF'i aç" düğmesi saklanan PDF'i yeni sekmede açar.
    - Meta kutuları: Sayfa / bölüm, Parça · ortalama token, Parça boyutu, Örtüşme, Embedding, Index. Değerler backend'den gelir.
-5. **İçe alma işleri:** Tabloda İş, Dosya, Sürüm, Parça, Süre ve Durum sütunları vardır; en yeni iş üstte.
-6. **Parçalar:**
+6. **İçe alma işleri:** Tabloda İş, Dosya, Sürüm, Parça, Süre ve Durum sütunları vardır; en yeni iş üstte.
+7. **Parçalar:**
    - Tabloda #, Sayfa · başlık, İlk satır ve Token sütunları vardır.
    - "Parçalarda ara (başlık ya da metin)" filtresi sunucuda çalışır.
    - Sayfa başına 12 parça gösterilir; "Önceki / Sonraki" düğmeleri ve "N / M" bilgisi vardır. "Eşleşen parça yok." boş durumu gösterilir.
    - Liste uçları projenin `PageResponse` standardını kullanır.
-7. **Parça penceresi:**
+8. **Parça penceresi:**
    - Bir parçaya tıklanınca açılır; başlık parçanın başlığıdır.
    - Bilgi şeridinde chunk_id, chunk_no, token, model ve kaynak (ad ve sürüm) bilgisi yer alır.
    - Parça metni ve embedding'in ilk değerleri gösterilir ("… N değer daha").
    - "Kapat" düğmesi ve Esc ile kapanır; odak, pencereyi açan öğeye döner.
    - Bu pencere TASK-008'de alıntılardan da açılacak; yeniden kullanılabilir yazılır.
-8. **İş sürerken izleme:** Ekran açıkken bir içe alma işi sürüyorsa iş durumu polling ile izlenir; iş bitince liste ve detay yenilenir. Polling ekrandan çıkınca durur.
-9. Hata mesajları `errorCode` → Türkçe eşlemeyle gösterilir. Kaynak bulunamazsa ekranda Türkçe bir mesaj gösterilir.
-10. Parça metni ve PDF içeriği güvenli gösterilir: HTML olarak yorumlanmaz.
+9. **İş sürerken izleme:** Ekran açıkken bir içe alma işi sürüyorsa iş durumu polling ile izlenir; iş bitince liste ve detay yenilenir. Polling ekrandan çıkınca durur.
+10. Hata mesajları `errorCode` → Türkçe eşlemeyle gösterilir. Kaynak bulunamazsa ekranda Türkçe bir mesaj gösterilir.
+11. Parça metni ve PDF içeriği güvenli gösterilir: HTML olarak yorumlanmaz.
 
 ## Örnek senaryolar
 - Sistem ilk kez açılmıştır; Bilgi kaynakları boş durumu gösterir.
 - Kullanıcı "Belge ekle"ye basar, rehberin 2026.10 PDF'ini seçer, "Yükle ve işle"ye basar. Satır aşamaları gösterir, sonra "Raşit Bankası Ürün ve Hizmet Rehberi · PDF · N sayfa · 2026.10 · Hazır" olur.
-- Kullanıcı kendi şirketinin bir PDF'ini de yükler; listede iki kaynak görünür.
+- Kullanıcı kendi şirketinin yer imli bir PDF'ini de yükler; listede iki kaynak görünür.
+- Kullanıcı yer imi olmayan bir PDF seçer; pencerede belgeyi nasıl düzelteceğini anlatan mesaj görünür, listeye kayıt eklenmez.
+- Ollama kapalıyken yüklenen belgenin satırı "başarısız" ve "Yeniden dene" gösterir; Ollama açılınca düğmeye basılır, belge "Hazır" olur.
 - Satıra tıklar, detayda içe alma işini `DONE` durumunda görür.
 - Aynı adla ikinci belge yüklemeye çalışır; pencerede Türkçe hata mesajı görür.
 - Filtreye "asgari ödeme" yazar; sadece başlığında ya da metninde bu ifade geçen parçalar listelenir.
 - Bir parçaya tıklar; pencerede tam metni ve embedding'in ilk değerlerini görür, Esc ile kapatır.
 
 ## Kabul kriterleri
-- Ekranlar lab'ın sol yarısıyla yan yana konduğunda aynı görünür (lab'da olmayan "Belge ekle" ve boş durum hariç).
+- Ekranlar lab'ın sol yarısıyla yan yana konduğunda aynı görünür (lab'da olmayan "Belge ekle", "Yeniden dene" ve boş durum hariç).
 - "Belge ekle" gerçek bir PDF'le uçtan uca denenmiş (E2E testi dahil).
 - Filtre ve sayfalama sunucuda çalışır; 2. sayfaya geçildiğinde doğru 12 parça gelir.
 - Backend ve frontend testleri ile `./mvnw verify`, `npm run build` ve `npm run lint` geçer.

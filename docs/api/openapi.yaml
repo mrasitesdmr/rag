@@ -4,9 +4,11 @@
 # Planner günceller; backend-coder buna göre endpoint yazar, frontend-coder buna göre çağrı yapar, qa uyumu kontrol eder.
 # Uyum kontrolünde her servisin /v3/api-docs.yaml çıktısı bu dosyanın kendi path önekiyle karşılaştırılır.
 # Cevap akışının (SSE) olayları docs/api/sse.md'dedir; burada sadece akış endpoint'inin kendisi ve akış öncesi hataları tanımlanır.
-# Durum: TASK-005. retrieval-api'de ilk uç: içe alma işinin durumu (GET .../ingestion-jobs/{jobId}). assistant-api'de henüz uç yok.
-# İçe alma işini başlatan bir REST ucu yok: rehberin ilk sürümü retrieval-api açılışında yapılandırılmış dosyadan içe alınır (TASK-005);
-#   yeni sürüm yükleme ucu TASK-015'te eklenir.
+# Durum: TASK-027. retrieval-api: içe alma işinin durumu (GET .../ingestion-jobs/{jobId}, TASK-005), belge ekleme (POST .../sources),
+#   kaynak listesi (GET .../sources) ve başarısız ilk içe almanın yeniden denenmesi (POST .../sources/{sourceId}/ingestion-jobs).
+#   assistant-api'de henüz uç yok.
+# Bilgi bankasına hiçbir belge kendiliğinden girmez: retrieval-api açılışta kaynak, sürüm, parça ya da iş oluşturmaz (TASK-027).
+#   Belgeler sadece POST .../sources ile girer. Yeni sürüm yükleme ucu TASK-015'te, kaynak/sürüm/parça okuma uçlarının geri kalanı TASK-007'de eklenir.
 # Ortak davranış (TASK-002): iki serviste de tanımsız bir path'e gelen her istek 404 + application/problem+json + errorCode NOT_FOUND döner
 #   (ör. GET /api/assistant/yok). web'in nginx'i /api/assistant/ ve /api/workspaces/ dışındaki /api/** isteklerine aynı biçimde 404 NOT_FOUND döner.
 # Sağlık ucu (GET /actuator/health, her servisin kendi portunda) işletim ucudur; bu sözleşmenin parçası değildir ve web üzerinden yayınlanmaz.
@@ -15,9 +17,196 @@ info:
   title: RAG Asistan API
   version: 0.0.0
 tags:
+  - name: Sources
+    description: Knowledge sources of a workspace and their file uploads (retrieval-api)
   - name: Ingestion jobs
     description: Background ingestion jobs of a workspace (retrieval-api)
 paths:
+  /api/workspaces/{workspaceId}/sources:
+    get:
+      tags: [Sources]
+      operationId: listSources
+      summary: List the sources of a workspace, ordered by id
+      description: |
+        retrieval-api. Fixed order `id ASC`. A freshly started system returns an empty page (nothing is ingested on startup).
+        TASK-007 adds fields for the Bilgi kaynakları screen; existing fields keep their meaning.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: One page of sources
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceResponsePage'
+        '400':
+          description: '`VALIDATION_FAILED`: `page` < 0 or `size` not in 1-100 (`violations[].field` = `page` / `size`); `BAD_REQUEST`: `workspaceId` is not an integer (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`WORKSPACE_NOT_FOUND`: no workspace with this id (only 42 exists)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Sources]
+      operationId: createSource
+      summary: Create a source from an uploaded PDF and start its first ingestion job
+      description: |
+        retrieval-api. Returns 202 at once; the job runs in the background and is polled at `Location`
+        (`GET .../ingestion-jobs/{jobId}`). The job goes QUEUED → PARSING → CHUNKING → EMBEDDING → WRITING → DONE, or FAILED.
+
+        Check order: 413 (multipart limit, before the controller) → 400 (request parts) → 415 (file type) → 422 (PDF content)
+        → 404 (workspace) → 409. Any 4xx writes nothing: no source, no job, the name stays free.
+
+        Name rules: the `name` part is stripped (leading/trailing whitespace). When it is missing or blank, the file name
+        without its last extension is used (stripped; if longer than 80 characters, its first 80 characters, stripped again).
+        The resulting name must be 2-80 characters (Unicode code points), otherwise `VALIDATION_FAILED` with field `name`.
+        Names are unique in the workspace ignoring case (`lower(name)`): "Rehber" and " REHBER " are the same name.
+        An existing name is always `SOURCE_NAME_TAKEN`, whatever the state of that source (a source whose first job
+        failed is retried with `retryIngestion`, not re-uploaded).
+
+        Version rules: required; stripped; 1-40 characters.
+
+        File rules: required, not empty, at most 20 MB (20 × 1024 × 1024 bytes). Accepted type: PDF only — the file name
+        ends with `.pdf` (any case) and the first 1024 bytes contain `%PDF-`. The PDF is then read during the request;
+        a PDF that cannot be opened, has no extractable text or has no bookmarks (PDF outline) is rejected with 422.
+        Headings are never guessed from the page text.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateSourceRequest'
+      responses:
+        '202':
+          description: Job accepted; it runs in the background
+          headers:
+            Location:
+              description: URL of the ingestion job (same as `statusUrl`), e.g. `/api/workspaces/42/ingestion-jobs/1`
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionJobResponse'
+        '400':
+          description: |
+            `VALIDATION_FAILED` (`violations[].field`):
+            - `file`: part missing, empty (0 bytes) or its file name longer than 255 characters — message `must not be empty` / `file name must be at most 255 characters`
+            - `name`: resulting name not 2-80 characters — message `size must be between 2 and 80`
+            - `version`: part missing or blank — message `must not be blank`; stripped value longer than 40 characters — message `size must be between 1 and 40`
+
+            `BAD_REQUEST`: `workspaceId` is not an integer (framework)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`WORKSPACE_NOT_FOUND`: no workspace with this id (only 42 exists)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: |
+            - `SOURCE_NAME_TAKEN`: a source with this name (ignoring case) already exists, in any state; also when two uploads with the same name race and the other one wins
+            - `EMBEDDING_MODEL_MISMATCH`: the configured embedding model (`embedding.model@embedding.dimensions`) is not the workspace's (`bge-m3@1024`); nothing is written
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '413':
+          description: '`FILE_TOO_LARGE`: the file is larger than 20 MB'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '415':
+          description: |
+            - `UNSUPPORTED_FILE_TYPE`: the file name does not end with `.pdf` or the content has no `%PDF-` signature in its first 1024 bytes
+            - `UNSUPPORTED_MEDIA_TYPE`: the request is not `multipart/form-data` (framework)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '422':
+          description: |
+            The file is a PDF but cannot be ingested; checked in this order:
+            - `PDF_UNREADABLE`: the PDF cannot be opened (corrupt or encrypted)
+            - `PDF_NO_TEXT`: no page has extractable text (e.g. a scanned image)
+            - `PDF_NO_BOOKMARKS`: the PDF has no bookmarks with a title and a page, or no text lies under any bookmark
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/workspaces/{workspaceId}/sources/{sourceId}/ingestion-jobs:
+    post:
+      tags: [Sources]
+      operationId: retryIngestion
+      summary: Start a new ingestion job for a source whose ingestion never completed, from its stored PDF
+      description: |
+        retrieval-api. For a source that has no completed version and no active job (its jobs all FAILED, e.g.
+        `EMBEDDING_UNAVAILABLE` or `INGESTION_INTERRUPTED`). The new job reuses the PDF, file name and version label of the
+        source's latest job; no body is sent. Returns 202 at once, like `createSource`. The source keeps its id.
+
+        Check order: 404 (workspace, source) → 409.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - name: sourceId
+          in: path
+          required: true
+          description: Source id
+          schema:
+            type: integer
+            format: int64
+            example: 10001
+      responses:
+        '202':
+          description: Job accepted; it runs in the background
+          headers:
+            Location:
+              description: URL of the new ingestion job (same as `statusUrl`)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionJobResponse'
+        '400':
+          description: '`BAD_REQUEST`: `workspaceId` or `sourceId` is not an integer (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`WORKSPACE_NOT_FOUND`: no workspace with this id; `SOURCE_NOT_FOUND`: no source with this id in the workspace'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: |
+            - `SOURCE_ALREADY_INGESTED`: the source has a completed version (new versions come with TASK-015)
+            - `INGESTION_IN_PROGRESS`: the source has an active job (also when two retries race)
+            - `EMBEDDING_MODEL_MISMATCH`: the configured embedding model is not the workspace's; nothing is written
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/workspaces/{workspaceId}/ingestion-jobs/{jobId}:
     get:
       tags: [Ingestion jobs]
@@ -141,6 +330,16 @@ components:
             - INTERNAL_ERROR
             - WORKSPACE_NOT_FOUND
             - INGESTION_JOB_NOT_FOUND
+            - SOURCE_NAME_TAKEN
+            - EMBEDDING_MODEL_MISMATCH
+            - FILE_TOO_LARGE
+            - UNSUPPORTED_FILE_TYPE
+            - PDF_UNREADABLE
+            - PDF_NO_TEXT
+            - PDF_NO_BOOKMARKS
+            - SOURCE_NOT_FOUND
+            - SOURCE_ALREADY_INGESTED
+            - INGESTION_IN_PROGRESS
         violations:
           type: array
           description: Only for `VALIDATION_FAILED`
@@ -165,8 +364,11 @@ components:
       type: string
       description: |
         Why a job is FAILED. Not an HTTP error; carried in the job body.
-        - `PDF_UNREADABLE`: the file cannot be opened as a PDF (corrupt, encrypted, not a PDF)
-        - `PDF_NO_SECTIONS`: the PDF has no numbered chapter bookmarks or no text under them
+        File problems are rejected at upload (422, same codes), so a job normally fails only for a temporary reason
+        (`EMBEDDING_UNAVAILABLE`, `INGESTION_INTERRUPTED`). The three PDF codes stay here for a stored file that can no longer be parsed.
+        - `PDF_UNREADABLE`: the PDF cannot be opened (corrupt, encrypted)
+        - `PDF_NO_TEXT`: no page has extractable text
+        - `PDF_NO_BOOKMARKS`: no usable bookmarks, or no text under them
         - `EMBEDDING_UNAVAILABLE`: the embedding model did not answer, answered with an error or returned a wrong number of vectors (after retries)
         - `EMBEDDING_DIMENSION_MISMATCH`: the embedding model returned a vector whose size is not the workspace's (1024)
         - `EMBEDDING_MODEL_MISMATCH`: the configured embedding model is not the workspace's (`bge-m3@1024`)
@@ -174,7 +376,8 @@ components:
         - `INTERNAL_ERROR`: unexpected error
       enum:
         - PDF_UNREADABLE
-        - PDF_NO_SECTIONS
+        - PDF_NO_TEXT
+        - PDF_NO_BOOKMARKS
         - EMBEDDING_UNAVAILABLE
         - EMBEDDING_DIMENSION_MISMATCH
         - EMBEDDING_MODEL_MISMATCH
@@ -199,7 +402,7 @@ components:
           example: 10001
         version:
           type: string
-          description: Version label of the ingested file
+          description: Version label given with the upload (stripped, 1-40 characters); a retry job copies it from the previous job
           example: '2026.10'
         fileName:
           type: string
@@ -248,5 +451,75 @@ components:
           description: When the job became DONE or FAILED. For a DONE job this is the source version's "last sync" time.
         statusUrl:
           type: string
-          description: This resource's path (same as the `Location` header of the endpoints that will start jobs, TASK-015)
+          description: This resource's path (same as the `Location` header of `createSource`, `retryIngestion` and, from TASK-015, of the version upload)
           example: /api/workspaces/42/ingestion-jobs/1
+    SourceKind:
+      type: string
+      description: Kind of the uploaded file. Only PDF is accepted.
+      enum: [PDF]
+    SourceResponse:
+      type: object
+      description: One knowledge source. TASK-007 adds fields for the Bilgi kaynakları screen.
+      required: [sourceId, workspaceId, name, kind, createdAt]
+      properties:
+        sourceId:
+          type: integer
+          format: int64
+          description: Ids come from a sequence that starts at 10001
+          example: 10001
+        workspaceId:
+          type: integer
+          format: int64
+          example: 42
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+          example: Raşit Bankası Ürün ve Hizmet Rehberi
+        kind:
+          $ref: '#/components/schemas/SourceKind'
+        createdAt:
+          type: string
+          format: date-time
+    SourceResponsePage:
+      type: object
+      description: '`PageResponse<SourceResponse>`'
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceResponse'
+        page:
+          type: integer
+          format: int32
+          example: 0
+        size:
+          type: integer
+          format: int32
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          example: 0
+        totalPages:
+          type: integer
+          format: int32
+          example: 0
+    CreateSourceRequest:
+      type: object
+      description: Multipart parts of `createSource`
+      required: [file, version]
+      properties:
+        file:
+          type: string
+          contentMediaType: application/pdf
+          description: The PDF with bookmarks and extractable text. Not empty, at most 20 MB, file name ends with `.pdf`, at most 255 characters.
+        name:
+          type: string
+          description: Optional source name. Stripped; when missing or blank, the file name without extension is used. Result 2-80 characters, unique ignoring case.
+          example: Raşit Bankası Ürün ve Hizmet Rehberi
+        version:
+          type: string
+          description: Required version label of this file. Stripped; 1-40 characters.
+          example: '2026.10'

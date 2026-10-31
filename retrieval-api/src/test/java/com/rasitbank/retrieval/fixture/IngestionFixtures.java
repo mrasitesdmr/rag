@@ -4,7 +4,6 @@ import com.rasitbank.retrieval.config.EmbeddingProperties;
 import com.rasitbank.retrieval.config.IngestionProperties;
 import com.rasitbank.retrieval.ingestion.parsing.PageLine;
 import com.rasitbank.retrieval.ingestion.parsing.ParsedSection;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,16 +13,11 @@ import java.util.List;
  */
 public final class IngestionFixtures {
 
-    public static final String HEADER_PATTERN = "^Raşit Bankası Ürün ve Hizmet Rehberi · Sürüm .+$";
-    public static final String FOOTER_PATTERN = "^Yürürlük: .+ · Sayfa \\d+ / \\d+$";
-
     private IngestionFixtures() {
     }
 
     public static IngestionProperties ingestionProperties() {
-        return new IngestionProperties(1600, 2000, 200, 4, 96, HEADER_PATTERN, FOOTER_PATTERN,
-                new IngestionProperties.Bootstrap(false, Path.of("yok.pdf"), "Raşit Bankası Ürün ve Hizmet Rehberi",
-                        "2026.10"));
+        return new IngestionProperties(1600, 2000, 200, 4, 96, 3, 0.5, 2);
     }
 
     public static EmbeddingProperties embeddingProperties(String model, int dimensions, Duration backoff,

@@ -5,7 +5,7 @@
 
 ## Kurallar
 1. **Senaryolar (E2E, Playwright):**
-   1. giriş yapma; sistem boş bilgi bankasıyla açılır, belgeler "Belge ekle" ile yüklenir (rehber ve yer imi olmayan başka bir PDF);
+   1. giriş yapma; sistem boş bilgi bankasıyla açılır, belgeler "Belge ekle" ile yüklenir (rehber ve yer imli başka bir PDF; yer imi olmayan PDF'in reddedilmesi de denenir);
    2. Önizleme'de serbest metin soru, akan cevap, alıntı penceresi, "bulamadım" ve temsilciye aktarma;
    3. takip sorusu ve yeniden yazılmış arama sorgusu;
    4. geri bildirim;

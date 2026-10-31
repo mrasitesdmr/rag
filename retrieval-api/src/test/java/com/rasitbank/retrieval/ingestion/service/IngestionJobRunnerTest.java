@@ -22,7 +22,7 @@ import com.rasitbank.retrieval.ingestion.parsing.PageLine;
 import com.rasitbank.retrieval.ingestion.parsing.ParsedDocument;
 import com.rasitbank.retrieval.ingestion.parsing.ParsedSection;
 import com.rasitbank.retrieval.ingestion.parsing.PdfDocumentParser;
-import com.rasitbank.retrieval.workspace.domain.entity.Workspace;
+import com.rasitbank.retrieval.exception.ConflictException;
 import com.rasitbank.retrieval.workspace.service.WorkspaceService;
 import java.time.Duration;
 import java.time.Instant;
@@ -63,11 +63,9 @@ class IngestionJobRunnerTest {
     private EmbeddingClient embeddingClient;
     @Mock
     private ExecutorService executor;
-    @Mock
-    private Workspace workspace;
 
     private final ParsedDocument document = new ParsedDocument(70, 11,
-            List.of(new ParsedSection("1 A", List.of(new PageLine(5, "x.")))));
+            List.of(new ParsedSection("1 A", List.of(new PageLine(5, "x.")))), 0);
 
     private IngestionJobRunner runnerFor(EmbeddingProperties embeddingProperties) {
         return new IngestionJobRunner(executor, lifecycle, workspaceService, parser, chunker, embeddingClient,
@@ -87,8 +85,6 @@ class IngestionJobRunnerTest {
     void setUp() {
         IngestionJob job = IngestionJob.queued(42, 10001, "2026.10", "r.pdf", 3, Instant.EPOCH);
         given(lifecycle.start(JOB_ID)).willReturn(job);
-        given(workspaceService.getWorkspace(42)).willReturn(workspace);
-        given(workspace.embeddingModelLabel()).willReturn("bge-m3@1024");
         given(parser.parse(CONTENT)).willReturn(document);
         given(embeddingClient.embed(anyList())).willAnswer(invocation -> {
             List<String> inputs = invocation.getArgument(0);
@@ -124,6 +120,17 @@ class IngestionJobRunnerTest {
     }
 
     @Test
+    void givenJobOfWorkspace42_whenRun_thenChecksConfiguredModelLabelAgainstWorkspaceBeforeParsing() {
+        given(chunker.chunk(document.sections())).willReturn(drafts(1));
+
+        runner().run(JOB_ID, CONTENT);
+
+        InOrder order = Mockito.inOrder(workspaceService, parser);
+        order.verify(workspaceService).ensureEmbeddingModelMatches(42, "bge-m3@1024");
+        order.verify(parser).parse(CONTENT);
+    }
+
+    @Test
     void givenEmbeddingUnavailableOnSecondBatch_whenRun_thenFailsWithEmbeddingUnavailableAndNeverCompletes() {
         given(chunker.chunk(document.sections())).willReturn(drafts(150));
         given(embeddingClient.embed(anyList()))
@@ -153,6 +160,8 @@ class IngestionJobRunnerTest {
     @Test
     void givenConfiguredModelDiffersFromWorkspace_whenRun_thenFailsWithEmbeddingModelMismatchBeforeParsing() {
         IngestionJobRunner mismatched = runnerFor(embeddingProperties("nomic-embed-text", 768, Duration.ZERO, 2));
+        org.mockito.BDDMockito.willThrow(new ConflictException("EMBEDDING_MODEL_MISMATCH", "differs"))
+                .given(workspaceService).ensureEmbeddingModelMatches(42, "nomic-embed-text@768");
 
         mismatched.run(JOB_ID, CONTENT);
 

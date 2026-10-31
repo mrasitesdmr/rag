@@ -17,4 +17,6 @@ public interface IngestionJobRepository extends JpaRepository<IngestionJob, Long
     List<IngestionJob> findByStageIn(Collection<IngestionStage> stages);
 
     boolean existsBySourceIdAndStageIn(long sourceId, Collection<IngestionStage> stages);
+
+    Optional<IngestionJob> findFirstBySourceIdOrderByIdDesc(long sourceId);
 }

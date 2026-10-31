@@ -4,14 +4,12 @@ import com.rasitbank.retrieval.config.EmbeddingProperties;
 import com.rasitbank.retrieval.config.IngestionProperties;
 import com.rasitbank.retrieval.embedding.client.EmbeddingClient;
 import com.rasitbank.retrieval.exception.BaseException;
-import com.rasitbank.retrieval.exception.ConflictException;
 import com.rasitbank.retrieval.ingestion.chunking.ChunkDraft;
 import com.rasitbank.retrieval.ingestion.chunking.TextChunker;
 import com.rasitbank.retrieval.ingestion.domain.entity.IngestionJob;
 import com.rasitbank.retrieval.ingestion.domain.entity.IngestionStage;
 import com.rasitbank.retrieval.ingestion.parsing.ParsedDocument;
 import com.rasitbank.retrieval.ingestion.parsing.PdfDocumentParser;
-import com.rasitbank.retrieval.workspace.domain.entity.Workspace;
 import com.rasitbank.retrieval.workspace.service.WorkspaceService;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,10 +64,11 @@ public class IngestionJobRunner {
     public void run(long jobId, byte[] content) {
         try {
             IngestionJob job = lifecycle.start(jobId);
-            ensureEmbeddingModelMatches(job.getWorkspaceId());
+            workspaceService.ensureEmbeddingModelMatches(job.getWorkspaceId(), embeddingProperties.modelLabel());
             ParsedDocument document = parser.parse(content);
-            log.info("Document parsed jobId={} pageCount={} chapterCount={} sectionCount={}", jobId,
-                    document.pageCount(), document.chapterCount(), document.sections().size());
+            log.info("Document parsed jobId={} pageCount={} chapterCount={} sectionCount={} removedMarginLines={}",
+                    jobId, document.pageCount(), document.chapterCount(), document.sections().size(),
+                    document.removedMarginLines());
             lifecycle.moveTo(jobId, IngestionStage.CHUNKING);
             List<ChunkDraft> drafts = chunker.chunk(document.sections());
             log.info("Document chunked jobId={} chunkCount={} avgTokens={}", jobId, drafts.size(),
@@ -84,14 +83,6 @@ public class IngestionJobRunner {
         } catch (RuntimeException exception) {
             log.error("Ingestion job crashed jobId={}", jobId, exception);
             failJob(jobId, INTERNAL_ERROR);
-        }
-    }
-
-    private void ensureEmbeddingModelMatches(long workspaceId) {
-        Workspace workspace = workspaceService.getWorkspace(workspaceId);
-        if (!workspace.embeddingModelLabel().equals(embeddingProperties.modelLabel())) {
-            throw new ConflictException("EMBEDDING_MODEL_MISMATCH", "Configured embedding model "
-                    + embeddingProperties.modelLabel() + " is not the workspace's " + workspace.embeddingModelLabel());
         }
     }
 

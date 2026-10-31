@@ -2,7 +2,7 @@
 
 RAG'i (Retrieval-Augmented Generation) anlatan ve Raşit Bankası dijital asistanı örneğiyle çalışan bir demoda gösteren eğitim projesi. Başlangıç içeriği: `kaynaklar/rag.html` (anlatım) ve `kaynaklar/rag-lab.html` (lab). Önceki projenin (embedding ve pgvector) devamıdır; bilgi bankası bu repoda yeniden yazılır.
 
-> Durum: proje iskeleti (TASK-002), lokal modeller (TASK-003) ve rehberin ilk içe alınması (TASK-005) hazır. assistant-api henüz modellere bağlı değil (TASK-008/009).
+> Durum: proje iskeleti (TASK-002), lokal modeller (TASK-003) ve belge yükleme ve içe alma (TASK-005, TASK-027) hazır. assistant-api henüz modellere bağlı değil (TASK-008/009).
 
 **Gereksinimler:** Docker Desktop; local geliştirme için Java 26 ve Node 26; lokal modeller için Homebrew `ollama` ve `llama.cpp`.
 
@@ -29,7 +29,7 @@ docker compose -f deployment/docker-compose.yml down -v         # durdur + veriy
 
 Site: http://localhost:3000 (assistant-api 8090, retrieval-api 8080, PostgreSQL 127.0.0.1:5432).
 
-- **İlk açılışta rehber kendiliğinden içe alınır** (retrieval-api, `bge-m3`, ~10 sn, 154 parça). Bunun için Ollama Compose'dan önce açık olmalı. Kapalıyken açıldıysa Ollama'yı aç ve `docker compose -f deployment/docker-compose.yml restart retrieval-api` çalıştır. Durum: `curl localhost:8080/api/workspaces/42/ingestion-jobs/1` (`stage: DONE`). Rehber PDF'i imaja girmez; `docs/rehber/pdf` container'a salt okunur bağlanır.
+- **Bilgi bankası ilk açılışta boştur.** Belgeyi Bilgi kaynakları ekranından ya da `curl -F file=@rehber.pdf -F name="Ürün ve Hizmet Rehberi" -F version=2026.10 localhost:3000/api/workspaces/42/sources` ile yükle (PDF'te yer imi gerekir; `bge-m3` için Ollama açık olmalı). Durum: `curl localhost:8080/api/workspaces/42/ingestion-jobs/<id>`. Başarısız işi yeniden dene: `curl -X POST localhost:8080/api/workspaces/42/sources/<id>/ingestion-jobs`. Eski sürümden kalan rehber verisini silmek için `docker compose -f deployment/docker-compose.yml down -v` (veritabanını kalıcı siler).
 - PostgreSQL init script'i (iki veritabanı ve kullanıcı) sadece boş volume'da çalışır; script değişirse `down -v` gerekir.
 - `../embedding-pgvector` aynı portları (5432, 8080, 3000) kullanır; iki proje aynı anda açılmaz, önce diğerini `down` et.
 - Geliştirme (servisler bilgisayarda): `docker compose -f deployment/docker-compose.dev.yml up -d`, sonra modül `CLAUDE.md`'lerindeki komutlar.

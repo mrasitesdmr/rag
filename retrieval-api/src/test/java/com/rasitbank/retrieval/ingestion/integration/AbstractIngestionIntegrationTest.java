@@ -4,10 +4,13 @@ import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 
-import com.rasitbank.retrieval.config.IngestionProperties;
 import com.rasitbank.retrieval.embedding.client.EmbeddingClient;
+import com.rasitbank.retrieval.fixture.PdfFixtures;
 import com.rasitbank.retrieval.ingestion.repository.IngestionJobRepository;
-import com.rasitbank.retrieval.ingestion.service.GuideBootstrap;
+import com.rasitbank.retrieval.ingestion.domain.dto.IngestionJobResponse;
+import com.rasitbank.retrieval.ingestion.service.IngestionStartupListener;
+import com.rasitbank.retrieval.source.service.SourceUploadValidator;
+import org.springframework.mock.web.MockMultipartFile;
 import com.rasitbank.retrieval.ingestion.service.IngestionService;
 import com.rasitbank.retrieval.source.repository.SourceRepository;
 import java.nio.file.Path;
@@ -48,6 +51,12 @@ abstract class AbstractIngestionIntegrationTest {
     @Autowired
     IngestionService ingestionService;
 
+    @Autowired
+    SourceUploadValidator sourceUploadValidator;
+
+    @Autowired
+    IngestionStartupListener startupListener;
+
     @MockitoBean
     EmbeddingClient embeddingClient;
 
@@ -60,17 +69,33 @@ abstract class AbstractIngestionIntegrationTest {
         jdbc.execute("delete from ingestion_jobs");
         jdbc.execute("delete from sources");
         jdbc.execute("alter sequence sources_id_seq restart with 10001");
+        stubEmbeddingSuccess();
+    }
+
+    IngestionJobResponse upload(String name, String version, String fileName, byte[] pdf) {
+        return ingestionService.createSource(42,
+                sourceUploadValidator.validate(new MockMultipartFile("file", fileName, "application/pdf", pdf), name,
+                        version));
+    }
+
+    IngestionJobResponse uploadValidPdf(String name) {
+        return upload(name, "1", "belge.pdf", PdfFixtures.validPdf());
+    }
+
+    static byte[] guideBytes() {
+        try {
+            return java.nio.file.Files.readAllBytes(GUIDE);
+        } catch (java.io.IOException exception) {
+            throw new java.io.UncheckedIOException(exception);
+        }
+    }
+
+    void stubEmbeddingSuccess() {
+        org.mockito.Mockito.reset(embeddingClient);
         given(embeddingClient.embed(anyList())).willAnswer(invocation -> {
             List<String> inputs = invocation.getArgument(0);
             return inputs.stream().map(input -> deterministicVector(input)).toList();
         });
-    }
-
-    GuideBootstrap bootstrapFor(Path file) {
-        IngestionProperties properties = new IngestionProperties(1600, 2000, 200, 4, 96,
-                "^Raşit Bankası Ürün ve Hizmet Rehberi · Sürüm .+$", "^Yürürlük: .+ · Sayfa \\d+ / \\d+$",
-                new IngestionProperties.Bootstrap(true, file, "Raşit Bankası Ürün ve Hizmet Rehberi", "2026.10"));
-        return new GuideBootstrap(properties, sourceRepository, ingestionJobRepository, ingestionService);
     }
 
     void awaitJobStage(long jobId, String stage) {

@@ -1,6 +1,5 @@
 package com.rasitbank.retrieval.ingestion.parsing;
 
-import com.rasitbank.retrieval.config.IngestionProperties;
 import com.rasitbank.retrieval.exception.UnprocessableContentException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,37 +18,43 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 /**
- * PDF'i sayfa sayfa okur, üst/alt bilgiyi atar ve numaralı yer imlerine göre satırları başlıklı kısımlara ayırır.
+ * PDF'i sayfa sayfa okur, tekrar eden üst/alt bilgiyi atar ve satırları yer imlerine göre başlıklı kısımlara ayırır;
+ * açılamayan, metinsiz ya da yer imsiz PDF'i reddeder.
  */
 @Component
 public class PdfDocumentParser {
 
-    private static final Pattern NUMBERED_HEADING = Pattern.compile("^\\d+(\\.\\d+)? .+");
     private static final String FAQ_HEADING = "Sık sorulanlar";
     private static final String FAQ_HEADING_SEPARATOR = " · ";
     private static final String LINE_SEPARATOR = "\n";
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
+    private static final int MAX_HEADING_LENGTH = 200;
+    private static final String ELLIPSIS = "…";
 
-    private final Pattern pageHeaderPattern;
-    private final Pattern pageFooterPattern;
+    private final PageMarginFilter pageMarginFilter;
 
-    public PdfDocumentParser(IngestionProperties properties) {
-        this.pageHeaderPattern = Pattern.compile(properties.pageHeaderPattern());
-        this.pageFooterPattern = Pattern.compile(properties.pageFooterPattern());
+    public PdfDocumentParser(PageMarginFilter pageMarginFilter) {
+        this.pageMarginFilter = pageMarginFilter;
     }
 
     public ParsedDocument parse(byte[] content) {
         try (PDDocument document = load(content)) {
-            List<Bookmark> bookmarks = numberedBookmarks(document);
-            List<Bookmark> chapters = bookmarks.stream().filter(Bookmark::isChapter).toList();
-            if (chapters.isEmpty()) {
-                throw noSections();
+            List<List<String>> rawPageLines = pageLines(document);
+            List<List<String>> pageLines = pageMarginFilter.removeRepeatedMargins(rawPageLines);
+            if (pageLines.stream().allMatch(List::isEmpty)) {
+                throw noText();
             }
-            int firstContentPage = chapters.stream().mapToInt(Bookmark::pageNumber).min().orElseThrow();
-            List<ParsedSection> sections = splitIntoSections(document, firstContentPage, bookmarks);
+            List<Bookmark> bookmarks = bookmarks(document);
+            if (bookmarks.isEmpty()) {
+                throw noBookmarks();
+            }
+            List<ParsedSection> sections = splitIntoSections(pageLines, bookmarks);
             if (sections.isEmpty()) {
-                throw noSections();
+                throw noBookmarks();
             }
-            return new ParsedDocument(document.getNumberOfPages(), chapters.size(), sections);
+            int chapterCount = (int) bookmarks.stream().filter(Bookmark::isChapter).count();
+            return new ParsedDocument(document.getNumberOfPages(), chapterCount, sections,
+                    lineCount(rawPageLines) - lineCount(pageLines));
         } catch (IOException exception) {
             throw unreadable();
         }
@@ -69,42 +74,58 @@ public class PdfDocumentParser {
         return document;
     }
 
-    private static List<Bookmark> numberedBookmarks(PDDocument document) throws IOException {
+    private static List<List<String>> pageLines(PDDocument document) throws IOException {
+        PDFTextStripper stripper = new PDFTextStripper();
+        stripper.setSortByPosition(false);
+        stripper.setLineSeparator(LINE_SEPARATOR);
+        List<List<String>> pageLines = new ArrayList<>(document.getNumberOfPages());
+        for (int pageNumber = 1; pageNumber <= document.getNumberOfPages(); pageNumber++) {
+            stripper.setStartPage(pageNumber);
+            stripper.setEndPage(pageNumber);
+            pageLines.add(stripper.getText(document).lines().map(String::strip).filter(line -> !line.isEmpty())
+                    .toList());
+        }
+        return pageLines;
+    }
+
+    private static List<Bookmark> bookmarks(PDDocument document) throws IOException {
         List<Bookmark> bookmarks = new ArrayList<>();
         PDDocumentOutline outline = document.getDocumentCatalog().getDocumentOutline();
         if (outline != null) {
-            collectBookmarks(document, outline, bookmarks);
+            collectBookmarks(document, outline, true, bookmarks);
         }
         return bookmarks;
     }
 
-    private static void collectBookmarks(PDDocument document, PDOutlineNode node, List<Bookmark> bookmarks)
-            throws IOException {
+    private static void collectBookmarks(PDDocument document, PDOutlineNode node, boolean isChapterLevel,
+            List<Bookmark> bookmarks) throws IOException {
         for (PDOutlineItem item : node.children()) {
-            String title = item.getTitle() == null ? "" : item.getTitle().strip();
+            String title = item.getTitle() == null ? "" : normalize(item.getTitle());
             PDPage page = item.findDestinationPage(document);
-            if (page != null && NUMBERED_HEADING.matcher(title).matches()) {
-                bookmarks.add(new Bookmark(title, document.getPages().indexOf(page) + 1));
+            int pageIndex = page == null ? -1 : document.getPages().indexOf(page);
+            boolean isUsable = !title.isEmpty() && pageIndex >= 0;
+            if (isUsable) {
+                bookmarks.add(new Bookmark(title, pageIndex + 1, isChapterLevel));
             }
-            collectBookmarks(document, item, bookmarks);
+            collectBookmarks(document, item, isChapterLevel && !isUsable, bookmarks);
         }
     }
 
-    private List<ParsedSection> splitIntoSections(PDDocument document, int firstContentPage, List<Bookmark> bookmarks)
-            throws IOException {
-        Map<Integer, List<Bookmark>> pendingHeadingsByPage = new HashMap<>();
+    private static List<ParsedSection> splitIntoSections(List<List<String>> pageLines, List<Bookmark> bookmarks) {
+        Map<Integer, List<Bookmark>> bookmarksByPage = new HashMap<>();
         for (Bookmark bookmark : bookmarks) {
-            pendingHeadingsByPage.computeIfAbsent(bookmark.pageNumber(), page -> new ArrayList<>()).add(bookmark);
+            bookmarksByPage.computeIfAbsent(bookmark.pageNumber(), page -> new ArrayList<>()).add(bookmark);
         }
+        int firstContentPage = bookmarks.stream().mapToInt(Bookmark::pageNumber).min().orElseThrow();
         SectionCollector collector = new SectionCollector();
-        PDFTextStripper stripper = new PDFTextStripper();
-        stripper.setSortByPosition(false);
-        stripper.setLineSeparator(LINE_SEPARATOR);
-        for (int pageNumber = firstContentPage; pageNumber <= document.getNumberOfPages(); pageNumber++) {
-            stripper.setStartPage(pageNumber);
-            stripper.setEndPage(pageNumber);
-            List<Bookmark> pendingHeadings = pendingHeadingsByPage.getOrDefault(pageNumber, new ArrayList<>());
-            for (String line : bodyLines(stripper.getText(document))) {
+        for (int pageNumber = firstContentPage; pageNumber <= pageLines.size(); pageNumber++) {
+            List<String> lines = pageLines.get(pageNumber - 1);
+            List<Bookmark> pageBookmarks = bookmarksByPage.getOrDefault(pageNumber, List.of());
+            List<Bookmark> unprinted = unprintedBookmarks(pageBookmarks, lines);
+            unprinted.forEach(collector::startHeading);
+            List<Bookmark> pendingHeadings = new ArrayList<>(pageBookmarks);
+            unprinted.forEach(pendingHeadings::remove);
+            for (String line : lines) {
                 Bookmark heading = takeHeading(pendingHeadings, line);
                 if (heading != null) {
                     collector.startHeading(heading);
@@ -118,25 +139,40 @@ public class PdfDocumentParser {
         return collector.sections();
     }
 
-    private List<String> bodyLines(String pageText) {
-        List<String> lines = new ArrayList<>(pageText.lines().map(String::strip).filter(line -> !line.isEmpty())
-                .toList());
-        if (!lines.isEmpty() && pageHeaderPattern.matcher(lines.getFirst()).matches()) {
-            lines.removeFirst();
+    private static List<Bookmark> unprintedBookmarks(List<Bookmark> pageBookmarks, List<String> lines) {
+        List<Bookmark> pending = new ArrayList<>(pageBookmarks);
+        for (String line : lines) {
+            takeHeading(pending, line);
         }
-        if (!lines.isEmpty() && pageFooterPattern.matcher(lines.getLast()).matches()) {
-            lines.removeLast();
-        }
-        return lines;
+        return pending;
     }
 
     private static @Nullable Bookmark takeHeading(List<Bookmark> pendingHeadings, String line) {
+        String normalizedLine = normalize(line);
         for (int index = 0; index < pendingHeadings.size(); index++) {
-            if (pendingHeadings.get(index).title().equals(line)) {
+            if (pendingHeadings.get(index).title().equals(normalizedLine)) {
                 return pendingHeadings.remove(index);
             }
         }
         return null;
+    }
+
+    private static String normalize(String text) {
+        return WHITESPACE.matcher(text.strip()).replaceAll(" ");
+    }
+
+    private static String shortenHeading(String heading) {
+        if (heading.codePointCount(0, heading.length()) <= MAX_HEADING_LENGTH) {
+            return heading;
+        }
+        String head = heading.substring(0, heading.offsetByCodePoints(0, MAX_HEADING_LENGTH - 1));
+        int lastSpace = head.lastIndexOf(' ');
+        String cut = lastSpace > 0 ? head.substring(0, lastSpace).strip() : head;
+        return cut + ELLIPSIS;
+    }
+
+    private static int lineCount(List<List<String>> pageLines) {
+        return pageLines.stream().mapToInt(List::size).sum();
     }
 
     private static void closeQuietly(PDDocument document) {
@@ -151,16 +187,16 @@ public class PdfDocumentParser {
         return new UnprocessableContentException("PDF_UNREADABLE", "The file cannot be read as a PDF");
     }
 
-    private static UnprocessableContentException noSections() {
-        return new UnprocessableContentException("PDF_NO_SECTIONS",
-                "The PDF has no numbered chapter bookmarks or no text under them");
+    private static UnprocessableContentException noText() {
+        return new UnprocessableContentException("PDF_NO_TEXT", "The PDF has no extractable text");
     }
 
-    private record Bookmark(String title, int pageNumber) {
+    private static UnprocessableContentException noBookmarks() {
+        return new UnprocessableContentException("PDF_NO_BOOKMARKS",
+                "The PDF has no usable bookmarks or no text under them");
+    }
 
-        boolean isChapter() {
-            return !title.substring(0, title.indexOf(' ')).contains(".");
-        }
+    private record Bookmark(String title, int pageNumber, boolean isChapter) {
     }
 
     private static final class SectionCollector {
@@ -171,16 +207,21 @@ public class PdfDocumentParser {
         private @Nullable String currentChapter;
 
         void startHeading(Bookmark heading) {
-            flush();
-            if (heading.isChapter()) {
-                currentChapter = heading.title();
+            if (!heading.isChapter() && FAQ_HEADING.equals(heading.title()) && hasChapter()) {
+                startFaq();
+                return;
             }
-            currentHeading = heading.title();
+            flush();
+            String shortened = shortenHeading(heading.title());
+            if (heading.isChapter()) {
+                currentChapter = shortened;
+            }
+            currentHeading = shortened;
         }
 
         void startFaq() {
             flush();
-            currentHeading = currentChapter + FAQ_HEADING_SEPARATOR + FAQ_HEADING;
+            currentHeading = shortenHeading(currentChapter + FAQ_HEADING_SEPARATOR + FAQ_HEADING);
         }
 
         boolean hasChapter() {
