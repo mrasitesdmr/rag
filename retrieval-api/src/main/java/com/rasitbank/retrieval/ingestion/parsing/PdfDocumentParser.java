@@ -2,29 +2,40 @@ package com.rasitbank.retrieval.ingestion.parsing;
 
 import com.rasitbank.retrieval.exception.UnprocessableContentException;
 import java.io.IOException;
+import java.io.Writer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDFontDescriptor;
 import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDDocumentOutline;
 import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineItem;
 import org.apache.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineNode;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.pdfbox.text.TextPosition;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 /**
- * PDF'i sayfa sayfa okur, tekrar eden üst/alt bilgiyi atar ve satırları yer imlerine göre başlıklı kısımlara ayırır;
- * açılamayan, metinsiz ya da yer imsiz PDF'i reddeder.
+ * PDF'i sayfa sayfa okur, tekrar eden üst/alt bilgiyi atar, satırları yer imlerine göre başlıklı kısımlara ayırır ve
+ * soru-cevap kısmındaki tamamen kalın satırları soru olarak işaretler; açılamayan, metinsiz ya da yer imsiz PDF'i reddeder.
  */
 @Component
 public class PdfDocumentParser {
 
     private static final String FAQ_HEADING = "Sık sorulanlar";
+    private static final List<String> FAQ_TITLES = List.of("Sık sorulanlar", "Sık sorulan sorular",
+            "Sıkça sorulan sorular", "SSS", "FAQ", "Frequently asked questions");
+    private static final float MIN_BOLD_FONT_WEIGHT = 600;
+    private static final List<String> BOLD_FONT_NAME_MARKERS = List.of("bold", "semibold", "demi", "black", "heavy");
+    private static final char SUBSET_PREFIX_END = '+';
     private static final String FAQ_HEADING_SEPARATOR = " · ";
     private static final String LINE_SEPARATOR = "\n";
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
@@ -39,8 +50,9 @@ public class PdfDocumentParser {
 
     public ParsedDocument parse(byte[] content) {
         try (PDDocument document = load(content)) {
-            List<List<String>> rawPageLines = pageLines(document);
-            List<List<String>> pageLines = pageMarginFilter.removeRepeatedMargins(rawPageLines);
+            List<List<ExtractedLine>> rawPageLines = pageLines(document);
+            List<List<ExtractedLine>> pageLines = pageMarginFilter.removeRepeatedMargins(rawPageLines,
+                    ExtractedLine::text);
             if (pageLines.stream().allMatch(List::isEmpty)) {
                 throw noText();
             }
@@ -74,16 +86,15 @@ public class PdfDocumentParser {
         return document;
     }
 
-    private static List<List<String>> pageLines(PDDocument document) throws IOException {
-        PDFTextStripper stripper = new PDFTextStripper();
+    private static List<List<ExtractedLine>> pageLines(PDDocument document) throws IOException {
+        StyledLineStripper stripper = new StyledLineStripper();
         stripper.setSortByPosition(false);
         stripper.setLineSeparator(LINE_SEPARATOR);
-        List<List<String>> pageLines = new ArrayList<>(document.getNumberOfPages());
+        List<List<ExtractedLine>> pageLines = new ArrayList<>(document.getNumberOfPages());
         for (int pageNumber = 1; pageNumber <= document.getNumberOfPages(); pageNumber++) {
             stripper.setStartPage(pageNumber);
             stripper.setEndPage(pageNumber);
-            pageLines.add(stripper.getText(document).lines().map(String::strip).filter(line -> !line.isEmpty())
-                    .toList());
+            pageLines.add(stripper.extractLines(document));
         }
         return pageLines;
     }
@@ -111,7 +122,8 @@ public class PdfDocumentParser {
         }
     }
 
-    private static List<ParsedSection> splitIntoSections(List<List<String>> pageLines, List<Bookmark> bookmarks) {
+    private static List<ParsedSection> splitIntoSections(List<List<ExtractedLine>> pageLines,
+            List<Bookmark> bookmarks) {
         Map<Integer, List<Bookmark>> bookmarksByPage = new HashMap<>();
         for (Bookmark bookmark : bookmarks) {
             bookmarksByPage.computeIfAbsent(bookmark.pageNumber(), page -> new ArrayList<>()).add(bookmark);
@@ -119,30 +131,30 @@ public class PdfDocumentParser {
         int firstContentPage = bookmarks.stream().mapToInt(Bookmark::pageNumber).min().orElseThrow();
         SectionCollector collector = new SectionCollector();
         for (int pageNumber = firstContentPage; pageNumber <= pageLines.size(); pageNumber++) {
-            List<String> lines = pageLines.get(pageNumber - 1);
+            List<ExtractedLine> lines = pageLines.get(pageNumber - 1);
             List<Bookmark> pageBookmarks = bookmarksByPage.getOrDefault(pageNumber, List.of());
             List<Bookmark> unprinted = unprintedBookmarks(pageBookmarks, lines);
             unprinted.forEach(collector::startHeading);
             List<Bookmark> pendingHeadings = new ArrayList<>(pageBookmarks);
             unprinted.forEach(pendingHeadings::remove);
-            for (String line : lines) {
-                Bookmark heading = takeHeading(pendingHeadings, line);
+            for (ExtractedLine line : lines) {
+                Bookmark heading = takeHeading(pendingHeadings, line.text());
                 if (heading != null) {
                     collector.startHeading(heading);
-                } else if (FAQ_HEADING.equals(line) && collector.hasChapter()) {
+                } else if (FAQ_HEADING.equals(line.text()) && collector.hasChapter()) {
                     collector.startFaq();
                 } else {
-                    collector.addLine(new PageLine(pageNumber, line));
+                    collector.addLine(pageNumber, line);
                 }
             }
         }
         return collector.sections();
     }
 
-    private static List<Bookmark> unprintedBookmarks(List<Bookmark> pageBookmarks, List<String> lines) {
+    private static List<Bookmark> unprintedBookmarks(List<Bookmark> pageBookmarks, List<ExtractedLine> lines) {
         List<Bookmark> pending = new ArrayList<>(pageBookmarks);
-        for (String line : lines) {
-            takeHeading(pending, line);
+        for (ExtractedLine line : lines) {
+            takeHeading(pending, line.text());
         }
         return pending;
     }
@@ -155,6 +167,23 @@ public class PdfDocumentParser {
             }
         }
         return null;
+    }
+
+    private static boolean isFaqTitle(String title) {
+        return FAQ_TITLES.stream().anyMatch(title::equalsIgnoreCase);
+    }
+
+    private static boolean isBoldFont(PDFont font) {
+        PDFontDescriptor descriptor = font.getFontDescriptor();
+        if (descriptor != null && (descriptor.getFontWeight() >= MIN_BOLD_FONT_WEIGHT || descriptor.isForceBold())) {
+            return true;
+        }
+        String name = font.getName();
+        if (name == null) {
+            return false;
+        }
+        String baseName = name.substring(name.indexOf(SUBSET_PREFIX_END) + 1).toLowerCase(Locale.ROOT);
+        return BOLD_FONT_NAME_MARKERS.stream().anyMatch(baseName::contains);
     }
 
     private static String normalize(String text) {
@@ -171,7 +200,7 @@ public class PdfDocumentParser {
         return cut + ELLIPSIS;
     }
 
-    private static int lineCount(List<List<String>> pageLines) {
+    private static int lineCount(List<List<ExtractedLine>> pageLines) {
         return pageLines.stream().mapToInt(List::size).sum();
     }
 
@@ -205,6 +234,7 @@ public class PdfDocumentParser {
         private final List<PageLine> currentLines = new ArrayList<>();
         private @Nullable String currentHeading;
         private @Nullable String currentChapter;
+        private boolean currentIsFaq;
 
         void startHeading(Bookmark heading) {
             if (!heading.isChapter() && FAQ_HEADING.equals(heading.title()) && hasChapter()) {
@@ -217,20 +247,22 @@ public class PdfDocumentParser {
                 currentChapter = shortened;
             }
             currentHeading = shortened;
+            currentIsFaq = isFaqTitle(heading.title());
         }
 
         void startFaq() {
             flush();
             currentHeading = shortenHeading(currentChapter + FAQ_HEADING_SEPARATOR + FAQ_HEADING);
+            currentIsFaq = true;
         }
 
         boolean hasChapter() {
             return currentChapter != null;
         }
 
-        void addLine(PageLine line) {
+        void addLine(int pageNumber, ExtractedLine line) {
             if (currentHeading != null) {
-                currentLines.add(line);
+                currentLines.add(new PageLine(pageNumber, line.text(), currentIsFaq && line.isBold()));
             }
         }
 
@@ -244,6 +276,104 @@ public class PdfDocumentParser {
                 sections.add(new ParsedSection(currentHeading, currentLines));
             }
             currentLines.clear();
+        }
+    }
+
+    private static final class StyledLineStripper extends PDFTextStripper {
+
+        private static final byte NO_STYLE = 0;
+        private static final byte BOLD = 1;
+        private static final byte REGULAR = 2;
+
+        private final Map<PDFont, Boolean> boldByFont = new IdentityHashMap<>();
+        private final StringBuilder text = new StringBuilder();
+        private final StringBuilder styles = new StringBuilder();
+        private byte currentStyle = NO_STYLE;
+
+        List<ExtractedLine> extractLines(PDDocument document) throws IOException {
+            text.setLength(0);
+            styles.setLength(0);
+            writeText(document, new StyleRecordingWriter());
+            return splitLines();
+        }
+
+        @Override
+        protected void writeString(String string, List<TextPosition> textPositions) throws IOException {
+            currentStyle = isBold(textPositions) ? BOLD : REGULAR;
+            try {
+                super.writeString(string, textPositions);
+            } finally {
+                currentStyle = NO_STYLE;
+            }
+        }
+
+        private boolean isBold(List<TextPosition> textPositions) {
+            for (TextPosition position : textPositions) {
+                String unicode = position.getUnicode();
+                if (unicode != null && !unicode.isBlank() && !isBoldPosition(position)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private boolean isBoldPosition(TextPosition position) {
+            PDFont font = position.getFont();
+            return font != null && boldByFont.computeIfAbsent(font, PdfDocumentParser::isBoldFont);
+        }
+
+        private List<ExtractedLine> splitLines() {
+            List<ExtractedLine> lines = new ArrayList<>();
+            int lineStart = 0;
+            for (int index = 0; index <= text.length(); index++) {
+                boolean isEnd = index == text.length();
+                char current = isEnd ? '\n' : text.charAt(index);
+                if (current == '\n' || current == '\r') {
+                    addLine(lines, lineStart, index);
+                    if (current == '\r' && index + 1 < text.length() && text.charAt(index + 1) == '\n') {
+                        index++;
+                    }
+                    lineStart = index + 1;
+                }
+            }
+            return lines;
+        }
+
+        private void addLine(List<ExtractedLine> lines, int from, int to) {
+            String line = text.substring(from, to).strip();
+            if (line.isEmpty()) {
+                return;
+            }
+            boolean hasBold = false;
+            boolean hasRegular = false;
+            for (int index = from; index < to; index++) {
+                if (Character.isWhitespace(text.charAt(index))) {
+                    continue;
+                }
+                byte style = (byte) styles.charAt(index);
+                hasBold |= style == BOLD;
+                hasRegular |= style != BOLD;
+            }
+            lines.add(new ExtractedLine(line, hasBold && !hasRegular));
+        }
+
+        private final class StyleRecordingWriter extends Writer {
+
+            @Override
+            public void write(char[] buffer, int offset, int length) {
+                text.append(buffer, offset, length);
+                for (int index = 0; index < length; index++) {
+                    styles.append((char) currentStyle);
+                }
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
         }
     }
 }

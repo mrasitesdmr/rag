@@ -66,9 +66,9 @@ public class IngestionJobRunner {
             IngestionJob job = lifecycle.start(jobId);
             workspaceService.ensureEmbeddingModelMatches(job.getWorkspaceId(), embeddingProperties.modelLabel());
             ParsedDocument document = parser.parse(content);
-            log.info("Document parsed jobId={} pageCount={} chapterCount={} sectionCount={} removedMarginLines={}",
-                    jobId, document.pageCount(), document.chapterCount(), document.sections().size(),
-                    document.removedMarginLines());
+            log.info("Document parsed jobId={} pageCount={} chapterCount={} sectionCount={} questionCount={}"
+                    + " removedMarginLines={}", jobId, document.pageCount(), document.chapterCount(),
+                    document.sections().size(), document.questionCount(), document.removedMarginLines());
             lifecycle.moveTo(jobId, IngestionStage.CHUNKING);
             List<ChunkDraft> drafts = chunker.chunk(document.sections());
             log.info("Document chunked jobId={} chunkCount={} avgTokens={}", jobId, drafts.size(),

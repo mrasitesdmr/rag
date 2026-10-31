@@ -3,7 +3,10 @@ package com.rasitbank.retrieval.fixture;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -37,6 +40,7 @@ public final class PdfFixtures {
             PDDocumentOutline outline = new PDDocumentOutline();
             document.getDocumentCatalog().setDocumentOutline(outline);
             var font = PDType0Font.load(document, PdfFixtures.class.getResourceAsStream("/fonts/LiberationSans-Regular.ttf"));
+            var boldFont = loadSemibold(document, pages);
             PDOutlineItem lastTopLevel = null;
             for (PageSpec spec : pages) {
                 PDPage page = new PDPage(PDRectangle.A4);
@@ -46,7 +50,7 @@ public final class PdfFixtures {
                     stream.setFont(font, 11);
                     stream.newLineAtOffset(40, 780);
                     for (String line : spec.lines()) {
-                        stream.showText(line);
+                        showLine(stream, font, boldFont, line);
                         stream.newLineAtOffset(0, -16);
                     }
                     stream.endText();
@@ -73,6 +77,41 @@ public final class PdfFixtures {
         } catch (IOException exception) {
             throw new UncheckedIOException(exception);
         }
+    }
+
+    /** Satırın tamamı kalın yazı tipiyle basılsın diye satırın başına konur. */
+    public static final String BOLD = "{b}";
+    /** Satırın yalnız başı kalın olsun diye kalın kısmı kapatır; ör. {@code {b}Kur alarmı:{/b} düz metin}. */
+    public static final String BOLD_END = "{/b}";
+
+    private static final Path SEMIBOLD_FONT = Path.of("../docs/rehber/kaynak/fontlar/SourceSans3-Semibold.ttf");
+
+    private static PDType0Font loadSemibold(PDDocument document, PageSpec... pages) throws IOException {
+        boolean isNeeded = java.util.Arrays.stream(pages).flatMap(page -> page.lines().stream())
+                .anyMatch(line -> line.startsWith(BOLD));
+        if (!isNeeded) {
+            return null;
+        }
+        try (InputStream input = Files.newInputStream(SEMIBOLD_FONT)) {
+            return PDType0Font.load(document, input);
+        }
+    }
+
+    private static void showLine(PDPageContentStream stream, PDType0Font font, PDType0Font boldFont, String line)
+            throws IOException {
+        if (!line.startsWith(BOLD)) {
+            stream.showText(line);
+            return;
+        }
+        String rest = line.substring(BOLD.length());
+        int end = rest.indexOf(BOLD_END);
+        stream.setFont(boldFont, 11);
+        stream.showText(end < 0 ? rest : rest.substring(0, end));
+        if (end >= 0) {
+            stream.setFont(font, 11);
+            stream.showText(rest.substring(end + BOLD_END.length()));
+        }
+        stream.setFont(font, 11);
     }
 
     private static final byte[] VALID_PDF = pdf(true,

@@ -39,7 +39,7 @@ class SourceUploadIntegrationTest extends AbstractIngestionIntegrationTest {
     }
 
     @Test
-    void givenFreshDatabase_whenCreateSourceWithGuide_thenJobDoneSource10001With154Chunks() {
+    void givenFreshDatabase_whenCreateSourceWithGuide_thenJobDoneSource10001WithChunkCountOfM0Report() {
         // Arrange
         byte[] guide = guideBytes();
 
@@ -60,6 +60,8 @@ class SourceUploadIntegrationTest extends AbstractIngestionIntegrationTest {
                 .containsEntry("file_name", "Rasit-Bankasi-Urun-Hizmet-Rehberi-2026.10.pdf")
                 .containsEntry("ingestion_job_id", job.jobId());
         assertThat(count("chunks")).isEqualTo(154);
+        assertThat(jdbc.queryForMap("select min(page_number) as first_page, max(page_number) as last_page from chunks"))
+                .containsEntry("first_page", 5).containsEntry("last_page", 70);
         Map<String, Object> stored = jdbc.queryForMap("select stage, progress, embedded_chunks, total_chunks,"
                 + " finished_at from ingestion_jobs where id = ?", job.jobId());
         assertThat(stored).containsEntry("stage", "DONE").containsEntry("progress", 1.0)

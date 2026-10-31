@@ -9,6 +9,10 @@ import com.rasitbank.retrieval.ingestion.chunking.ChunkDraft;
 import com.rasitbank.retrieval.ingestion.chunking.TextChunker;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.stream.Stream;
+import org.apache.pdfbox.text.PDFTextStripper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -83,15 +87,128 @@ class PdfDocumentParserGuideTest {
     }
 
     @Test
-    void givenGuide202610_whenParseAndChunk_then154ChunksWithAverage285Tokens() {
+    void givenGuide202610_whenParseAndChunk_thenChunkCountAndAverageTokensAsInM0Report() {
         // Act
-        List<ChunkDraft> drafts = new TextChunker(ingestionProperties()).chunk(document.sections());
+        List<ChunkDraft> drafts = chunks();
 
         // Assert
+        // 154 parça ve ortalama 283 token: TASK-024 M0 (gerçek yükleme) raporundaki değerler
         assertThat(drafts).hasSize(154);
         assertThat(Math.round(drafts.stream().mapToInt(ChunkDraft::tokenCount).average().orElseThrow()))
-                .isEqualTo(285);
+                .isEqualTo(283);
         assertThat(drafts.getFirst().pageNumber()).isEqualTo(5);
+    }
+
+    @Test
+    void givenGuide202610_whenParse_thenEach105TypstQuestionIsAQuestionLineGroup() {
+        // Act
+        List<String> parsedQuestions = new ArrayList<>();
+        for (ParsedSection section : document.sections()) {
+            StringBuilder question = null;
+            for (PageLine line : section.lines()) {
+                if (line.isQuestion()) {
+                    question = question == null ? new StringBuilder(line.text())
+                            : question.append(' ').append(line.text());
+                } else if (question != null) {
+                    parsedQuestions.add(squash(question.toString()));
+                    question = null;
+                }
+            }
+            if (question != null) {
+                parsedQuestions.add(squash(question.toString()));
+            }
+        }
+
+        // Assert
+        List<String> typstQuestions = typstPairs().stream().map(pair -> pair[0]).toList();
+        assertThat(typstQuestions).hasSize(105);
+        assertThat(document.questionCount()).isEqualTo(105);
+        assertThat(parsedQuestions).containsExactlyInAnyOrderElementsOf(typstQuestions);
+    }
+
+    @Test
+    void givenGuide202610_whenParseAndChunk_thenEveryAnswerSitsInTheChunkOfItsQuestionAndEachQuestionInOneChunk() {
+        // Arrange
+        // cevap metni bölümün gövdesinde de geçebilir (ör. 2.17); eşleme yalnız soru-cevap kısımlarının parçalarında aranır
+        List<String> chunkTexts = chunks().stream().filter(draft -> draft.heading().endsWith(" · Sık sorulanlar"))
+                .map(draft -> squash(draft.content())).toList();
+
+        // Act + Assert
+        for (String[] pair : typstPairs()) {
+            String question = pair[0];
+            String answerStart = pair[1].substring(0, 25);
+            List<String> withQuestion = chunkTexts.stream().filter(text -> text.contains(question)).toList();
+            assertThat(withQuestion).as(question).hasSize(1);
+            // soru ile cevabın başı aynı parçada ve bitişik (iki soru aynı cevap başlangıcını paylaşabildiği için
+            // eşleme "soru + cevap başı" birleşimi üzerinden yapılır)
+            assertThat(withQuestion.getFirst()).as(question).contains(question + " " + answerStart);
+        }
+    }
+
+    @Test
+    void givenGuide202610_whenParseAndChunk_thenDovizKomisyonChunkHasNoOrphanLimitEmriAnswer() {
+        // Act
+        List<ChunkDraft> withQuestion = chunks().stream()
+                .filter(draft -> draft.content().contains("Döviz alırken komisyon alıyor musunuz?")).toList();
+
+        // Assert
+        assertThat(withQuestion).hasSize(1);
+        ChunkDraft chunk = withQuestion.getFirst();
+        assertThat(chunk.content().lines().findFirst().orElseThrow())
+                .isEqualTo("Döviz alırken komisyon alıyor musunuz?");
+        if (chunk.content().contains("Raşit Mobil'den limit emri verebilirsiniz.")) {
+            assertThat(chunk.content()).contains("Dolar belli bir kura gelince otomatik almak istiyorum.");
+        }
+    }
+
+    @Test
+    void givenGuide202610_whenParseAndChunk_thenEveryChunkFirstLineIsOnItsPage() throws IOException {
+        // Arrange
+        List<String> pageTexts = new ArrayList<>();
+        try (PDDocument pdf = Loader.loadPDF(guideBytes)) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            for (int page = 1; page <= pdf.getNumberOfPages(); page++) {
+                stripper.setStartPage(page);
+                stripper.setEndPage(page);
+                pageTexts.add(squash(stripper.getText(pdf)));
+            }
+        }
+
+        // Act
+        List<ChunkDraft> drafts = chunks();
+
+        // Assert
+        assertThat(drafts).allSatisfy(draft -> {
+            String firstLine = squash(draft.content().lines().findFirst().orElseThrow());
+            assertThat(pageTexts.get(draft.pageNumber() - 1)).as("chunk %d", draft.chunkNo()).contains(firstLine);
+        });
+        assertThat(drafts.getFirst().pageNumber()).isEqualTo(5);
+    }
+
+    private static List<ChunkDraft> chunks() {
+        return new TextChunker(ingestionProperties()).chunk(document.sections());
+    }
+
+    private static String squash(String text) {
+        return text.replaceAll("\\s+", " ").strip();
+    }
+
+    private static List<String[]> typstPairs() {
+        Pattern pair = Pattern.compile("^#soru\\[(.+?)\\]\\[(.+)\\]$");
+        List<String[]> pairs = new ArrayList<>();
+        try (Stream<Path> files = Files.list(Path.of("../docs/rehber/kaynak/bolumler"))) {
+            for (Path file : files.filter(path -> path.toString().endsWith(".typ")).sorted().toList()) {
+                for (String line : Files.readAllLines(file)) {
+                    Matcher matcher = pair.matcher(line);
+                    if (matcher.matches()) {
+                        pairs.add(new String[] {squash(matcher.group(1)), squash(matcher.group(2))});
+                    }
+                }
+            }
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
+        return pairs;
     }
 
     @Test

@@ -10,4 +10,18 @@ public record ParsedDocument(int pageCount, int chapterCount, List<ParsedSection
     public ParsedDocument {
         sections = List.copyOf(sections);
     }
+
+    public int questionCount() {
+        int questionCount = 0;
+        for (ParsedSection section : sections) {
+            boolean isPreviousQuestion = false;
+            for (PageLine line : section.lines()) {
+                if (line.isQuestion() && !isPreviousQuestion) {
+                    questionCount++;
+                }
+                isPreviousQuestion = line.isQuestion();
+            }
+        }
+        return questionCount;
+    }
 }

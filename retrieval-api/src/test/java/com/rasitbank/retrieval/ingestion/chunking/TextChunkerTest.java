@@ -84,7 +84,7 @@ class TextChunkerTest {
     }
 
     @Test
-    void givenSectionCrossingFromPage7To8_whenChunk_thenPageNumberIsPageOfFirstNewLine() {
+    void givenSectionCrossingFromPage7To8_whenChunk_thenPageNumberIsPageOfFirstLineIncludingOverlap() {
         List<PageLine> lines = new ArrayList<>();
         for (int index = 0; index < 20; index++) {
             lines.add(new PageLine(index < 15 ? 7 : 8, line(index, 100, '.')));
@@ -94,8 +94,228 @@ class TextChunkerTest {
 
         assertThat(drafts).hasSize(2);
         assertThat(drafts.get(0).pageNumber()).isEqualTo(7);
+        // ikinci parça örtüşme satırıyla (15. satır, sayfa 7) başlar; sayfa o satırın sayfasıdır
         assertThat(drafts.get(1).content().lines().findFirst().orElseThrow()).isEqualTo(lines.get(14).text());
+        assertThat(drafts.get(1).pageNumber()).isEqualTo(7);
+    }
+
+    @Test
+    void givenOverlapTrimmedBecauseBlockNearMax_whenChunk_thenPageNumberIsPageOfFirstRemainingLine() {
+        List<PageLine> lines = List.of(new PageLine(7, "a".repeat(1397) + "."), new PageLine(7, "b".repeat(99) + "."),
+                new PageLine(7, "c".repeat(98) + "."), new PageLine(8, "d".repeat(1989) + "."));
+
+        List<ChunkDraft> drafts = chunker.chunk(List.of(new ParsedSection("1 A", lines)));
+
+        assertThat(drafts).hasSize(2);
+        assertThat(drafts.get(1).content()).isEqualTo("d".repeat(1989) + ".");
         assertThat(drafts.get(1).pageNumber()).isEqualTo(8);
+    }
+
+    @Test
+    void givenSectionWithoutQuestionLines_whenChunk_thenOverlapAsBefore() {
+        List<PageLine> lines = new ArrayList<>();
+        for (int index = 0; index < 40; index++) {
+            lines.add(new PageLine(9, line(index, 100, '.'), false));
+        }
+
+        List<ChunkDraft> drafts = chunker.chunk(List.of(new ParsedSection("2 Kartlar · Sık sorulanlar", lines)));
+
+        assertThat(drafts.size()).isGreaterThanOrEqualTo(3);
+        assertThat(drafts.get(1).content().lines().findFirst().orElseThrow())
+                .isEqualTo(drafts.get(0).content().lines().reduce((first, second) -> second).orElseThrow());
+    }
+
+    private static PageLine question(int page, int index, int length) {
+        return new PageLine(page, line(index, length, '?'), true);
+    }
+
+    private static PageLine answer(int page, int index, int length) {
+        return new PageLine(page, line(index, length, '.'));
+    }
+
+    private static List<PageLine> pairs(int count, int firstIndex) {
+        List<PageLine> lines = new ArrayList<>();
+        for (int pair = 0; pair < count; pair++) {
+            int base = firstIndex + pair * 10;
+            lines.add(question(20, base, 60));
+            lines.add(answer(20, base + 1, 150));
+            lines.add(answer(20, base + 2, 150));
+        }
+        return lines;
+    }
+
+    private static List<ChunkDraft> chunksWith(List<ChunkDraft> drafts, String text) {
+        return drafts.stream().filter(draft -> draft.content().lines().anyMatch(text::equals)).toList();
+    }
+
+    @Test
+    void givenFaqSectionWithTenPairs_whenChunk_thenEveryPairWholeInExactlyOneChunkAndNoLineRepeated() {
+        List<PageLine> lines = pairs(10, 0);
+
+        List<ChunkDraft> drafts = chunker.chunk(List.of(new ParsedSection("2 Kartlar · Sık sorulanlar", lines)));
+
+        // çift 60 + 150 + 150 + 2 ayraç = 362; 4 çift 1.451, 5. çift 1.600'ü aşar -> 4 + 4 + 2
+        assertThat(drafts).hasSize(3);
+        assertThat(drafts.stream().map(draft -> draft.content().lines().count()).toList())
+                .containsExactly(12L, 12L, 6L);
+        assertThat(drafts).allSatisfy(draft -> assertThat(draft.content().lines().findFirst().orElseThrow())
+                .endsWith("?"));
+        List<String> allLines = drafts.stream().flatMap(draft -> draft.content().lines()).toList();
+        assertThat(allLines).containsExactlyElementsOf(lines.stream().map(PageLine::text).toList());
+    }
+
+    @Test
+    void givenAnswerOfThreeSentenceLines_whenChunk_thenQuestionAndAllAnswerLinesInSameChunk() {
+        List<PageLine> lines = new ArrayList<>();
+        lines.add(question(20, 0, 60));
+        lines.add(answer(20, 1, 1439));
+        PageLine secondQuestion = question(20, 10, 50);
+        lines.add(secondQuestion);
+        lines.add(answer(20, 11, 80));
+        lines.add(answer(20, 12, 80));
+        lines.add(answer(20, 13, 80));
+
+        List<ChunkDraft> drafts = chunker.chunk(List.of(new ParsedSection("2 Kartlar · Sık sorulanlar", lines)));
+
+        // ilk çift 1.500; ikinci çift 293 -> 1.600'ü aşar, ikinci çift bütün olarak yeni parçaya geçer
+        assertThat(drafts).hasSize(2);
+        assertThat(drafts.get(0).content().lines().toList()).containsExactly(lines.get(0).text(), lines.get(1).text());
+        assertThat(drafts.get(1).content().lines().toList()).containsExactly(secondQuestion.text(),
+                lines.get(3).text(), lines.get(4).text(), lines.get(5).text());
+    }
+
+    @Test
+    void givenQuestionWrappedOverTwoLines_whenChunk_thenBothQuestionLinesStayWithTheAnswer() {
+        List<PageLine> lines = new ArrayList<>();
+        lines.add(question(20, 0, 60));
+        lines.add(answer(20, 1, 1439));
+        lines.add(question(20, 10, 70));
+        lines.add(question(20, 11, 40));
+        lines.add(answer(20, 12, 200));
+
+        List<ChunkDraft> drafts = chunker.chunk(List.of(new ParsedSection("2 Kartlar · Sık sorulanlar", lines)));
+
+        assertThat(drafts).hasSize(2);
+        assertThat(drafts.get(1).content().lines().toList()).containsExactly(lines.get(2).text(),
+                lines.get(3).text(), lines.get(4).text());
+    }
+
+    @Test
+    void givenPairLongerThan2000_whenChunk_thenEveryPieceStartsWithQuestionAndIsAtMost2000() {
+        List<PageLine> lines = new ArrayList<>();
+        PageLine question = question(20, 0, 50);
+        lines.add(question);
+        for (int index = 1; index <= 30; index++) {
+            lines.add(answer(20, index, 100));
+        }
+
+        List<ChunkDraft> drafts = chunker.chunk(List.of(new ParsedSection("2 Kartlar · Sık sorulanlar", lines)));
+
+        assertThat(drafts.size()).isGreaterThanOrEqualTo(2);
+        assertThat(drafts).allSatisfy(draft -> {
+            assertThat(draft.content().length()).isLessThanOrEqualTo(2000);
+            assertThat(draft.content().lines().findFirst().orElseThrow()).isEqualTo(question.text());
+        });
+        for (PageLine answerLine : lines.subList(1, lines.size())) {
+            assertThat(chunksWith(drafts, answerLine.text())).hasSize(1);
+        }
+    }
+
+    @Test
+    void givenSingleAnswerLineLongerThan3000_whenChunk_thenEveryPieceStartsWithQuestionAndIsAtMost2000() {
+        PageLine question = question(20, 0, 50);
+        PageLine longAnswer = new PageLine(20, "kelime ".repeat(450).strip() + ".");
+
+        List<ChunkDraft> drafts = chunker.chunk(
+                List.of(new ParsedSection("2 Kartlar · Sık sorulanlar", List.of(question, longAnswer))));
+
+        assertThat(drafts.size()).isGreaterThanOrEqualTo(2);
+        assertThat(drafts).allSatisfy(draft -> {
+            assertThat(draft.content().length()).isLessThanOrEqualTo(2000);
+            assertThat(draft.content().lines().findFirst().orElseThrow()).isEqualTo(question.text());
+        });
+        int answerWords = drafts.stream().flatMap(draft -> draft.content().lines().skip(1))
+                .mapToInt(text -> text.split(" ").length).sum();
+        assertThat(answerWords).isEqualTo(450);
+    }
+
+    @Test
+    void givenQuestionAlmostAsLongAsTarget_whenChunk_thenPairSplitsWithoutQuestionPrefixAndStaysAtMost2000() {
+        PageLine question = question(20, 0, 1700);
+        PageLine answerLine = answer(20, 1, 600);
+
+        List<ChunkDraft> drafts = chunker.chunk(
+                List.of(new ParsedSection("2 Kartlar · Sık sorulanlar", List.of(question, answerLine))));
+
+        assertThat(drafts).hasSize(2);
+        assertThat(drafts.get(0).content()).isEqualTo(question.text());
+        assertThat(drafts.get(1).content()).isEqualTo(answerLine.text());
+    }
+
+    @Test
+    void givenQuestionOfExactlyTargetMinusOneChars_whenChunk_thenNoPieceExceeds2000() {
+        PageLine question = question(20, 0, 1599);
+        PageLine answerLine = answer(20, 1, 600);
+
+        List<ChunkDraft> drafts = chunker.chunk(
+                List.of(new ParsedSection("2 Kartlar · Sık sorulanlar", List.of(question, answerLine))));
+
+        assertThat(drafts).hasSize(2);
+        assertThat(drafts).allSatisfy(draft -> assertThat(draft.content().length()).isLessThanOrEqualTo(2000));
+        assertThat(drafts.get(1).content()).isEqualTo(answerLine.text());
+    }
+
+    @Test
+    void givenAnswerLineOf1990CharsAndQuestionOf100_whenChunk_thenQuestionRepeatedAndNoPieceExceeds2000() {
+        PageLine question = question(20, 0, 100);
+        PageLine longAnswer = new PageLine(20, "kelime ".repeat(284).strip() + ".");
+
+        List<ChunkDraft> drafts = chunker.chunk(
+                List.of(new ParsedSection("2 Kartlar · Sık sorulanlar", List.of(question, longAnswer))));
+
+        // cevap tek başına 2.000'in altında ama soruyla birlikte 2.091; soru + parça hiçbir zaman 2.000'i aşmamalı
+        assertThat(longAnswer.text().length()).isLessThan(2000);
+        assertThat(drafts.size()).isGreaterThanOrEqualTo(2);
+        assertThat(drafts).allSatisfy(draft -> {
+            assertThat(draft.content().length()).isLessThanOrEqualTo(2000);
+            assertThat(draft.content().lines().findFirst().orElseThrow()).isEqualTo(question.text());
+        });
+    }
+
+    @Test
+    void givenIntroLineBeforeFirstQuestion_whenChunk_thenIntroKeptOnceAndPairsStayWhole() {
+        List<PageLine> lines = new ArrayList<>();
+        PageLine intro = new PageLine(20, "Aşağıdaki sorular en sık gelenlerdir.");
+        lines.add(intro);
+        lines.addAll(pairs(10, 100));
+
+        List<ChunkDraft> drafts = chunker.chunk(List.of(new ParsedSection("2 Kartlar · Sık sorulanlar", lines)));
+
+        assertThat(chunksWith(drafts, intro.text())).hasSize(1);
+        for (PageLine line : lines.subList(1, lines.size())) {
+            assertThat(chunksWith(drafts, line.text())).hasSize(1);
+        }
+        for (int pair = 0; pair < 10; pair++) {
+            ChunkDraft owner = chunksWith(drafts, lines.get(1 + pair * 3).text()).getFirst();
+            assertThat(owner.content().lines().toList()).contains(lines.get(2 + pair * 3).text(),
+                    lines.get(3 + pair * 3).text());
+        }
+    }
+
+    @Test
+    void givenPairWhoseQuestionIsOnPage55AndAnswerOnPage56_whenChunk_thenChunkPageIs55() {
+        List<PageLine> lines = new ArrayList<>();
+        lines.add(question(54, 0, 60));
+        lines.add(answer(54, 1, 1439));
+        lines.add(question(55, 10, 50));
+        lines.add(answer(56, 11, 100));
+        lines.add(answer(56, 12, 100));
+
+        List<ChunkDraft> drafts = chunker.chunk(List.of(new ParsedSection("2 Kartlar · Sık sorulanlar", lines)));
+
+        assertThat(drafts).hasSize(2);
+        assertThat(drafts.get(0).pageNumber()).isEqualTo(54);
+        assertThat(drafts.get(1).pageNumber()).isEqualTo(55);
     }
 
     @Test

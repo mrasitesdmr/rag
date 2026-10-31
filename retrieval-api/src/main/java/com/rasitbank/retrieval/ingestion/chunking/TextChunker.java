@@ -8,7 +8,8 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 /**
- * Başlıklı kısımları satır sınırında, hedef boyda ve örtüşmeli parçalara böler; parça kısım sınırını geçmez.
+ * Başlıklı kısımları satır sınırında, hedef boyda ve örtüşmeli parçalara böler; parça kısım sınırını geçmez. Soru
+ * satırı taşıyan kısımda her soru-cevap çifti bölünmeden ve örtüşmesiz yerleşir; uzun çiftin her parçası soruyla başlar.
  */
 @Component
 public class TextChunker {
@@ -31,7 +32,11 @@ public class TextChunker {
     public List<ChunkDraft> chunk(List<ParsedSection> sections) {
         ChunkAssembler assembler = new ChunkAssembler();
         for (ParsedSection section : sections) {
-            for (List<PageLine> block : sizedBlocks(section.lines())) {
+            boolean hasQuestions = section.lines().stream().anyMatch(PageLine::isQuestion);
+            assembler.startSection(!hasQuestions);
+            List<List<PageLine>> blocks = hasQuestions ? questionAnswerBlocks(section.lines())
+                    : sizedBlocks(section.lines());
+            for (List<PageLine> block : blocks) {
                 assembler.addBlock(section.heading(), block);
             }
             assembler.closeSection(section.heading());
@@ -39,32 +44,74 @@ public class TextChunker {
         return assembler.drafts;
     }
 
+    private List<List<PageLine>> questionAnswerBlocks(List<PageLine> lines) {
+        int firstQuestion = 0;
+        while (!lines.get(firstQuestion).isQuestion()) {
+            firstQuestion++;
+        }
+        List<List<PageLine>> blocks = new ArrayList<>(sizedBlocks(lines.subList(0, firstQuestion)));
+        int pairStart = firstQuestion;
+        while (pairStart < lines.size()) {
+            int answerStart = pairStart;
+            while (answerStart < lines.size() && lines.get(answerStart).isQuestion()) {
+                answerStart++;
+            }
+            int pairEnd = answerStart;
+            while (pairEnd < lines.size() && !lines.get(pairEnd).isQuestion()) {
+                pairEnd++;
+            }
+            blocks.addAll(pairBlocks(lines.subList(pairStart, answerStart), lines.subList(answerStart, pairEnd)));
+            pairStart = pairEnd;
+        }
+        return blocks;
+    }
+
+    private List<List<PageLine>> pairBlocks(List<PageLine> questionLines, List<PageLine> answerLines) {
+        List<PageLine> pair = new ArrayList<>(questionLines);
+        pair.addAll(answerLines);
+        if (length(pair) <= maxChunkChars) {
+            return List.of(pair);
+        }
+        int prefixLength = length(questionLines) + LINE_SEPARATOR.length();
+        if (prefixLength >= targetChunkChars) {
+            return splitLongBlock(splitLongLines(pair, maxChunkChars), targetChunkChars);
+        }
+        List<List<PageLine>> blocks = new ArrayList<>();
+        List<PageLine> answerParts = splitLongLines(answerLines, maxChunkChars - prefixLength);
+        for (List<PageLine> answerPart : splitLongBlock(answerParts, targetChunkChars - prefixLength)) {
+            List<PageLine> block = new ArrayList<>(questionLines);
+            block.addAll(answerPart);
+            blocks.add(block);
+        }
+        return blocks;
+    }
+
     private List<List<PageLine>> sizedBlocks(List<PageLine> lines) {
         List<List<PageLine>> sizedBlocks = new ArrayList<>();
-        for (List<PageLine> block : blocks(splitLongLines(lines))) {
+        for (List<PageLine> block : blocks(splitLongLines(lines, maxChunkChars))) {
             if (length(block) <= maxChunkChars) {
                 sizedBlocks.add(block);
             } else {
-                sizedBlocks.addAll(splitLongBlock(block));
+                sizedBlocks.addAll(splitLongBlock(block, targetChunkChars));
             }
         }
         return sizedBlocks;
     }
 
-    private List<PageLine> splitLongLines(List<PageLine> lines) {
+    private static List<PageLine> splitLongLines(List<PageLine> lines, int maxLineChars) {
         List<PageLine> result = new ArrayList<>();
         for (PageLine line : lines) {
             String remaining = line.text();
-            while (remaining.length() > maxChunkChars) {
-                int cut = remaining.lastIndexOf(' ', maxChunkChars);
+            while (remaining.length() > maxLineChars) {
+                int cut = remaining.lastIndexOf(' ', maxLineChars);
                 if (cut <= 0) {
-                    cut = maxChunkChars;
+                    cut = maxLineChars;
                 }
-                result.add(new PageLine(line.pageNumber(), remaining.substring(0, cut).strip()));
+                result.add(new PageLine(line.pageNumber(), remaining.substring(0, cut).strip(), line.isQuestion()));
                 remaining = remaining.substring(cut).strip();
             }
             if (!remaining.isEmpty()) {
-                result.add(new PageLine(line.pageNumber(), remaining));
+                result.add(new PageLine(line.pageNumber(), remaining, line.isQuestion()));
             }
         }
         return result;
@@ -95,11 +142,11 @@ public class TextChunker {
         return last == '.' || last == '!' || last == '?' || last == ':';
     }
 
-    private List<List<PageLine>> splitLongBlock(List<PageLine> block) {
+    private static List<List<PageLine>> splitLongBlock(List<PageLine> block, int partTargetChars) {
         List<List<PageLine>> parts = new ArrayList<>();
         List<PageLine> part = new ArrayList<>();
         for (PageLine line : block) {
-            if (!part.isEmpty() && length(part) + LINE_SEPARATOR.length() + line.text().length() > targetChunkChars) {
+            if (!part.isEmpty() && length(part) + LINE_SEPARATOR.length() + line.text().length() > partTargetChars) {
                 parts.add(part);
                 part = new ArrayList<>();
             }
@@ -131,10 +178,15 @@ public class TextChunker {
         private final List<ChunkDraft> drafts = new ArrayList<>();
         private final List<PageLine> currentLines = new ArrayList<>();
         private int newLineCount;
+        private boolean isOverlapEnabled = true;
+
+        void startSection(boolean isOverlapEnabled) {
+            this.isOverlapEnabled = isOverlapEnabled;
+        }
 
         void addBlock(String heading, List<PageLine> block) {
             if (newLineCount > 0 && length(currentLines) + LINE_SEPARATOR.length() + length(block) > targetChunkChars) {
-                List<PageLine> overlap = overlap(currentLines);
+                List<PageLine> overlap = isOverlapEnabled ? overlap(currentLines) : List.of();
                 emit(heading);
                 currentLines.addAll(overlap);
                 while (!currentLines.isEmpty()
@@ -170,11 +222,11 @@ public class TextChunker {
         }
 
         private void emit(String heading) {
-            PageLine firstNewLine = currentLines.get(currentLines.size() - newLineCount);
+            int pageNumber = currentLines.getFirst().pageNumber();
             String content = join(currentLines);
             int inputLength = heading.length() + ChunkDraft.HEADING_SEPARATOR.length() + content.length();
             int tokenCount = Math.ceilDiv(inputLength, charsPerToken);
-            drafts.add(new ChunkDraft(drafts.size(), firstNewLine.pageNumber(), heading, content, tokenCount));
+            drafts.add(new ChunkDraft(drafts.size(), pageNumber, heading, content, tokenCount));
             currentLines.clear();
             newLineCount = 0;
         }

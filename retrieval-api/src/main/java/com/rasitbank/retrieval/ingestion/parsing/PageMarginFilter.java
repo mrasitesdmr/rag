@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
@@ -32,7 +33,11 @@ public class PageMarginFilter {
     }
 
     public List<List<String>> removeRepeatedMargins(List<List<String>> pageLines) {
-        List<PageBounds> pages = pageLines.stream().map(PageBounds::new).toList();
+        return removeRepeatedMargins(pageLines, Function.identity());
+    }
+
+    public <T> List<List<T>> removeRepeatedMargins(List<List<T>> pageLines, Function<T, String> textOf) {
+        List<PageBounds<T>> pages = pageLines.stream().map(lines -> new PageBounds<>(lines, textOf)).toList();
         long textPageCount = pages.stream().filter(PageBounds::hasLines).count();
         if (textPageCount >= minPages) {
             double threshold = minShare * textPageCount;
@@ -47,11 +52,11 @@ public class PageMarginFilter {
         return WHITESPACE.matcher(withoutDigits).replaceAll(" ");
     }
 
-    private void removeEdge(List<PageBounds> pages, double threshold, boolean isTop) {
+    private <T> void removeEdge(List<PageBounds<T>> pages, double threshold, boolean isTop) {
         for (int round = 0; round < maxPerEdge; round++) {
             Set<String> repeatedKeys = repeatedKeys(pages, threshold, isTop);
             int removed = 0;
-            for (PageBounds page : pages) {
+            for (PageBounds<T> page : pages) {
                 if (page.hasLines() && repeatedKeys.contains(marginKey(page.edgeLine(isTop)))) {
                     page.dropEdgeLine(isTop);
                     removed++;
@@ -63,9 +68,9 @@ public class PageMarginFilter {
         }
     }
 
-    private static Set<String> repeatedKeys(List<PageBounds> pages, double threshold, boolean isTop) {
+    private static <T> Set<String> repeatedKeys(List<PageBounds<T>> pages, double threshold, boolean isTop) {
         Map<String, Long> pageCountByKey = new HashMap<>();
-        for (PageBounds page : pages) {
+        for (PageBounds<T> page : pages) {
             if (page.hasLines()) {
                 pageCountByKey.merge(marginKey(page.edgeLine(isTop)), 1L, Long::sum);
             }
@@ -76,14 +81,16 @@ public class PageMarginFilter {
                 .collect(Collectors.toSet());
     }
 
-    private static final class PageBounds {
+    private static final class PageBounds<T> {
 
-        private final List<String> lines;
+        private final List<T> lines;
+        private final Function<T, String> textOf;
         private int from;
         private int to;
 
-        PageBounds(List<String> lines) {
+        PageBounds(List<T> lines, Function<T, String> textOf) {
             this.lines = new ArrayList<>(lines);
+            this.textOf = textOf;
             this.from = 0;
             this.to = lines.size();
         }
@@ -93,7 +100,7 @@ public class PageMarginFilter {
         }
 
         String edgeLine(boolean isTop) {
-            return isTop ? lines.get(from) : lines.get(to - 1);
+            return textOf.apply(isTop ? lines.get(from) : lines.get(to - 1));
         }
 
         void dropEdgeLine(boolean isTop) {
@@ -104,7 +111,7 @@ public class PageMarginFilter {
             }
         }
 
-        List<String> remainingLines() {
+        List<T> remainingLines() {
             return List.copyOf(lines.subList(from, to));
         }
     }

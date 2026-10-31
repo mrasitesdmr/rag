@@ -1,6 +1,8 @@
 package com.rasitbank.retrieval.ingestion.parsing;
 
 import static com.rasitbank.retrieval.fixture.IngestionFixtures.ingestionProperties;
+import static com.rasitbank.retrieval.fixture.PdfFixtures.BOLD;
+import static com.rasitbank.retrieval.fixture.PdfFixtures.BOLD_END;
 import static com.rasitbank.retrieval.fixture.PdfFixtures.PageSpec;
 import static com.rasitbank.retrieval.fixture.PdfFixtures.corruptPdf;
 import static com.rasitbank.retrieval.fixture.PdfFixtures.encryptedPdf;
@@ -243,5 +245,105 @@ class PdfDocumentParserTest {
         // Assert
         assertThat(thrown).isInstanceOf(UnprocessableContentException.class)
                 .extracting("errorCode").isEqualTo("PDF_UNREADABLE");
+    }
+
+    private static List<Boolean> questionFlags(ParsedSection section) {
+        return section.lines().stream().map(PageLine::isQuestion).toList();
+    }
+
+    @Test
+    void givenFaqSectionWithSemiboldQuestions_whenParse_thenOnlySemiboldLinesAreQuestions() {
+        byte[] bytes = pdf(true, PageSpec.of("2 Kartlar|>Sık sorulanlar", "2 Kartlar", "Sık sorulanlar",
+                BOLD + "Kart aidatı ne kadar?", "Yıllık 1.650 TL.", BOLD + "Ek kart ücretli mi?", "Hayır."));
+
+        ParsedDocument document = parser.parse(bytes);
+
+        assertThat(document.sections()).extracting(ParsedSection::heading)
+                .containsExactly("2 Kartlar · Sık sorulanlar");
+        ParsedSection faq = document.sections().getFirst();
+        assertThat(faq.lines()).extracting(PageLine::text).containsExactly("Kart aidatı ne kadar?",
+                "Yıllık 1.650 TL.", "Ek kart ücretli mi?", "Hayır.");
+        assertThat(questionFlags(faq)).containsExactly(true, false, true, false);
+        assertThat(document.questionCount()).isEqualTo(2);
+    }
+
+    @Test
+    void givenSemiboldLineOutsideFaqSection_whenParse_thenNotAQuestion() {
+        byte[] bytes = pdf(true, PageSpec.of("2 Kartlar|>2.1 Kart çeşitleri", "2 Kartlar", "2.1 Kart çeşitleri",
+                BOLD + "Kart Yıllık ücret", "Gold 1.450 TL."));
+
+        ParsedDocument document = parser.parse(bytes);
+
+        assertThat(document.sections().getFirst().lines()).extracting(PageLine::text)
+                .containsExactly("Kart Yıllık ücret", "Gold 1.450 TL.");
+        assertThat(questionFlags(document.sections().getFirst())).containsExactly(false, false);
+        assertThat(document.questionCount()).isZero();
+    }
+
+    @Test
+    void givenFaqLineWithOnlyBoldPrefix_whenParse_thenNotAQuestion() {
+        byte[] bytes = pdf(true, PageSpec.of("2 Kartlar|>Sık sorulanlar", "2 Kartlar", "Sık sorulanlar",
+                BOLD + "Kur alarmı:" + BOLD_END + " Piyasalar ekranından alarm kurabilirsiniz."));
+
+        ParsedDocument document = parser.parse(bytes);
+
+        assertThat(document.sections().getFirst().lines()).extracting(PageLine::text)
+                .containsExactly("Kur alarmı: Piyasalar ekranından alarm kurabilirsiniz.");
+        assertThat(questionFlags(document.sections().getFirst())).containsExactly(false);
+    }
+
+    @Test
+    void givenFaqSectionWithoutBoldLines_whenParse_thenNoQuestions() {
+        byte[] bytes = pdf(true, PageSpec.of("2 Kartlar|>Sık sorulanlar", "2 Kartlar", "Sık sorulanlar",
+                "Kart aidatı ne kadar?", "Yıllık 1.650 TL."));
+
+        ParsedDocument document = parser.parse(bytes);
+
+        assertThat(questionFlags(document.sections().getFirst())).containsExactly(false, false);
+        assertThat(document.questionCount()).isZero();
+    }
+
+    @Test
+    void givenFaqLineRule_whenParseWithBoldLines_thenBoldLinesAfterPrintedFaqHeadingAreQuestions() {
+        byte[] bytes = pdf(true, PageSpec.of("2 Kartlar", "2 Kartlar", "Giriş satırı.", "Sık sorulanlar",
+                BOLD + "Kart aidatı ne kadar?", "Yıllık 1.650 TL."));
+
+        ParsedDocument document = parser.parse(bytes);
+
+        assertThat(document.sections()).extracting(ParsedSection::heading)
+                .containsExactly("2 Kartlar", "2 Kartlar · Sık sorulanlar");
+        assertThat(questionFlags(document.sections().get(1))).containsExactly(true, false);
+        assertThat(questionFlags(document.sections().get(0))).containsExactly(false);
+    }
+
+    @Test
+    void givenConsecutiveBoldLines_whenParse_thenCountedAsOneQuestion() {
+        byte[] bytes = pdf(true, PageSpec.of("2 Kartlar|>Sık sorulanlar", "2 Kartlar", "Sık sorulanlar",
+                BOLD + "Yurt dışında kartımı kullanırken", BOLD + "limit uygulanıyor mu?", "Evet."));
+
+        ParsedDocument document = parser.parse(bytes);
+
+        assertThat(questionFlags(document.sections().getFirst())).containsExactly(true, true, false);
+        assertThat(document.questionCount()).isEqualTo(1);
+    }
+
+    @Test
+    void givenBookmarkTitledSikcaSorulanSorularInUpperCase_whenParse_thenBoldLinesAreQuestions() {
+        byte[] bytes = pdf(true, PageSpec.of("2 Kartlar|>SIKÇA SORULAN SORULAR", "2 Kartlar", "SIKÇA SORULAN SORULAR",
+                BOLD + "Kart aidatı ne kadar?", "Yıllık 1.650 TL."));
+
+        ParsedDocument document = parser.parse(bytes);
+
+        assertThat(questionFlags(document.sections().getFirst())).containsExactly(true, false);
+    }
+
+    @Test
+    void givenBookmarkTitledSorularVeCevaplar_whenParse_thenNoQuestions() {
+        byte[] bytes = pdf(true, PageSpec.of("2 Kartlar|>Sorular ve cevaplar", "2 Kartlar", "Sorular ve cevaplar",
+                BOLD + "Kart aidatı ne kadar?", "Yıllık 1.650 TL."));
+
+        ParsedDocument document = parser.parse(bytes);
+
+        assertThat(questionFlags(document.sections().getFirst())).containsExactly(false, false);
     }
 }
