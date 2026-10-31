@@ -7,7 +7,7 @@ Proje dokümanlarında hâlâ lab'daki 31 sayfalık statik rehber anlatılıyor.
 1. `rag.md` içindeki lab rehberine ait sayılar ("31 sayfa, 61 parça" gibi) kaldırılır ya da gerçek rehbere göre yazılır. Gerçek rehber: 70 sayfa, 11 bölüm, iki sürüm (2026.10 ve 2026.11), `docs/rehber/`. Parça sayısı içe alma (TASK-005) yapılmadan bilinmez, bu yüzden yazılmaz.
 2. `.claude/skills/rag-pipeline/references/indexing.md` içindeki "31 sayfa" bilgisi aynı şekilde güncellenir.
 3. Kök `CLAUDE.md`'nin "Durum" satırı güncel duruma getirilir: iskelet (TASK-002), lokal modeller ve `ollama.md` (TASK-003), rehber PDF'leri (TASK-004). Klasör yapısı tablosuna `docs/rehber/` eklenir.
-4. Ürün kuralları değişmez. Yalnızca eskimiş bilgiler düzeltilir.
+4. Ürün kuralları değişmez. Yalnızca eskimiş bilgiler düzeltilir. Dokümanlarda rehberin açılışta kendiliğinden yüklendiği yazıyorsa düzeltilir: bilgi bankası boş açılır, belgeler Bilgi kaynakları'ndaki "Belge ekle" ile girer (TASK-027, TASK-007).
 5. Bu dosyalar hiçbir rolün yazma alanında değil. Değişiklikler kullanıcı onayıyla lead tarafından yapılır.
 6. Bunların dışında eski lab bilgisi taşıyan başka bir dosya bulunursa, onu değiştirmeden önce kullanıcıya gösterilir.
 

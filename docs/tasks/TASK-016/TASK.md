@@ -8,7 +8,7 @@ Lab'ın Değerlendirme ekranı gerçek ölçümle çalışır. Golden set, rehbe
 Lab'daki `POST /api/assistant/evals` (202 + polling) akışının gerçek hâlidir.
 
 ## Kurallar
-1. **Golden set gerçek veridir:** Sorular TASK-004'teki rehbere göre yazılır; lab'daki 149 soru eski rehbere aittir ve kullanılmaz. Her soru için kategori ve cevabın geçtiği yer işaretlenir. Golden set'in kim tarafından ve nasıl hazırlanacağı, kaç soru olacağı ve sürümlenmesi (lab'da `rehber-golden-v1`) onay kartında yazılır.
+1. **Golden set gerçek veridir:** Bilgi bankası boş açılır ve belgeleri kullanıcı yükler (TASK-027). Golden set'in hangi belgeye ait olduğu, o belge yüklü değilken ekranın ne göstereceği ve kullanıcının kendi yüklediği belgeler için golden set hazırlayıp hazırlayamayacağı (lab'da ekrandan düzenleme yoktu) onay kartında sorulur. Rehber için sorular TASK-004'teki rehbere göre yazılır; lab'daki 149 soru eski rehbere aittir ve kullanılmaz. Her soru için kategori ve cevabın geçtiği yer işaretlenir. Golden set'in kim tarafından ve nasıl hazırlanacağı, kaç soru olacağı ve sürümlenmesi (lab'da `rehber-golden-v1`) onay kartında yazılır.
 2. **AÇIK KARAR, bu task'a gelindiğinde kullanıcıya yeniden sorulacak: doğru parça neyle işaretlenir?**
    - Lab doğru parçayı parça kimliğiyle işaretliyordu.
    - Gerçek sistemde parça kimlikleri yeni sürüm yüklenince (TASK-015) değişir; bu yüzden kimlikle işaretlenen golden set her yeni sürümde bozulabilir.
@@ -39,7 +39,7 @@ Lab'daki `POST /api/assistant/evals` (202 + polling) akışının gerçek hâlid
 8. **Golden set ile diğer ekranlar:** Önizleme'deki "sarı: cevabın geçtiği parça" işareti ve Konuşmalar'daki "cevap burada" etiketi, soru golden set'te varsa gösterilir. Eşleşmenin nasıl yapılacağı (tam metin ya da benzerlik) onay kartında belirlenir; TASK-014'teki tur durumu kararıyla tutarlı olur.
 
 ## Örnek senaryolar
-- Varsayılan stratejiyle (rerank 20→5) ölçüm çalıştırılır. Kutular gerçek recall@5 ve MRR'yi gösterir. Kaçan sorular tabloda "yok" olarak listelenir.
+- Rehber 2026.10 ekrandan yüklenmiştir. Varsayılan stratejiyle (rerank 20→5) ölçüm çalıştırılır. Kutular gerçek recall@5 ve MRR'yi gösterir. Kaçan sorular tabloda "yok" olarak listelenir.
 - Strateji `top5` yapılıp ölçüm tekrarlanır; iki çalıştırma karşılaştırılabilir.
 - 2026.11 yüklendikten sonra ölçüm çalıştırılır; doğru parça işareti (Kural 2'deki karara göre) hâlâ geçerlidir ve ölçüm bozulmaz.
 
@@ -52,7 +52,7 @@ Lab'daki `POST /api/assistant/evals` (202 + polling) akışının gerçek hâlid
 
 ## Kapsam dışı
 - Cevap kalitesinin (faithfulness, doğruluk) model ile ölçülmesi; gerekiyorsa ayrı task.
-- Golden set'i ekrandan düzenlemek (lab'da yok).
+- Golden set'i ekrandan düzenlemek (lab'da yok; Kural 1'deki karar gerektirirse ayrı task).
 
 ## Etkilenen katmanlar
 - [x] assistant-api (konuşma, model, prompt, akış, değerlendirme)

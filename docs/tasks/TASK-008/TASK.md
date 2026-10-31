@@ -26,7 +26,7 @@ Bu task lab'ın sağ yarısındaki "soru → retrieval → prompt → cevap → 
    - Akış sürerken giriş alanı ve gönder düğmesi kapalıdır.
 6. **Alıntı:**
    - Cevaptaki `[n]` sadece 1 ile prompt'taki parça sayısı arasındaysa alıntıdır ve tıklanabilir düğme olur. Düğme, TASK-007'deki parça penceresini o parçayla açar.
-   - Cevabın altında atıf yapılan parçaların sayfaları "Rehber · s. N" düğmeleri olarak gösterilir.
+   - Cevabın altında atıf yapılan parçaların sayfaları "Rehber · s. N" düğmeleri olarak gösterilir. Birden fazla belge yüklü olabildiği için "Rehber" yerine parçanın geldiği belgenin adı (ya da kısa adı) yazar; biçimi onay kartında belirlenir.
 7. **Bulamadım:** Model sabit cümleyi ("Bu konuda rehberimizde bilgi bulamadım.") yazarsa tur "cevap yok" olarak işaretlenir. Bu durumda "Rehber · s. N" düğmeleri gösterilmez.
 8. **Yan kart:**
    - Cevap gelmeden önce lab'daki "Asistan nasıl cevaplıyor?" kartı görünür.
@@ -36,7 +36,7 @@ Bu task lab'ın sağ yarısındaki "soru → retrieval → prompt → cevap → 
    - Lab'daki makine etiketinin ("Apple M5 · 16 GB") gösterilip gösterilmeyeceği ve nereden geleceği onay kartında sorulur; sabit yazılmaz.
 9. **Tur kaydı** (assistant veritabanı):
    - soru, arama sorgusu (bu task'ta soruyla aynı), üretim modu ve retrieval stratejisi,
-   - rehber sürümü,
+   - prompt'a giren her parçanın kaynağı ve sürümü,
    - prompt'a giren parçalar (kimlik, prompt'taki sıra, vector sırası, mesafe), atıf yapılan numaralar,
    - cevap metni, prompt ve cevap token sayısı, adım süreleri, hata varsa `errorCode`.
    Tur, akış bitince yazılır; model çağrısı sırasında veritabanı transaction'ı açık tutulmaz.
@@ -44,10 +44,11 @@ Bu task lab'ın sağ yarısındaki "soru → retrieval → prompt → cevap → 
 11. retrieval-api ya da dil modeli erişilemezse kullanıcı Türkçe bir hata mesajı görür; tur hata koduyla kaydedilir.
 
 ## Örnek senaryolar
-- Kullanıcı "Kartımı kaybettim, ne yapmalıyım?" yazar. Cevap kelime kelime gelir, rehberin kayıp kart bölümündeki parçaya dayanır ve `[1]` gibi alıntılar taşır. `[1]`'e tıklayınca o parça açılır.
+- Rehberin 2026.10 PDF'i Bilgi kaynakları'ndan yüklenmiştir (TASK-007). Kullanıcı "Kartımı kaybettim, ne yapmalıyım?" yazar. Cevap kelime kelime gelir, rehberin kayıp kart bölümündeki parçaya dayanır ve `[1]` gibi alıntılar taşır. `[1]`'e tıklayınca o parça açılır.
 - Kullanıcı "Bitcoin alıp satabilir miyim?" yazar. Cevap "Bu konuda rehberimizde bilgi bulamadım." olur.
 - Cevap akarken kullanıcı sayfayı kapatır; assistant-api model çağrısını iptal eder.
 - Dil modeli kapalıyken soru sorulur; Türkçe hata mesajı görünür.
+- Bilgi bankasında hiç belge yokken soru sorulur; parça gelmez ve cevap "Bu konuda rehberimizde bilgi bulamadım." olur. Bu durumda ekranda belge yüklenmesi gerektiğini anlatan bir ipucu gösterilip gösterilmeyeceği onay kartında sorulur.
 
 ## Kabul kriterleri
 - Gerçek modellerle en az 5 rehber sorusu ve 2 rehber dışı soru denenmiş; cevaplar, alıntılar ve süreler raporda.

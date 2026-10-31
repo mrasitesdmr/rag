@@ -1,5 +1,7 @@
 # TASK-026: Rehberin ilk girişinde biçim ve dosya yolu güvenceleri
 
+> **İPTAL (2026-10-31):** Bu task'ın iki riski TASK-027 ile ortadan kalkıyor. Rehber artık açılışta repodaki klasörden otomatik yüklenmiyor (Docker'daki klasör bağlantısı kalkıyor) ve PDF okuyucu rehberin yer imi ile üst/alt bilgi kalıbına bağlı olmayan genel okuyucuya dönüşüyor. Yapılmayacak; aşağıdaki metin geçmiş kayıt olarak duruyor.
+
 ## Ne isteniyor
 TASK-005'in onay kartındaki iki risk kapatılır. (1) İçe alma, başlıkları PDF'in yer imlerinden ve sayfa üst/alt bilgisini rehberin kendi kalıbından tanıyor; rehber üretimi yer imlerini kaybederse iş `PDF_NO_SECTIONS` ile durur, başka bir kalıpta üst/alt bilgi sessizce parçalara karışabilir. (2) Docker'da rehber PDF'i repodaki `docs/rehber/pdf` klasöründen salt okunur bağlanıyor; Compose repo dışından ya da klasör taşınarak çalıştırılırsa dosya bulunamaz, rehber girmez ve bu sadece loglarda görünür. Bugün ikisi de sorun çıkarmıyor; amaç bozulduklarında sessiz kalmamaları. Kaynak: `docs/tasks/TASK-005/handoff/00-onay-karti.md` (Riskler) ve `01-plan.md` (Açık sorular ve riskler).
 

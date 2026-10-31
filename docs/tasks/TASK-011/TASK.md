@@ -1,7 +1,7 @@
 # TASK-011: Canlı yapılandırma ve Sadece LLM modu
 
 ## Ne isteniyor
-assistant-api'nin etkin yapılandırması ekrana gerçek değerleriyle gelir. Önizleme'deki yapılandırma şeridinde Model, Embedding, Retrieval, Soru yeniden yazma ve Rehber değerleri gösterilir; üst bardaki "Canlı yapılandırma" rozeti lab'daki gibi kalır. Ayrıca üretim modu "Sadece LLM" eklenir: retrieval yapılmaz, soru parçasız sistem talimatıyla doğrudan modele gider. Bu, lab'ın sağ yarısındaki "üretim: Sadece LLM / RAG" düğmesinin backend karşılığıdır; ekranda düğme yoktur, sunucu ayarıdır.
+assistant-api'nin etkin yapılandırması ekrana gerçek değerleriyle gelir. Önizleme'deki yapılandırma şeridinde Model, Embedding, Retrieval, Soru yeniden yazma ve bilgi bankası değerleri gösterilir; üst bardaki "Canlı yapılandırma" rozeti lab'daki gibi kalır. Ayrıca üretim modu "Sadece LLM" eklenir: retrieval yapılmaz, soru parçasız sistem talimatıyla doğrudan modele gider. Bu, lab'ın sağ yarısındaki "üretim: Sadece LLM / RAG" düğmesinin backend karşılığıdır; ekranda düğme yoktur, sunucu ayarıdır.
 
 ## Kurallar
 1. Üretim modu `assistant.*` yapılandırmasıdır: `rag` ya da `llm`. Varsayılan `rag`'dir.
@@ -9,7 +9,7 @@ assistant-api'nin etkin yapılandırması ekrana gerçek değerleriyle gelir. Ö
 3. assistant-api etkin yapılandırmayı bir uçtan verir:
    - dil modeli adı, embedding modeli ve boyutu,
    - üretim modu, retrieval stratejisi, yeniden yazmanın açık olup olmadığı,
-   - rehberin güncel sürümü (retrieval-api'den alınır).
+   - bilgi bankasının durumu (retrieval-api'den alınır). Lab'da tek rehber olduğu için şeritte "Rehber 2026.10" yazıyordu. Kullanıcı birden fazla belge yükleyebildiği için ne gösterileceği (ör. "Bilgi kaynakları 3 belge"; tek belge varsa adı ve sürümü; hiç yoksa "belge yok" uyarısı) onay kartında belirlenir.
 4. Şeritteki metinler lab'daki gibidir: "Retrieval kapalı (Sadece LLM)", "top-5", "rerank 20→5", "reranker DOWN"; "Soru yeniden yazma açık/kapalı". Lab'daki renk vurguları (kapalı → kırmızı, uyarı → sarı) korunur.
 5. "Reranker DOWN" durumu ölçüme dayanır: reranker'ın erişilebilir olup olmadığı periyodik sağlık kontrolüyle ya da son çağrının sonucuyla belirlenir. Hangisi olacağı onay kartında belirlenir.
 6. Yan karttaki "Asistan nasıl cevaplıyor?" metni etkin moda göre değişir (lab'daki üç varyant).
@@ -18,7 +18,8 @@ assistant-api'nin etkin yapılandırması ekrana gerçek değerleriyle gelir. Ö
 9. Rozet üzerinde lab'daki ipucu metni yer alır: "Önizleme, canlı asistanla aynı yapılandırmayı kullanır".
 
 ## Örnek senaryolar
-- Varsayılan ayarlarla şerit "Model qwen3.5:9b · Embedding bge-m3 · Retrieval rerank 20→5 · Soru yeniden yazma açık · Rehber 2026.10" gösterir.
+- Varsayılan ayarlarla, sadece rehber 2026.10 yüklüyken şerit "Model qwen3.5:9b · Embedding bge-m3 · Retrieval rerank 20→5 · Soru yeniden yazma açık" ve bilgi bankası değerini (Kural 3'teki karara göre) gösterir.
+- Hiç belge yüklenmemişken şerit bunu gösterir.
 - `assistant.generation.mode=llm` ile servis yeniden başlatılır. Şerit "Retrieval kapalı (Sadece LLM)" gösterir. "Kartımı kaybettim" sorusunun cevabında alıntı yoktur ve rehbere dayanmaz.
 - Reranker durdurulur; şerit "reranker DOWN" gösterir.
 

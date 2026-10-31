@@ -5,7 +5,7 @@
 
 ## Kurallar
 1. **Senaryolar (E2E, Playwright):**
-   1. giriş yapma;
+   1. giriş yapma; sistem boş bilgi bankasıyla açılır, belgeler "Belge ekle" ile yüklenir (rehber ve yer imi olmayan başka bir PDF);
    2. Önizleme'de serbest metin soru, akan cevap, alıntı penceresi, "bulamadım" ve temsilciye aktarma;
    3. takip sorusu ve yeniden yazılmış arama sorgusu;
    4. geri bildirim;
@@ -14,14 +14,14 @@
    7. yeni sürüm yükleme, sayfa yenilenince devam ve önce/sonra cevap farkı;
    8. Değerlendirme çalıştırması.
 2. **Görsel karşılaştırma:** Her ekran ve pencere lab'ın sol yarısıyla aynı pencere boyutunda ekran görüntüsüyle karşılaştırılır. Farklar listelenir. Bilinçli farklar gerekçesiyle yazılır (ör. gerçek veriden gelen sayılar, serbest metin, lab'da olmayan boş durumlar). Bilinçsiz farklar düzeltilmek üzere ayrı task'a dönüşür.
-3. **Mock taraması:** Ürün kodunda (test dışında) sabit soru, cevap, parça, konuşma, kullanıcı, metrik ya da model adı olmadığı taranır. Test dublörleri (MSW, Mockito) sadece testlerde bulunur.
+3. **Mock taraması:** Ürün kodunda (test dışında) sabit soru, cevap, parça, konuşma, kullanıcı, metrik ya da model adı olmadığı taranır. Açılışta kendiliğinden belge, kaynak ya da parça oluşturan kod olmadığı da taranır. Test dublörleri (MSW, Mockito) sadece testlerde bulunur.
 4. **Kalite:** İki serviste mutation testi (PIT), web'de mutation testi (Stryker) çalıştırılır; eşikler modül `CLAUDE.md`'lerindeki gibidir. `npm audit` ve OWASP bağımlılık taraması yapılır.
 5. **Performans ve kaynak:** 16 GB makinede tipik bir soru için uçtan uca süre ve adım süreleri ölçülür (yeniden yazma, arama, rerank, cevap). Bellek kullanımı ölçülür. Sonuçlar `README.md`'de "bu makinede ölçülen" notuyla yazılır.
 6. **Loglama denetimi:** Bir senaryo koşusunun logları taranır; soru, cevap, parça metni, prompt ya da kişisel veri bulunmadığı doğrulanır.
 7. **Dokümanlar:** `README.md` (kurulum, çalıştırma, ekranlar, mimari, ölçümler) devops tarafından yazılır. `rag.md` ve `KULLANIM-KILAVUZU.md` için güncelleme önerileri rapora yazılır; bu dosyaları kullanıcı onayıyla lead günceller.
 
 ## Örnek senaryolar
-- Yeni klonlanmış repoda README adımları izlenir; 30 dakika içinde (model indirme hariç) ilk soru cevaplanır.
+- Yeni klonlanmış repoda README adımları izlenir; kullanıcı rehberi ekrandan yükler; 30 dakika içinde (model indirme hariç) ilk soru cevaplanır.
 - Görsel karşılaştırmada Değerlendirme kutularının hizası lab'dan farklı çıkar; düzeltme task'ı açılır.
 
 ## Kabul kriterleri

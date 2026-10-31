@@ -6,15 +6,15 @@ TASK-005'in onay kartındaki "sayfa numarası yaklaşıktır" riski ve QA raporu
 ## Kurallar
 1. Örtüşme bir soru-cevap çiftini bölmez: örtüşmeye bir SSS cevabının satırı giriyorsa o cevabın sorusu da girer. Bunun parça boyutu sınırlarıyla (hedef 1.600, en fazla 2.000, örtüşme 200 karakter) nasıl uzlaşacağı onay kartında yazılır.
 2. Parçanın gösterilen sayfası, müşterinin parçanın metnini bulacağı sayfayla tutarlıdır. Seçenekler (ör. sayfa = parçanın ilk satırının sayfası; ya da sayfa aralığı "s. 55-56") ve sözleşmeye etkisi onay kartında kullanıcıya sorulur.
-3. TASK-005'teki diğer parçalama kuralları değişmez: bölüm sınırı, tablo satırının bölünmemesi, üst/alt bilginin atılması, kapak ve içindekilerin atlanması.
-4. Rehber değişen kurallarla yeniden içe alınır. Mevcut bir bilgi bankasının bu değişiklikten sonra nasıl yenileneceği (yeni sürüm yükleme TASK-015'te) onay kartında yazılır; tabloya elle parça yazılmaz.
+3. TASK-027'deki genel okuyucunun diğer parçalama kuralları değişmez (bölüm sınırı, tablo satırının bölünmemesi, üst/alt bilginin atılması). Kurallar sadece rehbere özgü değil, yüklenen her belge için geçerlidir; SSS kuralı belgede soru-cevap yapısı tanınabildiğinde uygulanır.
+4. Rehber değişen kurallarla belge ekleme ucuyla (TASK-027) yeniden yüklenir; açılışta otomatik yükleme yoktur. Mevcut bir bilgi bankasının bu değişiklikten sonra nasıl yenileneceği (yeni sürüm yükleme TASK-015'te) onay kartında yazılır; tabloya elle parça yazılmaz.
 
 ## Örnek senaryolar
 - 2026.10 yeniden içe alınır. "Döviz alırken komisyon…" sorusunu içeren parça, örtüşmeyle gelen cevabın sorusunu da taşır ya da o cevabı hiç taşımaz.
 - Rastgele seçilen bir parçanın gösterilen sayfası PDF'te açılır; parçanın ilk metni o sayfada (ya da gösterilen aralıkta) bulunur.
 
 ## Kabul kriterleri
-- Gerçek 2026.10 PDF'i ve gerçek `bge-m3` ile yeniden içe alınmış; parça sayısı, ortalama token ve TASK-005'e göre fark raporda.
+- Gerçek 2026.10 PDF'i ve gerçek `bge-m3` ile belge ekleme ucundan yeniden yüklenmiş; parça sayısı, ortalama token ve TASK-005'e göre fark raporda.
 - Örtüşmeyle başlayan en az 5 parça (chunk 122'nin karşılığı dahil) PDF ile elle karşılaştırılmış.
 - Örtüşme ve sayfa kuralları testlerle doğrulanmış; `cd retrieval-api && ./mvnw verify` geçer.
 

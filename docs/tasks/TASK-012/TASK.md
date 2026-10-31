@@ -14,7 +14,7 @@ Lab'da bu öğeler kaydedilmiş 149 soru üzerinden çalışıyordu, çünkü st
    - golden set'ten türetilen sorular (TASK-016'ya bağımlı),
    - geçmiş konuşmalardaki sık sorular.
    Gerçek bankacılık asistanlarındaki uygulama araştırılıp öneri yapılır.
-2. **Kategoriler** lab'daki gibidir: Kartlar, Hesaplar, Krediler, Transfer, Dijital, Yatırım, Diğer.
+2. **Kategoriler** koda gömülmez. Lab'daki kategoriler (Kartlar, Hesaplar, Krediler, Transfer, Dijital, Yatırım, Diğer) Raşit rehberine özgüdür; kullanıcı başka belgeler yükleyebildiği için kategoriler önerilerin kaynağıyla birlikte gelir. Hiç öneri yoksa (ör. hiç belge yüklenmemişse) çipler ve pencere boş durum gösterir; metni onay kartında belirlenir.
 3. **Öneri çipleri:** En fazla 2 çip gösterilir. Konuşmada önceki tur varsa ilk çip bir takip sorusudur ("Bu konuşmada devam"). Takip önerilerinin nasıl üretileceği (önceki cevaba göre dil modeliyle, ya da öneri listesindeki bağlantılarla) onay kartında belirlenir. Sorulmuş sorular yeniden önerilmez. Cevap akarken çipler kapalıdır.
 4. **Takip mi, yeni konuşma mı:** Lab'da takip çipi aynı konuşmada sorulur, diğer çipler "Yeni konuşmada sorulur" ipucuyla yeni konuşma açar. Bu davranış korunur.
 5. **Otomatik tamamlama:**
