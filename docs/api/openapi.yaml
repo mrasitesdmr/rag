@@ -4,8 +4,9 @@
 # Planner günceller; backend-coder buna göre endpoint yazar, frontend-coder buna göre çağrı yapar, qa uyumu kontrol eder.
 # Uyum kontrolünde her servisin /v3/api-docs.yaml çıktısı bu dosyanın kendi path önekiyle karşılaştırılır.
 # Cevap akışının (SSE) olayları docs/api/sse.md'dedir; burada sadece akış endpoint'inin kendisi ve akış öncesi hataları tanımlanır.
-# Durum: TASK-027. retrieval-api: içe alma işinin durumu (GET .../ingestion-jobs/{jobId}, TASK-005), belge ekleme (POST .../sources),
-#   kaynak listesi (GET .../sources) ve başarısız ilk içe almanın yeniden denenmesi (POST .../sources/{sourceId}/ingestion-jobs).
+# Durum: TASK-006. retrieval-api: içe alma işinin durumu (GET .../ingestion-jobs/{jobId}, TASK-005), belge ekleme (POST .../sources),
+#   kaynak listesi (GET .../sources) ve başarısız ilk içe almanın yeniden denenmesi (POST .../sources/{sourceId}/ingestion-jobs) (TASK-027),
+#   vektör arama (POST .../search, TASK-006; çağıran assistant-api, TASK-008).
 #   assistant-api'de henüz uç yok.
 # Bilgi bankasına hiçbir belge kendiliğinden girmez: retrieval-api açılışta kaynak, sürüm, parça ya da iş oluşturmaz (TASK-027).
 #   Belgeler sadece POST .../sources ile girer. Yeni sürüm yükleme ucu TASK-015'te, kaynak/sürüm/parça okuma uçlarının geri kalanı TASK-007'de eklenir.
@@ -21,7 +22,85 @@ tags:
     description: Knowledge sources of a workspace and their file uploads (retrieval-api)
   - name: Ingestion jobs
     description: Background ingestion jobs of a workspace (retrieval-api)
+  - name: Search
+    description: Vector search over the current versions of a workspace's sources (retrieval-api; called by assistant-api)
 paths:
+  /api/workspaces/{workspaceId}/search:
+    post:
+      tags: [Search]
+      operationId: searchChunks
+      summary: Return the chunks nearest to a query text, from the current version of every source
+      description: |
+        retrieval-api. Called by assistant-api in its retrieval step (lab: `topK` 5 for top-5, 20 for rerank candidates).
+        Vector search only (no keyword or hybrid mode). Nothing is stored: searches are not recorded.
+
+        The query is stripped (leading/trailing whitespace) and embedded with the workspace's embedding model (`bge-m3`).
+        The search covers, for every source of the workspace, only the chunks of its current version (the version of its
+        latest DONE job). A source with no DONE version is not searched; while a source's new version is being ingested,
+        its previous version is searched until the new one is written.
+
+        Hits are ordered by cosine distance ascending; equal distances are ordered by `chunkId` ascending.
+        At most `topK` hits are returned; fewer when the workspace has fewer searchable chunks. There is no distance
+        threshold: a query whose answer is not in any source still gets the nearest chunks.
+        When no source has a current version the response is an empty list and the embedding model is not called.
+
+        The query uses the HNSW index (`hnsw.ef_search` = 40).
+
+        Check order: 400 → 404 → 409 → (empty knowledge base → 200 with no hits) → 503.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchChunksRequest'
+      responses:
+        '200':
+          description: The nearest chunks, nearest first (possibly none)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: |
+            `VALIDATION_FAILED` (`violations[].field`; all violations are reported together, in no fixed order):
+            - `query`: missing, empty or only whitespace — message `must not be blank`; longer than 1000 characters — message `size must be at most 1000 characters`
+            - `topK`: missing — message `must not be null`; not in 1-50 — message `must be between 1 and 50`
+
+            `BAD_REQUEST`: body missing or not valid JSON, `topK` not a number, or `workspaceId` not an integer (framework)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`WORKSPACE_NOT_FOUND`: no workspace with this id (only 42 exists)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: '`EMBEDDING_MODEL_MISMATCH`: the configured embedding model (`embedding.model@embedding.dimensions`) is not the workspace''s (`bge-m3@1024`)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '415':
+          description: '`UNSUPPORTED_MEDIA_TYPE`: the request body is not `application/json` (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          description: |
+            - `EMBEDDING_UNAVAILABLE`: the embedding model did not answer, answered with an error or returned no vector (after retries; with the model server down this takes about 3 seconds)
+            - `EMBEDDING_DIMENSION_MISMATCH`: the embedding model returned a vector whose size is not the workspace's (1024)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /api/workspaces/{workspaceId}/sources:
     get:
       tags: [Sources]
@@ -340,6 +419,8 @@ components:
             - SOURCE_NOT_FOUND
             - SOURCE_ALREADY_INGESTED
             - INGESTION_IN_PROGRESS
+            - EMBEDDING_UNAVAILABLE
+            - EMBEDDING_DIMENSION_MISMATCH
         violations:
           type: array
           description: Only for `VALIDATION_FAILED`
@@ -523,3 +604,77 @@ components:
           type: string
           description: Required version label of this file. Stripped; 1-40 characters.
           example: '2026.10'
+    SearchChunksRequest:
+      type: object
+      description: Body of `searchChunks`. Unknown fields are ignored.
+      required: [query, topK]
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: |
+            Text to search for. Must contain a non-whitespace character; at most 1000 characters (Java `String.length()`,
+            UTF-16 code units, counted before stripping). Stripped before embedding; case and Turkish letters are kept as sent.
+          example: Kartımı kaybettim, ne yapmalıyım?
+        topK:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 50
+          description: 'Maximum number of hits to return (lab: 5 for top-5, 20 for rerank candidates)'
+          example: 5
+    SearchResponse:
+      type: object
+      description: Result of `searchChunks`
+      required: [hits]
+      properties:
+        hits:
+          type: array
+          description: Nearest first (cosine distance ascending, then `chunkId` ascending); at most `topK`; empty when nothing is searchable
+          items:
+            $ref: '#/components/schemas/SearchHitResponse'
+    SearchHitResponse:
+      type: object
+      description: One chunk returned by a search. The embedding vector itself is never returned.
+      required: [chunkId, chunkNo, pageNumber, heading, content, sourceId, sourceName, version, distance]
+      properties:
+        chunkId:
+          type: integer
+          format: int64
+          example: 151
+        chunkNo:
+          type: integer
+          format: int32
+          description: Zero-based position of the chunk within its source version
+          example: 31
+        pageNumber:
+          type: integer
+          format: int32
+          description: PDF page of the chunk's first line
+          example: 19
+        heading:
+          type: string
+          description: Section heading of the chunk (1-200 characters)
+          example: 2.16 Kayıp ya da çalıntı bildirimi
+        content:
+          type: string
+          description: Chunk text as stored (1-2000 characters), without the heading
+        sourceId:
+          type: integer
+          format: int64
+          example: 10001
+        sourceName:
+          type: string
+          example: Raşit Bankası Ürün ve Hizmet Rehberi
+        version:
+          type: string
+          description: Version label of the source version the chunk belongs to (the label given at upload)
+          example: '2026.10'
+        distance:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 2
+          description: Cosine distance between the query embedding and the chunk embedding (pgvector `<=>`); smaller is nearer
+          example: 0.3124

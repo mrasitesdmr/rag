@@ -19,4 +19,6 @@ public interface SourceRepository extends JpaRepository<Source, Long> {
     Optional<Source> findByIdAndWorkspaceId(long id, long workspaceId);
 
     Page<Source> findByWorkspaceIdOrderByIdAsc(long workspaceId, Pageable pageable);
+
+    boolean existsByWorkspaceIdAndActiveVersionIdIsNotNull(long workspaceId);
 }
