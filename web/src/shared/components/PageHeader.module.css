@@ -32,3 +32,18 @@
   color: var(--color-muted);
   font-size: var(--text-description);
 }
+
+.parentLink {
+  color: var(--color-muted);
+  text-decoration: none;
+}
+
+.parentLink:hover {
+  color: var(--color-brand);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2-5);
+}

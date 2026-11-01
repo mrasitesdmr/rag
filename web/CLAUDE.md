@@ -2,7 +2,7 @@
 AMAÇ: Claude (ve ekip üyeleri) web/ altında bir dosyayı okuyunca ya da düzenleyince yüklenir.
 İçerik: ürün hedefi, harita, komutlar, dosya sahipliği, tuzaklar, iş → skill yönlendirmesi.
 Kuralların ayrıntısı frontend-conventions skill'inde. Orada yazanı burada tekrar etme.
-Durum: iskelet ve kabuk TASK-002'de Vite react-ts şablonuyla kuruldu (üst bar, menü, dört ekranın başlığı, "Sayfa bulunamadı"). Ekran içerikleri sonraki task'larda gelir.
+Durum: iskelet ve kabuk TASK-002'de Vite react-ts şablonuyla kuruldu (üst bar, menü, dört ekranın başlığı, "Sayfa bulunamadı"). TASK-007: Bilgi kaynakları listesi ve kaynak detayı gerçek veriyle (retrieval-api), "Belge ekle" penceresi, "Yeniden dene", içe alma polling'i, parça penceresi (shared/chunk). Diğer üç ekranın içeriği sonraki task'larda gelir.
 -->
 
 # web (React yönetim paneli)
@@ -14,11 +14,10 @@ Lab'da üretim modu (Sadece LLM / RAG), retrieval (top-5 / rerank 20→5), takip
 
 ## Teknoloji
 - Node 26 (`engines: >=26 <27`), npm 11, React 19.3, TypeScript 6.0 (`~6.0.3`; güncel Vite şablonu TS 7 getiriyor, proje kuralı gereği 6'da tutuldu), Vite 8.3, oxlint 1.90. Kesin sürümler `package.json` / `package-lock.json`'dadır.
-- Kurulu runtime paketleri: `react`, `react-dom`, `react-router` (7.x, declarative mode: `BrowserRouter` + `Routes`), `@fontsource/source-sans-3` (400-800; CDN yok). Kurulu test paketleri: `vitest` (jsdom), `@vitest/coverage-v8`, Testing Library (`react`, `dom`, `user-event`, `jest-dom`), `vitest-axe`, `@playwright/test` (sadece chromium).
-- Hedef runtime paketleri (henüz yok): `@tanstack/react-query`, `react-error-boundary` (ilk sunucu çağrısını yapan task), `@fontsource/jetbrains-mono` (ilk monospace metni gösteren task). Hedef test paketi: `msw` (ilk sunucu çağrısını yapan task).
+- Kurulu runtime paketleri: `react`, `react-dom`, `react-router` (7.x, declarative mode: `BrowserRouter` + `Routes`), `@fontsource/source-sans-3` (400-800; CDN yok), `@tanstack/react-query` 5.105 (server state, polling; `app/queryClient.ts`: 4xx'te yeniden deneme yok, diğer hatalarda 1 kez), `react-error-boundary` 6.1 (`AdminLayout`'ta sayfa çökerse "Beklenmeyen bir hata oluştu. Sayfayı yenile."), `@fontsource/jetbrains-mono` 5.3 (400; embedding değerleri). Kurulu test paketleri: `vitest` (jsdom), `@vitest/coverage-v8`, Testing Library (`react`, `dom`, `user-event`, `jest-dom`), `vitest-axe`, `msw` 3.0 (handler'lar `src/test/`, tester), `@playwright/test` (sadece chromium).
 - Cevap akışı (SSE) native `fetch` + `ReadableStream` ile okunur; ek paket gerekmez (`frontend-conventions` bölüm 1, 8; `sse-streaming`).
 - Referans uygulama: `../embedding-pgvector/frontend`: Bilgi kaynakları, yükleme ve içe alma ekranlarının çalışan örneği; okunur kalıp referansı, değiştirilmez.
-- **Henüz olmayanlar:** `@tanstack/react-query`, `react-error-boundary`, `msw`, `@fontsource/jetbrains-mono`, `AppProviders.tsx`, `shared/api/**` (sunucu çağrısı yok). `@stomp/stompjs`, Stryker (mutation testi), form kütüphanesi, global store (Zustand), markdown render kütüphanesi de yok. Skill örnekleri kullansa bile bunları varmış gibi kod yazma; eklemek plan kararıdır.
+- **Henüz olmayanlar:** `shared/api/eventStream.ts` (SSE), `shared/toast/`. `@stomp/stompjs`, Stryker (mutation testi), form kütüphanesi, global store (Zustand), markdown render kütüphanesi de yok. Skill örnekleri kullansa bile bunları varmış gibi kod yazma; eklemek plan kararıdır.
 - Vite dev server `/api/assistant`'ı `http://localhost:8090`'a (assistant-api), `/api/workspaces`'ı `http://localhost:8080`'e (retrieval-api) proxy'ler (`vite.config.ts`); SSE için proxy tamponlamamalıdır (`vite-patterns`, `sse-streaming`). Docker'da aynı yönlendirmeyi nginx yapar (`deployment/CLAUDE.md`).
 - `kaynaklar/rag-lab.html`'in sol yarısı ürünün kendisidir (Ürün hedefi); `kaynaklar/rag.html` anlatımdır. Değiştirilmez.
 
@@ -29,22 +28,22 @@ web/
 ├── e2e/                     Playwright testleri
 ├── public/                  favicon
 └── src/
-    ├── main.tsx             font import'ları + StrictMode + BrowserRouter + App (AppProviders ilk provider gerektiren task'ta)
+    ├── main.tsx             font import'ları + StrictMode + BrowserRouter + AppProviders (QueryClientProvider) + App
     ├── index.css            design token'ları (--color-*, --space-*, --radius-*, --text-*), reset
-    ├── app/                 App (route'lar), AdminLayout, AppHeader, MainNav, NotFoundPage
+    ├── app/                 App (route'lar), AppProviders, queryClient, AdminLayout (ErrorBoundary), AppHeader, MainNav, NotFoundPage
     ├── features/            preview, conversation, source, evaluation (lab'ın yan menüsü)
-    ├── shared/              components/ (PageHeader); hedef: api/ (httpClient, eventStream, ApiError, errorMessages, pagination), format/, toast/
+    ├── shared/              api/ (httpClient, ApiError, errorMessages, pagination, workspace), components/ (PageHeader, Dialog, Pagination, StatusBadge, ErrorAlert, Callout, button/table stilleri), format/ (sayı, tarih, süre, metin), chunk/ (ChunkDialog: TASK-008 alıntıdan da açar); hedef: api/eventStream, toast/
     └── test/                Vitest setup, MSW server ve handler'lar, SSE yardımcıları (tester)
 ```
 - Feature adları servis paketleriyle aynı: `conversation`, `evaluation` → assistant-api; `source` → retrieval-api. `preview` sadece web'dedir: Önizleme ekranı assistant-api'nin `conversation` API'sini kullanır.
 - Bir feature başka bir feature'ı import etmez; ortak kod `shared/`'a gider.
-- Adresler (lab): `/onizleme`, `/konusmalar`, `/kaynaklar`, `/degerlendirme` (TASK-002); `/` → `/onizleme`, bilinmeyen adres → "Sayfa bulunamadı". Hedef: `/konusmalar/:conversationId` (TASK-014), `/kaynaklar/:sourceId` (TASK-007); o task'ta ilgili `NavLink`'in `end` prop'u kaldırılır ki detayda menü öğesi seçili kalsın. Adreste çalışma alanı yoktur (M6). Bilgi kaynakları çağrıları `/api/workspaces/42/...`.
+- Adresler (lab): `/onizleme`, `/konusmalar`, `/kaynaklar`, `/degerlendirme` (TASK-002); `/` → `/onizleme`, bilinmeyen adres → "Sayfa bulunamadı". `/kaynaklar/:sourceId` (TASK-007; menüde "Bilgi kaynakları" öğesinde `end` yok, detayda seçili kalır). Hedef: `/konusmalar/:conversationId` (TASK-014); o task'ta ilgili `NavLink`'in `end` prop'u kaldırılır. Adreste çalışma alanı yoktur (M6). Bilgi kaynakları çağrıları `/api/workspaces/42/...`.
 - Test dosyası, test ettiği dosyanın yanında durur (`X.test.tsx`).
 
 ## Komutlar
 Hepsi `web/` içinde çalıştırılır.
 - Bağımlılıkları kur: `npm ci` (`package-lock.json`'a göre; lock dosyasını değiştirmez)
-- Dev server: `npm run dev` → http://localhost:5173 (terminali bloklar; arka planda başlat, iş bitince durdur). Sunucu çağrısı yapan ekranlar için assistant-api (8090) ve retrieval-api (8080) açık olmalı (kabuk tek başına açılır).
+- Dev server: `npm run dev` → http://localhost:5173 (terminali bloklar; arka planda başlat, iş bitince durdur). Sunucu çağrısı yapan ekranlar için assistant-api (8090) ve retrieval-api (8080) açık olmalı (kabuk tek başına açılır). Bilgi kaynakları ekranı sadece retrieval-api ister.
 - Build + tip kontrolü: `npm run build`
 - Lint: `npm run lint` (uyarı bırakılmaz)
 - Testler: `npm test` (`vitest run`); izleme modu `npm run test:watch`. Setup dosyası `src/test/setup.ts`'tir (`vite.config.ts` → `test.setupFiles`); test dosyası yoksa vitest "No test files found" ile 1 döner.
@@ -78,7 +77,8 @@ Bunların çoğu Vite react-ts şablonunun `tsconfig` ayarlarından gelir; uyulm
 - Sayfa başlığı React 19'un `<title>` öğesiyle component içinde verilir; çocuğu tek bir string olmalıdır.
 - React 19: `forwardRef` yerine `ref` prop'u, basit formlarda `useActionState`. StrictMode'da effect'ler iki kez çalışır; subscription'lar ve akışlar buna dayanıklı olmalıdır (akış effect'ten değil handler'dan başlatılır).
 - `EventSource` POST yapamaz ve başlık gönderemez; cevap akışı `fetch` ile okunur. Akış sırasında gelen bir olay iki `ReadableStream` parçasına bölünebilir; ayrıştırıcı satır tamponu tutar.
-- jsdom `showModal`/`close` desteklemez; native `<dialog>` kullanılırsa testte `src/test/setup.ts`'te taklit gerekir.
+- jsdom `showModal`/`close` desteklemez; bu yüzden pencereler native `<dialog>` değil `shared/components/Dialog.tsx`'tir (portal + `role="dialog"`, Esc, Tab tuzağı, odak geri dönüşü). Pencere `document.body`'ye portal edilir; testte `screen` ile sorgulanır, render `container`'ında değildir.
+- Sunucu çağrısı yapan bileşen `QueryClientProvider` ister; testte `renderWithProviders` bunu sağlamalıdır (tester).
 - `VITE_` ile başlayan env değişkenleri tarayıcıya gömülür, yani herkese açıktır. Bu değişkenlere gizli bilgi konmaz (`frontend-security`).
 
 ## Hangi iş → hangi skill

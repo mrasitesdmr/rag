@@ -34,3 +34,27 @@ Açık kalan bulgular (task'a bölünmedi, kullanıcı karar verecek):
 - Nit: `ChunkSearchRepository.java:80` StringBuilder kapasite sabiti (`* 12`) kaldırılabilir.
 - Risk: model sunucusu askıda kalırsa arama hatası 3 dakikaya kadar gecikebilir; TASK-008'de ölçülecek.
 - Dev veritabanına ikinci belge eklendi: "RAG anlatımı" (kaynak 10002, 63 parça).
+
+## TASK-007: Bilgi kaynakları ekranı (lead önerilenle onayladı)
+
+| # | Soru | Seçilen | Seçilmeyenler |
+|---|------|---------|---------------|
+| 1 | Yeni kütüphaneler: TanStack Query, react-error-boundary, JetBrains Mono yazı tipi, MSW (sadece test) | Dördü de kurulur (proje kurallarında "ilk sunucu çağrısında kurulur" diye listeli) | Hata ekranı kütüphanesi olmadan (beklenmeyen hata beyaz sayfa bırakabilir) |
+
+Kartta onaylanan ekran metinlerinin tamamı: `docs/tasks/TASK-007/handoff/00-onay-karti.md` → "Ekrandaki metinler (önerim)".
+
+Planner'ın lab'dan farklılaşan kararları (kartta 12 madde), özetle:
+1. Durum: süren iş İngilizce aşama adıyla sarı; bitti → yeşil "Hazır"; ilk işlenme başarısız → kırmızı "Başarısız" + sebep + "Yeniden dene" (lab'da başarısız durum yoktu).
+2. İşlenmemiş belgede sayfa/parça/son senkron "–".
+3. "Sayfa / bölüm" kutusunda bölüm = en üst düzey yer imi sayısı (rehberde 70 / 11).
+4. "Parça boyutu" ve "Örtüşme" kutuları sistemin bugünkü ayarını gösterir (1.600-2.000, 200).
+5. Parça filtresi: büyük/küçük harf (Türkçe İ/ı dahil) ve fazla boşluk fark etmez; noktalama fark eder (lab noktalamayı yok sayıyordu); 0,3 sn gecikmeyle arar, filtre değişince 1. sayfaya döner.
+6. Belge ekle penceresi lab'ın "Yeni sürüm yükle" penceresi görünümünde; yükleme sürerken kapanmaz, hata olursa girilenler silinmez.
+7. Dosya kuralları göndermeden önce de kontrol edilir (var mı, boş mu, 20 MB, PDF mi, sürüm yazılmış mı); son söz sunucunun.
+8. "PDF'i aç" işlenmiş sürümün PDF'ini yeni sekmede açar; işlenmemişse son yüklenen dosyayı.
+9. İşler tablosu en yeni 20 işi gösterir; belge listesi 20'yi geçerse "Önceki / Sonraki" çıkar (lab'da yoktu).
+10. Süren iş saniyede bir sorulur; ekrandan çıkınca durur.
+11. Parça penceresi embedding'in ilk 8 değerini gösterir; bilgi şeridinde "kaynak: belge adı · sürüm" yazar (lab: "rehber 2026.10").
+12. Tarih/saat Türkiye saatiyle ("29.10.2026 16:15").
+
+Lead notu: kabul kriteri 1 "verileri silip sistemi aç" diyor. Mevcut veriler silinmedi; boş durum ayrı, geçici bir Docker projesi/volume ile denendi (bkz. TASK-007 deploy ve qa raporu).

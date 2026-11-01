@@ -1,0 +1,29 @@
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-0-5) var(--space-2);
+  border-radius: var(--radius-badge);
+  font: 700 var(--text-status) var(--font-site);
+  white-space: nowrap;
+}
+
+.ok {
+  background: var(--color-green-soft);
+  color: var(--color-green);
+}
+
+.run {
+  background: var(--color-accent-soft);
+  color: var(--color-status-run-ink);
+}
+
+.bad {
+  background: var(--color-red-soft);
+  color: var(--color-red);
+}
+
+.neutral {
+  background: var(--color-neutral-soft);
+  color: var(--color-neutral-ink);
+}

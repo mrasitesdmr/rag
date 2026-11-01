@@ -4,12 +4,15 @@
 # Planner günceller; backend-coder buna göre endpoint yazar, frontend-coder buna göre çağrı yapar, qa uyumu kontrol eder.
 # Uyum kontrolünde her servisin /v3/api-docs.yaml çıktısı bu dosyanın kendi path önekiyle karşılaştırılır.
 # Cevap akışının (SSE) olayları docs/api/sse.md'dedir; burada sadece akış endpoint'inin kendisi ve akış öncesi hataları tanımlanır.
-# Durum: TASK-006. retrieval-api: içe alma işinin durumu (GET .../ingestion-jobs/{jobId}, TASK-005), belge ekleme (POST .../sources),
+# Durum: TASK-007. retrieval-api: içe alma işinin durumu (GET .../ingestion-jobs/{jobId}, TASK-005), belge ekleme (POST .../sources),
 #   kaynak listesi (GET .../sources) ve başarısız ilk içe almanın yeniden denenmesi (POST .../sources/{sourceId}/ingestion-jobs) (TASK-027),
-#   vektör arama (POST .../search, TASK-006; çağıran assistant-api, TASK-008).
+#   vektör arama (POST .../search, TASK-006; çağıran assistant-api, TASK-008),
+#   Bilgi kaynakları ekranının okuma uçları (TASK-007): çalışma alanı (GET /api/workspaces/{workspaceId}), kaynak listesinin ekran alanları,
+#   tek kaynak (GET .../sources/{sourceId}), saklanan PDF (GET .../sources/{sourceId}/file), kaynağın içe alma işleri
+#   (GET .../sources/{sourceId}/ingestion-jobs), parçalar (GET .../sources/{sourceId}/chunks) ve tek parça (GET .../chunks/{chunkId}).
 #   assistant-api'de henüz uç yok.
 # Bilgi bankasına hiçbir belge kendiliğinden girmez: retrieval-api açılışta kaynak, sürüm, parça ya da iş oluşturmaz (TASK-027).
-#   Belgeler sadece POST .../sources ile girer. Yeni sürüm yükleme ucu TASK-015'te, kaynak/sürüm/parça okuma uçlarının geri kalanı TASK-007'de eklenir.
+#   Belgeler sadece POST .../sources ile girer. Yeni sürüm yükleme ucu yoktur (kapsam dışı).
 # Ortak davranış (TASK-002): iki serviste de tanımsız bir path'e gelen her istek 404 + application/problem+json + errorCode NOT_FOUND döner
 #   (ör. GET /api/assistant/yok). web'in nginx'i /api/assistant/ ve /api/workspaces/ dışındaki /api/** isteklerine aynı biçimde 404 NOT_FOUND döner.
 # Sağlık ucu (GET /actuator/health, her servisin kendi portunda) işletim ucudur; bu sözleşmenin parçası değildir ve web üzerinden yayınlanmaz.
@@ -18,13 +21,50 @@ info:
   title: RAG Asistan API
   version: 0.0.0
 tags:
+  - name: Workspaces
+    description: The single workspace and its embedding, chunking and index settings (retrieval-api)
   - name: Sources
     description: Knowledge sources of a workspace and their file uploads (retrieval-api)
+  - name: Chunks
+    description: Chunks of a source's current version (retrieval-api; the chunk dialog of the web)
   - name: Ingestion jobs
     description: Background ingestion jobs of a workspace (retrieval-api)
   - name: Search
     description: Vector search over the current versions of a workspace's sources (retrieval-api; called by assistant-api)
 paths:
+  /api/workspaces/{workspaceId}:
+    get:
+      tags: [Workspaces]
+      operationId: getWorkspace
+      summary: Get the workspace with its embedding model and the current chunking and index settings
+      description: |
+        retrieval-api. Used by the Bilgi kaynakları screen (info box under the source list, meta boxes of the source
+        detail). Name and embedding model come from the `workspaces` row; the chunking settings are the service's
+        current `ingestion.*` configuration (they apply to every version ingested with that configuration); the
+        vector index is the one created by the migrations (HNSW, cosine).
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      responses:
+        '200':
+          description: The workspace
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceResponse'
+        '400':
+          description: '`BAD_REQUEST`: `workspaceId` is not an integer (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`WORKSPACE_NOT_FOUND`: no workspace with this id (only 42 exists)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/workspaces/{workspaceId}/search:
     post:
       tags: [Search]
@@ -36,8 +76,7 @@ paths:
 
         The query is stripped (leading/trailing whitespace) and embedded with the workspace's embedding model (`bge-m3`).
         The search covers, for every source of the workspace, only the chunks of its current version (the version of its
-        latest DONE job). A source with no DONE version is not searched; while a source's new version is being ingested,
-        its previous version is searched until the new one is written.
+        latest DONE job). A source with no DONE version is not searched.
 
         Hits are ordered by cosine distance ascending; equal distances are ordered by `chunkId` ascending.
         At most `topK` hits are returned; fewer when the workspace has fewer searchable chunks. There is no distance
@@ -108,7 +147,8 @@ paths:
       summary: List the sources of a workspace, ordered by id
       description: |
         retrieval-api. Fixed order `id ASC`. A freshly started system returns an empty page (nothing is ingested on startup).
-        TASK-007 adds fields for the Bilgi kaynakları screen; existing fields keep their meaning.
+        Each item carries the fields of the Bilgi kaynakları table (see `SourceResponse`), including the source's latest
+        ingestion job, so a client can show the running stage and poll that job.
       parameters:
         - $ref: '#/components/parameters/WorkspaceId'
         - $ref: '#/components/parameters/Page'
@@ -230,7 +270,204 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/workspaces/{workspaceId}/sources/{sourceId}:
+    get:
+      tags: [Sources]
+      operationId: getSource
+      summary: Get one source with the fields of the source detail screen
+      description: retrieval-api. Same `SourceResponse` as in `listSources`.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/SourceId'
+      responses:
+        '200':
+          description: The source
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceResponse'
+        '400':
+          description: '`BAD_REQUEST`: `workspaceId` or `sourceId` is not an integer (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`WORKSPACE_NOT_FOUND`: no workspace with this id; `SOURCE_NOT_FOUND`: no source with this id in the workspace'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/workspaces/{workspaceId}/sources/{sourceId}/file:
+    get:
+      tags: [Sources]
+      operationId: getSourceFile
+      summary: Download the stored PDF of a source, for viewing in the browser
+      description: |
+        retrieval-api. Returns the PDF of the source's current version (the file of the job that produced
+        `active_version_id`). A source without a current version (first ingestion running or failed) returns the file
+        of its latest job. The bytes are returned exactly as uploaded.
+
+        Headers: `Content-Type: application/pdf`, `Content-Disposition: inline` carrying the stored file name
+        (RFC 6266; `filename*` in UTF-8 when the name is not ASCII), `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`.
+        The web opens this URL in a new tab ("PDF'i aç"); the browser's PDF viewer shows it.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/SourceId'
+      responses:
+        '200':
+          description: The PDF bytes
+          headers:
+            Content-Disposition:
+              description: '`inline` with the stored file name, e.g. `inline; filename="Rasit-Bankasi-Urun-Hizmet-Rehberi-2026.10.pdf"`'
+              schema:
+                type: string
+          content:
+            application/pdf:
+              schema:
+                type: string
+                contentMediaType: application/pdf
+        '400':
+          description: '`BAD_REQUEST`: `workspaceId` or `sourceId` is not an integer (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`WORKSPACE_NOT_FOUND`: no workspace with this id; `SOURCE_NOT_FOUND`: no source with this id in the workspace'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/workspaces/{workspaceId}/sources/{sourceId}/chunks:
+    get:
+      tags: [Chunks]
+      operationId: listChunks
+      summary: List the chunks of a source's current version, optionally filtered by heading or text
+      description: |
+        retrieval-api. Only chunks of the source's current version (`active_version_id`) are listed; a source without a
+        current version returns an empty page. Fixed order `chunkNo ASC`.
+
+        Filter (`query`): stripped; missing or blank means no filter. Otherwise a chunk matches when the normalized
+        query is a substring of the normalized text `heading + ' ' + content`. Normalization (same on both sides):
+        Turkish lower case (`I` → `ı`, `İ` → `i`, then lower case: "ASGARİ ÖDEME" = "asgari ödeme"), every run of
+        whitespace (spaces, line breaks) becomes one space. Punctuation is kept as is. `totalElements` is the number of
+        matching chunks.
+
+        Check order: 400 → 404.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/SourceId'
+        - name: query
+          in: query
+          required: false
+          description: Filter text; at most 200 characters (Java `String.length()`, before stripping)
+          schema:
+            type: string
+            maxLength: 200
+            example: asgari ödeme
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: One page of chunks (possibly empty)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChunkSummaryResponsePage'
+        '400':
+          description: |
+            `VALIDATION_FAILED` (`violations[].field`): `query` longer than 200 characters — message `size must be at most 200 characters`;
+            `page` < 0 or `size` not in 1-100 (`page` / `size`).
+            `BAD_REQUEST`: `workspaceId`, `sourceId`, `page` or `size` is not an integer (framework)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`WORKSPACE_NOT_FOUND`: no workspace with this id; `SOURCE_NOT_FOUND`: no source with this id in the workspace'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/workspaces/{workspaceId}/chunks/{chunkId}:
+    get:
+      tags: [Chunks]
+      operationId: getChunk
+      summary: Get one chunk with its full text and the first values of its embedding
+      description: |
+        retrieval-api. Used by the chunk dialog (Bilgi kaynakları; from TASK-008 also from citations in Önizleme).
+        Any chunk of the workspace is returned, also one of a source version that is no longer current.
+        The full vector is never returned: only its first 8 values (`embeddingPreview`) and its size (`embeddingDimensions`).
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - name: chunkId
+          in: path
+          required: true
+          description: Chunk id
+          schema:
+            type: integer
+            format: int64
+            example: 151
+      responses:
+        '200':
+          description: The chunk
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChunkResponse'
+        '400':
+          description: '`BAD_REQUEST`: `workspaceId` or `chunkId` is not an integer (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`WORKSPACE_NOT_FOUND`: no workspace with this id; `CHUNK_NOT_FOUND`: no chunk with this id in the workspace'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/workspaces/{workspaceId}/sources/{sourceId}/ingestion-jobs:
+    get:
+      tags: [Sources]
+      operationId: listIngestionJobs
+      summary: List the ingestion jobs of a source, newest first
+      description: retrieval-api. Fixed order `id DESC` (newest first). Every job of the source, in any stage.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/SourceId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: One page of jobs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionJobResponsePage'
+        '400':
+          description: '`VALIDATION_FAILED`: `page` < 0 or `size` not in 1-100 (`violations[].field` = `page` / `size`); `BAD_REQUEST`: a path or query parameter is not an integer (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`WORKSPACE_NOT_FOUND`: no workspace with this id; `SOURCE_NOT_FOUND`: no source with this id in the workspace'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
     post:
       tags: [Sources]
       operationId: retryIngestion
@@ -243,14 +480,7 @@ paths:
         Check order: 404 (workspace, source) → 409.
       parameters:
         - $ref: '#/components/parameters/WorkspaceId'
-        - name: sourceId
-          in: path
-          required: true
-          description: Source id
-          schema:
-            type: integer
-            format: int64
-            example: 10001
+        - $ref: '#/components/parameters/SourceId'
       responses:
         '202':
           description: Job accepted; it runs in the background
@@ -277,7 +507,7 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
         '409':
           description: |
-            - `SOURCE_ALREADY_INGESTED`: the source has a completed version (new versions come with TASK-015)
+            - `SOURCE_ALREADY_INGESTED`: the source has a completed version (uploading a new version is out of scope)
             - `INGESTION_IN_PROGRESS`: the source has an active job (also when two retries race)
             - `EMBEDDING_MODEL_MISMATCH`: the configured embedding model is not the workspace's; nothing is written
           content:
@@ -337,6 +567,15 @@ components:
         type: integer
         format: int64
         example: 42
+    SourceId:
+      name: sourceId
+      in: path
+      required: true
+      description: Source id
+      schema:
+        type: integer
+        format: int64
+        example: 10001
     Page:
       name: page
       in: query
@@ -421,6 +660,7 @@ components:
             - INGESTION_IN_PROGRESS
             - EMBEDDING_UNAVAILABLE
             - EMBEDDING_DIMENSION_MISMATCH
+            - CHUNK_NOT_FOUND
         violations:
           type: array
           description: Only for `VALIDATION_FAILED`
@@ -532,16 +772,88 @@ components:
           description: When the job became DONE or FAILED. For a DONE job this is the source version's "last sync" time.
         statusUrl:
           type: string
-          description: This resource's path (same as the `Location` header of `createSource`, `retryIngestion` and, from TASK-015, of the version upload)
+          description: This resource's path (same as the `Location` header of `createSource` and `retryIngestion`)
           example: /api/workspaces/42/ingestion-jobs/1
     SourceKind:
       type: string
       description: Kind of the uploaded file. Only PDF is accepted.
       enum: [PDF]
+    IngestionJobResponsePage:
+      type: object
+      description: '`PageResponse<IngestionJobResponse>`'
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/IngestionJobResponse'
+        page:
+          type: integer
+          format: int32
+          example: 0
+        size:
+          type: integer
+          format: int32
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          example: 1
+        totalPages:
+          type: integer
+          format: int32
+          example: 1
+    WorkspaceResponse:
+      type: object
+      description: The workspace, its embedding model and the current chunking and index settings
+      required: [workspaceId, name, embeddingModel, embeddingDimensions, targetChunkChars, maxChunkChars, overlapChars, vectorIndexType, distanceMetric]
+      properties:
+        workspaceId:
+          type: integer
+          format: int64
+          example: 42
+        name:
+          type: string
+          example: Raşit Bankası · Dijital Asistan
+        embeddingModel:
+          type: string
+          description: Embedding model name of the workspace (`workspaces.embedding_model`)
+          example: bge-m3
+        embeddingDimensions:
+          type: integer
+          format: int32
+          example: 1024
+        targetChunkChars:
+          type: integer
+          format: int32
+          description: '`ingestion.target-chunk-chars`'
+          example: 1600
+        maxChunkChars:
+          type: integer
+          format: int32
+          description: '`ingestion.max-chunk-chars`'
+          example: 2000
+        overlapChars:
+          type: integer
+          format: int32
+          description: '`ingestion.overlap-chars`'
+          example: 200
+        vectorIndexType:
+          type: string
+          description: Index of the embedding column (fixed by the migrations)
+          enum: [HNSW]
+        distanceMetric:
+          type: string
+          description: Distance used by the index and the search (fixed by the migrations)
+          enum: [COSINE]
     SourceResponse:
       type: object
-      description: One knowledge source. TASK-007 adds fields for the Bilgi kaynakları screen.
-      required: [sourceId, workspaceId, name, kind, createdAt]
+      description: |
+        One knowledge source with the fields of the Bilgi kaynakları table and the source detail header.
+        "Current version" = the version of `active_version_id` (the latest DONE job). The file fields (`fileName`,
+        `fileSizeBytes`, `version`) come from the current version; a source without a current version (first ingestion
+        running or failed) takes them from its latest job. The count fields are null until the source has a current version.
+      required: [sourceId, workspaceId, name, kind, createdAt, fileName, fileSizeBytes, version, pageCount, chapterCount, chunkCount, averageTokenCount, syncedAt, latestJob]
       properties:
         sourceId:
           type: integer
@@ -562,6 +874,157 @@ components:
         createdAt:
           type: string
           format: date-time
+        fileName:
+          type: string
+          description: File name of the current version, else of the latest job
+          example: Rasit-Bankasi-Urun-Hizmet-Rehberi-2026.10.pdf
+        fileSizeBytes:
+          type: integer
+          format: int64
+          description: File size in bytes of the current version, else of the latest job
+          example: 412873
+        version:
+          type: string
+          description: Version label of the current version, else of the latest job
+          example: '2026.10'
+        pageCount:
+          type: [integer, 'null']
+          format: int32
+          description: PDF pages of the current version; null without a current version
+          example: 70
+        chapterCount:
+          type: [integer, 'null']
+          format: int32
+          description: Top-level bookmarks (chapters) of the current version; null without a current version
+          example: 11
+        chunkCount:
+          type: [integer, 'null']
+          format: int32
+          description: Chunks of the current version; null without a current version
+          example: 154
+        averageTokenCount:
+          type: [integer, 'null']
+          format: int32
+          description: Average `tokenCount` of the current version's chunks, rounded half up; null without a current version
+          example: 285
+        syncedAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the current version's job became DONE ("son senkron"); null without a current version
+        latestJob:
+          $ref: '#/components/schemas/IngestionJobResponse'
+          description: The source's newest ingestion job (highest `jobId`). Every source has at least one job.
+    ChunkSummaryResponse:
+      type: object
+      description: One row of the chunk table. The embedding is not included.
+      required: [chunkId, chunkNo, pageNumber, heading, content, tokenCount]
+      properties:
+        chunkId:
+          type: integer
+          format: int64
+          example: 151
+        chunkNo:
+          type: integer
+          format: int32
+          description: Zero-based position of the chunk within its source version
+          example: 31
+        pageNumber:
+          type: integer
+          format: int32
+          description: PDF page of the chunk's first line
+          example: 19
+        heading:
+          type: string
+          example: 2.16 Kayıp ya da çalıntı bildirimi
+        content:
+          type: string
+          description: Full chunk text as stored (1-2000 characters), without the heading
+        tokenCount:
+          type: integer
+          format: int32
+          example: 297
+    ChunkSummaryResponsePage:
+      type: object
+      description: '`PageResponse<ChunkSummaryResponse>`'
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChunkSummaryResponse'
+        page:
+          type: integer
+          format: int32
+          example: 1
+        size:
+          type: integer
+          format: int32
+          example: 12
+        totalElements:
+          type: integer
+          format: int64
+          description: Number of chunks matching the filter (all chunks of the current version without a filter)
+          example: 154
+        totalPages:
+          type: integer
+          format: int32
+          example: 13
+    ChunkResponse:
+      type: object
+      description: One chunk for the chunk dialog. The full vector is never returned.
+      required: [chunkId, chunkNo, pageNumber, heading, content, tokenCount, embeddingModel, embeddingDimensions, embeddingPreview, sourceId, sourceName, version]
+      properties:
+        chunkId:
+          type: integer
+          format: int64
+          example: 151
+        chunkNo:
+          type: integer
+          format: int32
+          example: 31
+        pageNumber:
+          type: integer
+          format: int32
+          example: 19
+        heading:
+          type: string
+          example: 2.16 Kayıp ya da çalıntı bildirimi
+        content:
+          type: string
+          description: Full chunk text as stored, without the heading
+        tokenCount:
+          type: integer
+          format: int32
+          example: 297
+        embeddingModel:
+          type: string
+          description: Model label the chunk was embedded with (`chunks.embedding_model`)
+          example: bge-m3@1024
+        embeddingDimensions:
+          type: integer
+          format: int32
+          description: Size of the stored vector
+          example: 1024
+        embeddingPreview:
+          type: array
+          description: The first 8 values of the stored vector, in order
+          minItems: 8
+          maxItems: 8
+          items:
+            type: number
+            format: float
+          example: [0.01085661, -0.0019320842, -0.06578231, 0.0136360405, -0.017394094, -0.03013522, 0.012087691, -0.046693146]
+        sourceId:
+          type: integer
+          format: int64
+          example: 10001
+        sourceName:
+          type: string
+          example: Raşit Bankası Ürün ve Hizmet Rehberi
+        version:
+          type: string
+          description: Version label of the source version the chunk belongs to
+          example: '2026.10'
     SourceResponsePage:
       type: object
       description: '`PageResponse<SourceResponse>`'

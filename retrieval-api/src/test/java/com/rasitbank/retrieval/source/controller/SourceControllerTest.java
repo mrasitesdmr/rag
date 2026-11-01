@@ -57,6 +57,11 @@ class SourceControllerTest {
                 0, null, null, CREATED, null, null, "/api/workspaces/42/ingestion-jobs/" + jobId);
     }
 
+    private static SourceResponse sourceResponse(long sourceId, String name) {
+        return new SourceResponse(sourceId, 42, name, SourceKind.PDF, CREATED, "belge-b.pdf", 412873, "2026.10", 70,
+                11, 154, 283, Instant.parse("2026-10-29T13:15:44Z"), queuedJob(7));
+    }
+
     private static MockMultipartFile text(String name, String value) {
         return new MockMultipartFile(name, "", "text/plain", value.getBytes(StandardCharsets.UTF_8));
     }
@@ -175,7 +180,7 @@ class SourceControllerTest {
     @Test
     void givenTwoSources_whenListSourcesPage1Size1_thenReturnsSourceFieldsAndPageMetadata() {
         // Arrange
-        SourceResponse source = new SourceResponse(10002, 42, "Belge B", SourceKind.PDF, CREATED);
+        SourceResponse source = sourceResponse(10002, "Belge B");
         given(sourceService.listSources(42, 1, 1))
                 .willReturn(new PageImpl<>(List.of(source), PageRequest.of(1, 1), 2));
 
@@ -185,7 +190,18 @@ class SourceControllerTest {
         // Assert
         assertThat(result).hasStatusOk();
         assertThat(result).bodyJson().extractingPath("$.content[0]").asMap().containsOnlyKeys("sourceId",
-                "workspaceId", "name", "kind", "createdAt");
+                "workspaceId", "name", "kind", "createdAt", "fileName", "fileSizeBytes", "version", "pageCount",
+                "chapterCount", "chunkCount", "averageTokenCount", "syncedAt", "latestJob");
+        assertThat(result).bodyJson().extractingPath("$.content[0].fileName").isEqualTo("belge-b.pdf");
+        assertThat(result).bodyJson().extractingPath("$.content[0].fileSizeBytes").isEqualTo(412873);
+        assertThat(result).bodyJson().extractingPath("$.content[0].version").isEqualTo("2026.10");
+        assertThat(result).bodyJson().extractingPath("$.content[0].pageCount").isEqualTo(70);
+        assertThat(result).bodyJson().extractingPath("$.content[0].chapterCount").isEqualTo(11);
+        assertThat(result).bodyJson().extractingPath("$.content[0].chunkCount").isEqualTo(154);
+        assertThat(result).bodyJson().extractingPath("$.content[0].averageTokenCount").isEqualTo(283);
+        assertThat(result).bodyJson().extractingPath("$.content[0].syncedAt").isEqualTo("2026-10-29T13:15:44Z");
+        assertThat(result).bodyJson().extractingPath("$.content[0].latestJob.jobId").isEqualTo(7);
+        assertThat(result).bodyJson().extractingPath("$.content[0].latestJob.stage").isEqualTo("QUEUED");
         assertThat(result).bodyJson().extractingPath("$.content[0].sourceId").isEqualTo(10002);
         assertThat(result).bodyJson().extractingPath("$.content[0].name").isEqualTo("Belge B");
         assertThat(result).bodyJson().extractingPath("$.content[0].kind").isEqualTo("PDF");
@@ -297,5 +313,132 @@ class SourceControllerTest {
         // Assert
         assertThat(result).hasStatus(404);
         assertThat(result).bodyJson().extractingPath("$.errorCode").isEqualTo("WORKSPACE_NOT_FOUND");
+    }
+
+    @Test
+    void givenSource10001_whenGetSource_thenReturns200() {
+        // Arrange
+        given(sourceService.getSource(42, 10001)).willReturn(sourceResponse(10001, "Rehber"));
+
+        // Act
+        var result = mvc.get().uri("/api/workspaces/42/sources/10001").exchange();
+
+        // Assert
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.sourceId").isEqualTo(10001);
+        assertThat(result).bodyJson().extractingPath("$.name").isEqualTo("Rehber");
+        assertThat(result).bodyJson().extractingPath("$.pageCount").isEqualTo(70);
+    }
+
+    @Test
+    void givenUnknownSource_whenGetSource_thenReturns404SourceNotFound() {
+        // Arrange
+        given(sourceService.getSource(42, 99)).willThrow(new NotFoundException("SOURCE_NOT_FOUND", "yok"));
+
+        // Act
+        var result = mvc.get().uri("/api/workspaces/42/sources/99").exchange();
+
+        // Assert
+        assertThat(result).hasStatus(404).hasContentType("application/problem+json");
+        assertThat(result).bodyJson().extractingPath("$.errorCode").isEqualTo("SOURCE_NOT_FOUND");
+    }
+
+    @Test
+    void givenWorkspace43_whenGetSource_thenReturns404WorkspaceNotFound() {
+        // Arrange
+        given(sourceService.getSource(43, 10001)).willThrow(new NotFoundException("WORKSPACE_NOT_FOUND", "yok"));
+
+        // Act
+        var result = mvc.get().uri("/api/workspaces/43/sources/10001").exchange();
+
+        // Assert
+        assertThat(result).hasStatus(404);
+        assertThat(result).bodyJson().extractingPath("$.errorCode").isEqualTo("WORKSPACE_NOT_FOUND");
+    }
+
+    @Test
+    void givenNonNumericSourceId_whenGetSource_thenReturns400() {
+        // Act
+        var result = mvc.get().uri("/api/workspaces/42/sources/abc").exchange();
+
+        // Assert
+        assertThat(result).hasStatus(400).hasContentType("application/problem+json");
+    }
+
+    @Test
+    void givenJobs_whenListIngestionJobsPage1Size1_thenReturnsJobsAndPageMetadata() {
+        // Arrange
+        given(ingestionService.listIngestionJobs(42, 10001, 1, 1))
+                .willReturn(new PageImpl<>(List.of(queuedJob(3)), PageRequest.of(1, 1), 3));
+
+        // Act
+        var result = mvc.get().uri("/api/workspaces/42/sources/10001/ingestion-jobs?page=1&size=1").exchange();
+
+        // Assert
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.content[0].jobId").isEqualTo(3);
+        assertThat(result).bodyJson().extractingPath("$.page").isEqualTo(1);
+        assertThat(result).bodyJson().extractingPath("$.size").isEqualTo(1);
+        assertThat(result).bodyJson().extractingPath("$.totalElements").isEqualTo(3);
+        assertThat(result).bodyJson().extractingPath("$.totalPages").isEqualTo(3);
+    }
+
+    @Test
+    void givenNoPagingParams_whenListIngestionJobs_thenDefaultsPage0Size20() {
+        // Arrange
+        given(ingestionService.listIngestionJobs(42, 10001, 0, 20))
+                .willReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        // Act
+        var result = mvc.get().uri("/api/workspaces/42/sources/10001/ingestion-jobs").exchange();
+
+        // Assert
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.size").isEqualTo(20);
+    }
+
+    @Test
+    void givenSize101_whenListIngestionJobs_thenReturns400OnSize() {
+        // Act
+        var result = mvc.get().uri("/api/workspaces/42/sources/10001/ingestion-jobs?size=101").exchange();
+
+        // Assert
+        assertThat(result).hasStatus(400);
+        assertThat(result).bodyJson().extractingPath("$.violations[0].field").isEqualTo("size");
+    }
+
+    @Test
+    void givenUnknownSource_whenListIngestionJobs_thenReturns404SourceNotFound() {
+        // Arrange
+        given(ingestionService.listIngestionJobs(42, 99, 0, 20))
+                .willThrow(new NotFoundException("SOURCE_NOT_FOUND", "yok"));
+
+        // Act
+        var result = mvc.get().uri("/api/workspaces/42/sources/99/ingestion-jobs").exchange();
+
+        // Assert
+        assertThat(result).hasStatus(404);
+        assertThat(result).bodyJson().extractingPath("$.errorCode").isEqualTo("SOURCE_NOT_FOUND");
+    }
+
+    @Test
+    void givenFile_whenGetSourceFile_thenPdfInlineNosniffNoStore() {
+        // Arrange
+        given(sourceService.getSourceFile(42, 10001))
+                .willReturn(new com.rasitbank.retrieval.source.domain.dto.SourceFile("Şirket El Kitabı.pdf",
+                        new byte[] {37, 80, 68, 70}));
+
+        // Act
+        var result = mvc.get().uri("/api/workspaces/42/sources/10001/file").exchange();
+
+        // Assert
+        assertThat(result).hasStatusOk().hasContentType("application/pdf");
+        assertThat(result).headers().hasValue("X-Content-Type-Options", "nosniff");
+        assertThat(result.getResponse().getHeader("Cache-Control")).contains("no-store");
+        var disposition = org.springframework.http.ContentDisposition
+                .parse(result.getResponse().getHeader("Content-Disposition"));
+        assertThat(disposition.isInline()).isTrue();
+        assertThat(disposition.getFilename()).isEqualTo("Şirket El Kitabı.pdf");
+        assertThat(result.getResponse().getContentAsByteArray()).containsExactly(37, 80, 68, 70);
     }
 }

@@ -1,0 +1,32 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-75);
+  padding: var(--space-2-5) var(--space-4-25);
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  font: 700 var(--text-button) var(--font-site);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--color-brand-dark);
+}
+
+.outline {
+  border: var(--space-hairline) solid var(--color-button-line);
+  background: var(--color-card);
+  color: var(--color-ink);
+}
+
+.outline:hover:not(:disabled) {
+  background: var(--color-button-hover);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

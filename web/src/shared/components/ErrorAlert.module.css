@@ -1,0 +1,9 @@
+.errorAlert {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--space-hairline) solid var(--color-red);
+  border-radius: var(--radius-callout);
+  background: var(--color-red-soft);
+  color: var(--color-red);
+  font-size: var(--text-table);
+}

@@ -1,0 +1,7 @@
+export const CHUNK_PAGE_SIZE = 12
+export const CHUNK_FILTER_DEBOUNCE_MS = 300
+export const CHUNK_FILTER_MAX_LENGTH = 200
+export const CHUNK_PREVIEW_LENGTH = 88
+export const CHUNK_HEADING_PREVIEW_LENGTH = 42
+export const SOURCE_PAGE_SIZE = 20
+export const JOB_PAGE_SIZE = 20

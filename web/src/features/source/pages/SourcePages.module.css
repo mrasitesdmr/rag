@@ -1,0 +1,76 @@
+.status {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-table);
+}
+
+.section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3-5);
+  margin-top: var(--space-1-25);
+}
+
+.section h2 {
+  margin: 0;
+  font: 700 var(--text-section) var(--font-site);
+}
+
+.section span {
+  color: var(--color-muted);
+  font-size: var(--text-label);
+}
+
+.filterBox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+  padding: var(--space-1) var(--space-3-5);
+  border: var(--size-field-border) solid var(--color-field-line);
+  border-radius: var(--radius-callout);
+  background: var(--color-card);
+}
+
+.filterBox:focus-within {
+  border-color: var(--color-brand);
+}
+
+.filterIcon {
+  flex: none;
+  width: var(--size-search-icon);
+  height: var(--size-search-icon);
+  color: var(--color-nav-icon);
+}
+
+.filterBox input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1-75) 0;
+  border: 0;
+  background: transparent;
+  font: 400 var(--text-description) var(--font-site);
+}
+
+.filterBox input:focus-visible {
+  outline: none;
+}
+
+.notFound {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2-5);
+}
+
+.notFound h1 {
+  margin: 0;
+  font: 700 var(--text-title) / var(--line-height-title) var(--font-site);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.notFound a {
+  color: var(--color-brand);
+  font-weight: 600;
+}

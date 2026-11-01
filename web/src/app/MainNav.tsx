@@ -2,11 +2,12 @@ import type { ReactNode } from 'react'
 import { NavLink } from 'react-router'
 import styles from './MainNav.module.css'
 
-type NavItem = { path: string; label: string; icon: ReactNode }
+type NavItem = { path: string; label: string; end: boolean; icon: ReactNode }
 
 const NAV_ITEMS: NavItem[] = [
   {
     path: '/onizleme',
+    end: true,
     label: 'Önizleme',
     icon: (
       <>
@@ -17,11 +18,13 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     path: '/konusmalar',
+    end: true,
     label: 'Konuşmalar',
     icon: <path d="M4 6h16M4 12h16M4 18h10" />,
   },
   {
     path: '/kaynaklar',
+    end: false,
     label: 'Bilgi kaynakları',
     icon: (
       <>
@@ -32,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     path: '/degerlendirme',
+    end: true,
     label: 'Değerlendirme',
     icon: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
   },
@@ -45,7 +49,7 @@ export function MainNav() {
   return (
     <nav className={styles.mainNav} aria-label="Menü">
       {NAV_ITEMS.map((item) => (
-        <NavLink key={item.path} to={item.path} end className={navLinkClassName}>
+        <NavLink key={item.path} to={item.path} end={item.end} className={navLinkClassName}>
           <svg
             className={styles.navIcon}
             width="16"

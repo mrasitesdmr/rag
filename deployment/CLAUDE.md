@@ -88,3 +88,9 @@ Hepsi repo kökünden çalıştırılır. - Önce kontrol: `docker info`. Hata v
 - nginx'te SPA fallback (`try_files $uri /index.html`) yoksa `/konusmalar/12` gibi sayfalar yenilenince 404 verir.
 - `.dockerignore` olmadan `node_modules/` ve `target/` build context'e kopyalanır; build yavaşlar ve gereksiz dosyalar imaja girer.
 - İmaj etiketleri sabit sürümdür (`latest` değil). Container'lar root olmayan kullanıcıyla çalışır.
+
+## Gerçek yapı (TASK-007)
+- Bilgi kaynakları ekranı `localhost:3000/kaynaklar`'da; PDF `/api/workspaces/42/sources/{id}/file` ile mevcut nginx bloğundan geçer (Compose, Dockerfile ve `nginx.conf` değişmedi).
+- E2E (`cd web && npm run test:e2e`) gerçek sistemi ve Ollama'yı (`bge-m3`) ister; yükleme testi her koşuda bir `E2E Rehber <zaman>` kaynağı bırakır. Kaynak silme olmadığı için bunlar ancak `down -v` ile (veri siler, sadece kullanıcı onayıyla) kaybolur.
+- Ollama kapalıyken servisler `healthy` kalır; yükleme 202 döner, iş `FAILED` + `EMBEDDING_UNAVAILABLE` olur (`failedStage: EMBEDDING`), "Yeniden dene" ucu yeni iş açar.
+- Tam sistem ve `docker-compose.dev.yml` ikisi de `127.0.0.1:5432`'yi kullanır; birlikte çalışmaz. Tam sistemden önce `docker compose -f deployment/docker-compose.dev.yml stop` (veri silmez).

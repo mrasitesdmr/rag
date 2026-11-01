@@ -4,6 +4,7 @@ import com.rasitbank.retrieval.ingestion.domain.dto.IngestionJobResponse;
 import com.rasitbank.retrieval.ingestion.service.IngestionService;
 import com.rasitbank.retrieval.pagination.PageParameters;
 import com.rasitbank.retrieval.pagination.PageResponse;
+import com.rasitbank.retrieval.source.domain.dto.SourceFile;
 import com.rasitbank.retrieval.source.domain.dto.SourceResponse;
 import com.rasitbank.retrieval.source.domain.dto.SourceUpload;
 import com.rasitbank.retrieval.source.service.SourceService;
@@ -11,7 +12,11 @@ import com.rasitbank.retrieval.source.service.SourceUploadValidator;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import org.jspecify.annotations.Nullable;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,11 +29,15 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Çalışma alanının kaynaklarını listeler, yüklenen PDF'ten kaynak oluşturur ve başarısız ilk içe almayı yeniden başlatır.
+ * Çalışma alanının kaynaklarını listeler ve tek tek sunar, saklanan PDF'i ve içe alma işlerini verir, yüklenen PDF'ten
+ * kaynak oluşturur ve başarısız ilk içe almayı yeniden başlatır.
  */
 @RestController
 @RequestMapping("/api/workspaces/{workspaceId}/sources")
 public class SourceController {
+
+    private static final String NOSNIFF_HEADER = "X-Content-Type-Options";
+    private static final String NOSNIFF = "nosniff";
 
     private final SourceService sourceService;
     private final SourceUploadValidator sourceUploadValidator;
@@ -49,6 +58,34 @@ public class SourceController {
             @Min(value = 1, message = PageParameters.SIZE_MESSAGE)
             @Max(value = PageParameters.MAX_SIZE, message = PageParameters.SIZE_MESSAGE) int size) {
         return PageResponse.from(sourceService.listSources(workspaceId, page, size));
+    }
+
+    @GetMapping("/{sourceId}")
+    public SourceResponse getSource(@PathVariable long workspaceId, @PathVariable long sourceId) {
+        return sourceService.getSource(workspaceId, sourceId);
+    }
+
+    @GetMapping("/{sourceId}/file")
+    public ResponseEntity<byte[]> getSourceFile(@PathVariable long workspaceId, @PathVariable long sourceId) {
+        SourceFile file = sourceService.getSourceFile(workspaceId, sourceId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline().filename(file.fileName(), StandardCharsets.UTF_8).build().toString())
+                .header(NOSNIFF_HEADER, NOSNIFF)
+                .cacheControl(CacheControl.noStore())
+                .body(file.content());
+    }
+
+    @GetMapping("/{sourceId}/ingestion-jobs")
+    public PageResponse<IngestionJobResponse> listIngestionJobs(@PathVariable long workspaceId,
+            @PathVariable long sourceId,
+            @RequestParam(name = "page", defaultValue = "0")
+            @Min(value = 0, message = PageParameters.PAGE_MESSAGE) int page,
+            @RequestParam(name = "size", defaultValue = "20")
+            @Min(value = 1, message = PageParameters.SIZE_MESSAGE)
+            @Max(value = PageParameters.MAX_SIZE, message = PageParameters.SIZE_MESSAGE) int size) {
+        return PageResponse.from(ingestionService.listIngestionJobs(workspaceId, sourceId, page, size));
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

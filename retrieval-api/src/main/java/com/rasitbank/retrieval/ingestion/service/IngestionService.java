@@ -20,14 +20,16 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * Yüklenen belgeden kaynak ve ilk içe alma işini oluşturur, başarısız içe almayı yeniden başlatır, işlerin durumunu
- * sunar ve servis yeniden başladığında yarıda kalan işleri kapatır.
+ * Yüklenen belgeden kaynak ve ilk içe alma işini oluşturur, başarısız içe almayı yeniden başlatır, işlerin durumunu ve
+ * kaynağın işlerini sunar ve servis yeniden başladığında yarıda kalan işleri kapatır.
  */
 @Service
 public class IngestionService {
@@ -67,6 +69,16 @@ public class IngestionService {
                         "Ingestion job not found: " + jobId));
     }
 
+    @Transactional(readOnly = true)
+    public Page<IngestionJobResponse> listIngestionJobs(long workspaceId, long sourceId, int page, int size) {
+        workspaceService.ensureWorkspaceExists(workspaceId);
+        if (sourceRepository.findByIdAndWorkspaceId(sourceId, workspaceId).isEmpty()) {
+            throw sourceNotFound(sourceId);
+        }
+        return ingestionJobRepository.findBySourceIdOrderByIdDesc(sourceId, PageRequest.of(page, size))
+                .map(IngestionJobResponse::from);
+    }
+
     @Transactional
     public IngestionJobResponse createSource(long workspaceId, SourceUpload upload) {
         workspaceService.ensureWorkspaceExists(workspaceId);
@@ -93,7 +105,7 @@ public class IngestionService {
     public IngestionJobResponse retryIngestion(long workspaceId, long sourceId) {
         workspaceService.ensureWorkspaceExists(workspaceId);
         Source source = sourceRepository.findByIdAndWorkspaceId(sourceId, workspaceId)
-                .orElseThrow(() -> new NotFoundException("SOURCE_NOT_FOUND", "Source not found: " + sourceId));
+                .orElseThrow(() -> sourceNotFound(sourceId));
         workspaceService.ensureEmbeddingModelMatches(workspaceId, embeddingProperties.modelLabel());
         if (source.hasActiveVersion()) {
             throw new ConflictException("SOURCE_ALREADY_INGESTED", "Source already has a completed version: "
@@ -133,6 +145,10 @@ public class IngestionService {
         ingestionJobFileRepository.save(IngestionJobFile.of(job.getId(), content));
         submitAfterCommit(job.getId(), content);
         return job;
+    }
+
+    private static NotFoundException sourceNotFound(long sourceId) {
+        return new NotFoundException("SOURCE_NOT_FOUND", "Source not found: " + sourceId);
     }
 
     private static ConflictException sourceNameTaken() {

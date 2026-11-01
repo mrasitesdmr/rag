@@ -1,0 +1,19 @@
+.nameLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.nameLink:hover {
+  color: var(--color-brand-dark);
+}
+
+.statusCell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1-25);
+}
+
+.failureReason {
+  max-width: 32ch;
+}
