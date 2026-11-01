@@ -13,8 +13,8 @@ Durum: TASK-002 ile compose dosyaları var (4 servis); TASK-003 ile lokal modell
 | `retrieval-api` | Kaynak, sürüm, içe alma, parçalama, embedding, vektör arama | `8080` |
 | `postgres` | pgvector'lü PostgreSQL (lab: `pgvector/pgvector:0.8.1-pg18`); iki veritabanı: `assistant` (assistant-api) ve `retrieval` (retrieval-api), ayrı kullanıcılarla | `127.0.0.1:5432` |
 | `pgadmin` | (henüz yok) Veritabanı arayüzü | `127.0.0.1:5050` |
-| Ollama (Mac'te çalışıyor, TASK-003; servisler TASK-005/008'de bağlanır) | Dil modeli `qwen3.5:9b` (assistant-api), embedding `bge-m3` 1024 boyut (retrieval-api) (lab; kesin modeller kullanıcı onayıyla) | `11434` |
-| Reranker, llama-server (Mac'te çalışıyor, TASK-003; TASK-008'de bağlanır; başlatma komutu `ollama.md`'de) | `POST /v1/rerank`, `bge-reranker-v2-m3` Q8_0 | `8081` |
+| Ollama (Mac'te çalışıyor, TASK-003; retrieval-api TASK-005'ten, assistant-api TASK-008'den beri bağlı) | Dil modeli `qwen3.5:9b` (assistant-api), embedding `bge-m3` 1024 boyut (retrieval-api) (lab; kesin modeller kullanıcı onayıyla) | `11434` |
+| Reranker, llama-server (Mac'te çalışıyor, TASK-003; assistant-api TASK-008'den beri kullanır; başlatma komutu `ollama.md`'de) | `POST /v1/rerank`, `bge-reranker-v2-m3` Q8_0 | `8081` |
 
 Geliştirme: `cd assistant-api && ./mvnw spring-boot:run` → 8090, `cd retrieval-api && ./mvnw spring-boot:run` → 8080, `cd web && npm run dev` → 5173 (Vite proxy: `/api/assistant` → `http://localhost:8090`, `/api/workspaces` → `http://localhost:8080`).
 
@@ -94,3 +94,12 @@ Hepsi repo kökünden çalıştırılır. - Önce kontrol: `docker info`. Hata v
 - E2E (`cd web && npm run test:e2e`) gerçek sistemi ve Ollama'yı (`bge-m3`) ister; yükleme testi her koşuda bir `E2E Rehber <zaman>` kaynağı bırakır. Kaynak silme olmadığı için bunlar ancak `down -v` ile (veri siler, sadece kullanıcı onayıyla) kaybolur.
 - Ollama kapalıyken servisler `healthy` kalır; yükleme 202 döner, iş `FAILED` + `EMBEDDING_UNAVAILABLE` olur (`failedStage: EMBEDDING`), "Yeniden dene" ucu yeni iş açar.
 - Tam sistem ve `docker-compose.dev.yml` ikisi de `127.0.0.1:5432`'yi kullanır; birlikte çalışmaz. Tam sistemden önce `docker compose -f deployment/docker-compose.dev.yml stop` (veri silmez).
+
+## Gerçek yapı (TASK-008)
+- assistant-api ortamı: `RETRIEVAL_API_URL=http://retrieval-api:8080`, `RETRIEVAL_STRATEGY` (`rerank` varsayılan, `top5`), `ASSISTANT_HOST_LABEL` (boşsa süre kartında makine etiketi gizli) + `OLLAMA_BASE_URL`, `CHAT_MODEL`, `RERANKER_URL`, `RERANKER_MODEL`. Etiket ve strateji kabuktan ya da `deployment/.env`'den (repoya girmez) gelir.
+- `web/nginx.conf` `/api/assistant/`: `proxy_http_version 1.1`, `Connection ''`, `proxy_buffering off`, `proxy_cache off`, `proxy_read_timeout 300s`. Doğrulandı: `localhost:3000` üzerinden 72 token ~2,5 sn'ye yayılarak gelir (tek seferde değil).
+- Strateji değiştirme: `RETRIEVAL_STRATEGY=top5 docker compose -f deployment/docker-compose.yml up -d assistant-api` (eski haline: değişkensiz aynı komut). Tek servis yeniden oluşturulurken `ps` `healthy` olana kadar bekle; bu sürede web 502 verir.
+- **Reranker kapatma (yedek yol):** llama-server'ı Ctrl+C ile durdur → aynı soru → `sources.retrievalStrategy = RERANK_FALLBACK`, cevap akar, assistant-api logunda `WARN Reranker unavailable, falling back to vector order`. Servisler `healthy` kalır.
+- **Ollama kapalı denemesi:** `OLLAMA_BASE_URL` geçersiz bir adrese çeviren geçici override dosyasıyla `up -d assistant-api` → akışta `error` olayı `CHAT_MODEL_UNAVAILABLE`, tur `error_code` ile kaydedilir. **retrieval-api kapalı:** `docker compose … stop retrieval-api` → `503 RETRIEVAL_UNAVAILABLE` (Problem Details), tur kaydedilir.
+- **Boş bilgi bankası denemesi** veri silmeden: ayrı proje adı (`rag-empty`), kendi volume'u ve farklı web portuyla geçici Compose; iş bitince sadece o projeye `down -v`. Ana `rag_pgdata`'ya dokunulmaz.
+- Akış kesilince (istemci kopar) tur `STREAM_CANCELLED` kaydedilir; sunucu kopmayı bir sonraki token gönderiminde fark eder (prefill sürerken birkaç sn gecikebilir).

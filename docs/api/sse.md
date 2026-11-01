@@ -1,0 +1,183 @@
+# Cevap akışı sözleşmesi (SSE)
+
+> AMAÇ: assistant-api'nin cevap akışının tek doğru kaynağı. Planner yazar; backend-coder olayları bu adlarla ve bu
+> alanlarla gönderir, frontend-coder bu şekilde ayrıştırır, qa uyumu kontrol eder. Endpoint'in kendisi ve akış
+> öncesi hatalar `docs/api/openapi.yaml`'dadır (`sendMessage`).
+> Durum: TASK-008 (ilk akış).
+
+## Endpoint
+
+```
+POST /api/assistant/conversations/{conversationId}/messages
+Content-Type: application/json
+Accept: text/event-stream, application/problem+json
+
+{ "text": "Kartımı kaybettim, ne yapmalıyım?" }
+```
+
+- Başarılı yanıt: `200`, `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`.
+- Akış, retrieval (ve rerank) adımı bittikten sonra açılır. Akış açılmadan oluşan hatalar (400 `VALIDATION_FAILED`,
+  404 `CONVERSATION_NOT_FOUND`, 409 `TURN_IN_PROGRESS`, 503 `RETRIEVAL_UNAVAILABLE`, …) normal HTTP status +
+  `application/problem+json` döner; hiç olay gönderilmez (`openapi.yaml`).
+- `Accept` başlığında `application/problem+json` da bulunmalıdır; yoksa sunucu hata gövdesini yazamaz.
+- İstemci bağlantıyı kapatırsa (sekme kapandı, sayfadan çıkıldı, `AbortController.abort()`) sunucu dil modeli
+  çağrısını iptal eder; tur `STREAM_CANCELLED` hata koduyla, o ana kadar üretilen metinle kaydedilir. İstemciye olay gitmez.
+
+## Biçim
+
+Her olay iki satır ve bir boş satırdır:
+
+```
+event: <ad>
+data: <tek satır JSON>
+
+```
+
+- `event` adları küçük harftir: `token`, `sources`, `done`, `error`. Başka olay gönderilmez; `id:` ve `retry:` alanları
+  kullanılmaz. İstemci bilmediği olayı atlar.
+- `data` her zaman tek satırlık JSON nesnesidir; alanlar camelCase. Metin içindeki satır sonları JSON içinde `\n` olarak kaçışlanır.
+- Satır sonu `\n`'dir. İstemci `\r\n`'i de kabul eder.
+- Alan adından sonraki iki noktadan sonra boşluk isteğe bağlıdır (SSE standardı: değerin başındaki tek boşluk atılır).
+  Sunucu (Spring `SseEmitter`) boşluksuz yazar: `event:token`, `data:{"text":"…"}`. İstemci ikisini de kabul eder;
+  bu dosyadaki örnekler okunurluk için boşlukludur.
+
+## Sıra
+
+Başarılı akış:
+
+```
+token (0 ya da daha fazla; model boş cevap verirse 0) → sources (1 kez) → done (1 kez) → bağlantı kapanır
+```
+
+Hatalı akış:
+
+```
+token (0 ya da daha fazla) → error (1 kez) → bağlantı kapanır
+```
+
+- `error`'dan sonra `sources` ve `done` gelmez. `error`'dan önce gelen token'lar yarım cevaptır.
+- `sources` ve `done`, tur veritabanına yazılıp commit edildikten sonra gönderilir.
+- Bilgi bankasında aranabilir parça yoksa (retrieval boş liste döndü) dil modeli çağrılmaz: tek bir `token` olayı sabit
+  "bulamadım" cümlesini taşır, ardından `sources` (`contextChunks: []`, `citations: []`) ve `done` (`notFoundAnswer: true`) gelir.
+- Akış `done` ya da `error` olmadan biterse (ağ koptu, proxy kesti) istemci bunu `STREAM_INTERRUPTED` sayar (bu kod
+  sunucudan gelmez, sadece web'dedir).
+
+## Olaylar
+
+### `token` — `TokenEvent`
+Cevabın bir sonraki metin parçası. Parçalar sırayla birleştirilir; sınırları kelime ya da karakter sınırı değildir.
+
+| Alan | Tip | Açıklama |
+|------|-----|----------|
+| `text` | string | Boş olmayan metin parçası |
+
+```
+event: token
+data: {"text":"Kartını hemen "}
+```
+
+### `sources` — `SourcesEvent`
+Modele giden parçalar ve cevaptaki alıntılar. Bir kez, son `token`'dan sonra.
+
+| Alan | Tip | Açıklama |
+|------|-----|----------|
+| `retrievalStrategy` | `RetrievalStrategy` | Bu turda gerçekten uygulanan strateji (aşağıda) |
+| `candidates` | integer | Yapılandırmadaki aday sayısı (`assistant.retrieval.candidates`, varsayılan 20). Ekrandaki "rerank 20→5" metninin ilk sayısı |
+| `topK` | integer | Yapılandırmadaki prompt'a girecek parça sayısı (`assistant.retrieval.top-k`, varsayılan 5). "top-5" ve "20→5" metninin sayısı |
+| `contextChunks` | `ContextChunk[]` | Prompt'a giren parçalar, prompt'taki sırayla (`n` = 1, 2, …). En fazla `topK`; bilgi bankasında daha az parça varsa daha az; boş bilgi bankasında `[]` |
+| `citations` | integer[] | Cevapta geçen geçerli alıntı numaraları, cevaptaki ilk geçiş sırasıyla, tekrarsız. Sadece 1 ile `contextChunks.length` arasındaki `[n]`'ler; aralık dışı (`[0]`, `[6]`) yok sayılır |
+
+`RetrievalStrategy`:
+- `TOP_K`: yapılandırma `top5`; vector sırasının ilk `topK` parçası, reranker çağrılmadı. Ekran: "top-5".
+- `RERANK`: yapılandırma `rerank`; `candidates` aday puanlandı, puanı en yüksek `topK` parça (eşitlikte vector sırası önce). Ekran: "rerank 20→5".
+- `RERANK_FALLBACK`: yapılandırma `rerank` ama reranker zaman aşımına uğradı ya da hata döndü; vector sırasının ilk `topK` parçası. Ekran: "reranker DOWN · vector sırası".
+
+`ContextChunk`:
+
+| Alan | Tip | Açıklama |
+|------|-----|----------|
+| `n` | integer | Prompt'taki numara (1'den başlar); cevaptaki `[n]` bununla eşleşir |
+| `chunkId` | integer (int64) | retrieval-api parça kimliği; parça penceresi `GET /api/workspaces/42/chunks/{chunkId}` ile açılır |
+| `chunkNo` | integer | Parçanın kendi sürümündeki sıra numarası (0'dan başlar); ekranda `#31` |
+| `pageNumber` | integer | Parçanın ilk satırının PDF sayfası |
+| `heading` | string | Parçanın başlığı |
+| `sourceId` | integer (int64) | Kaynak kimliği |
+| `sourceName` | string | Kaynağın (belgenin) adı |
+| `version` | string | Parçanın ait olduğu kaynak sürümünün etiketi (ör. `2026.10`) |
+| `vectorRank` | integer | retrieval-api sonucundaki sıra (1'den başlar; mesafe artan) |
+| `distance` | number | Cosine mesafesi (retrieval-api `distance`) |
+| `rerankScore` | number \| null | Reranker'ın ham puanı (logit; 0-1 arası değildir, eksi olabilir). Sadece `RERANK`'te dolu; `TOP_K` ve `RERANK_FALLBACK`'te `null` |
+
+```
+event: sources
+data: {"retrievalStrategy":"RERANK","candidates":20,"topK":5,"contextChunks":[{"n":1,"chunkId":151,"chunkNo":31,"pageNumber":19,"heading":"2.16 Kayıp ya da çalıntı bildirimi","sourceId":10001,"sourceName":"Raşit Bankası Ürün ve Hizmet Rehberi","version":"2026.10","vectorRank":1,"distance":0.3124,"rerankScore":5.36}],"citations":[1]}
+```
+
+### `done` — `DoneEvent`
+Tur kaydedildi; akış başarıyla bitti. Son olay.
+
+| Alan | Tip | Açıklama |
+|------|-----|----------|
+| `turnId` | integer (int64) | Kaydedilen turun kimliği |
+| `notFoundAnswer` | boolean | Cevap sabit "Bu konuda rehberimizde bilgi bulamadım." cümlesini içeriyorsa `true` ("cevap yok" turu). `true` ise web "Rehber · s. N" düğmelerini göstermez |
+| `chatModel` | string | Cevabı üreten dil modeli (yapılandırmadaki ad, ör. `qwen3.5:9b`) |
+| `promptTokens` | integer \| null | Dil modelinin saydığı prompt token'ı; model çağrılmadıysa ya da sayı gelmediyse `null` |
+| `completionTokens` | integer \| null | Dil modelinin saydığı cevap token'ı; aynı kural |
+| `retrievalLatencyMs` | integer | retrieval-api araması (istek gönderildi → yanıt okundu) |
+| `rerankLatencyMs` | integer \| null | Reranker çağrısı; `RERANK_FALLBACK`'te başarısız denemenin süresi; `TOP_K`'da `null` |
+| `generationLatencyMs` | integer \| null | Dil modeli çağrısı (istek → son token); model çağrılmadıysa `null` |
+| `timeToFirstTokenMs` | integer \| null | Dil modeli çağrısından ilk token'a kadar; model çağrılmadıysa `null` |
+| `latencyMs` | integer | Toplam: isteğin assistant-api'ye gelişi → cevabın son token'ı (kayıt hariç) |
+| `hostLabel` | string \| null | Modellerin çalıştığı makinenin etiketi (`assistant.host-label`, ör. "Apple M5 · 16 GB"); ayar boşsa `null`. Onay kartı soru 3'e bağlıdır |
+
+Süreler milisaniyedir, tam sayıya yuvarlanır.
+
+```
+event: done
+data: {"turnId":12,"notFoundAnswer":false,"chatModel":"qwen3.5:9b","promptTokens":2154,"completionTokens":61,"retrievalLatencyMs":84,"rerankLatencyMs":712,"generationLatencyMs":3920,"timeToFirstTokenMs":1840,"latencyMs":4731,"hostLabel":"Apple M5 · 16 GB"}
+```
+
+### `error` — `StreamErrorEvent`
+Akış açıldıktan sonraki hata. Son olay; ardından bağlantı kapanır. Tur bu `errorCode` ve o ana kadarki metinle kaydedilir.
+
+| Alan | Tip | Açıklama |
+|------|-----|----------|
+| `errorCode` | string | Aşağıdaki kodlardan biri |
+
+- `CHAT_MODEL_UNAVAILABLE`: dil modeline bağlanılamadı, hata döndü, model bulunamadı ya da zamanında cevap vermedi
+  (ilk token için `assistant.generation.first-token-timeout`, token'lar arası `assistant.generation.token-idle-timeout`).
+  İlk token gelmeden de olabilir.
+- `INTERNAL_ERROR`: beklenmeyen hata (ör. tur kaydı yazılamadı).
+
+```
+event: error
+data: {"errorCode":"CHAT_MODEL_UNAVAILABLE"}
+```
+
+## Örnek akış
+
+```
+event: token
+data: {"text":"Kartını hemen Raşit Mobil'den "}
+
+event: token
+data: {"text":"geçici olarak kapat [1]."}
+
+event: sources
+data: {"retrievalStrategy":"RERANK","candidates":20,"topK":5,"contextChunks":[…5 parça…],"citations":[1]}
+
+event: done
+data: {"turnId":12,"notFoundAnswer":false,"chatModel":"qwen3.5:9b","promptTokens":2154,"completionTokens":61,"retrievalLatencyMs":84,"rerankLatencyMs":712,"generationLatencyMs":3920,"timeToFirstTokenMs":1840,"latencyMs":4731,"hostLabel":null}
+
+```
+
+## İsimler
+
+| Kavram | SSE / JSON | Backend (Java record) | Web (TypeScript type) |
+|--------|-----------|-----------------------|-----------------------|
+| Token olayı | `token` | `TokenEvent` | `TokenEvent` |
+| Kaynaklar olayı | `sources` | `SourcesEvent` | `SourcesEvent` |
+| Modele giden parça | `contextChunks[]` | `ContextChunk` | `ContextChunk` |
+| Bitti olayı | `done` | `DoneEvent` | `DoneEvent` |
+| Akış içi hata | `error` | `StreamErrorEvent` | `StreamErrorEvent` |
+| Olayların birleşimi | — | — | `AnswerStreamEvent` (ayrık birleşim, `type` alanı olay adı) |

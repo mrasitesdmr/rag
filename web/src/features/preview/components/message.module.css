@@ -1,0 +1,54 @@
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: var(--size-message-max);
+}
+
+.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.bubble {
+  padding: var(--space-2-5) var(--space-3-75);
+  border-radius: var(--radius-bubble);
+  color: var(--color-bubble-ink);
+  font-size: var(--text-bubble);
+  line-height: var(--line-height-bubble);
+  overflow-wrap: anywhere;
+}
+
+.user .bubble {
+  border-bottom-right-radius: var(--radius-bubble-tail);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.assistant .bubble {
+  border: var(--space-hairline) solid var(--color-bubble-line);
+  border-bottom-left-radius: var(--radius-bubble-tail);
+  background: var(--color-card);
+}
+
+.assistant.bad .bubble {
+  border-color: var(--color-bubble-bad-line);
+}
+
+.bubble p {
+  margin: 0 0 var(--space-1-25);
+}
+
+.bubble p:last-child {
+  margin: 0;
+}
+
+.bubble ul {
+  margin: var(--space-1-25) 0;
+  padding-left: var(--size-list-indent);
+}
+
+.time {
+  color: var(--color-message-time);
+  font-size: var(--text-message-time);
+}

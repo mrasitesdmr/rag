@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { formatDateTime } from './formatDateTime.ts'
+import { formatDateTime, formatTime } from './formatDateTime.ts'
 import { formatDuration } from './formatDuration.ts'
-import { formatInteger } from './formatNumber.ts'
+import { formatDecimal, formatInteger } from './formatNumber.ts'
 import { collapseWhitespace, shortenText } from './formatText.ts'
 
 describe('formatDuration', () => {
@@ -54,5 +54,28 @@ describe('shortenText', () => {
 describe('collapseWhitespace', () => {
   it('givenLineBreaksAndRuns_whenCollapseWhitespace_thenSingleSpacesTrimmed', () => {
     expect(collapseWhitespace('  Asgari\n\n ödeme \t tutarı ')).toBe('Asgari ödeme tutarı')
+  })
+})
+
+describe('formatDecimal', () => {
+  it.each([
+    [0.3124, 3, '0,312'],
+    [5.359, 2, '5,36'],
+    [-11.04, 2, '-11,04'],
+    [2, 2, '2,00'],
+    [1234.5, 1, '1234,5'],
+  ])('givenValue_whenFormatDecimal_thenFixedDigitsWithCommaAndAsciiMinus %f', (value, digits, expected) => {
+    expect(formatDecimal(value, digits)).toBe(expected)
+  })
+})
+
+describe('formatTime', () => {
+  it.each([
+    ['2026-11-01T10:05:00Z', '13:05'],
+    ['2026-10-31T21:05:00Z', '00:05'],
+    ['2026-12-31T20:59:59Z', '23:59'],
+  ])('givenIso_whenFormatTime_thenIstanbulHourMinute %s', (iso, expected) => {
+    expect(formatTime(iso)).toBe(expected)
+    expect(formatTime(new Date(iso))).toBe(expected)
   })
 })

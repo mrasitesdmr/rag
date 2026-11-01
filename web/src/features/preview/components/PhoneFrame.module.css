@@ -1,0 +1,99 @@
+.phone {
+  width: var(--size-phone-width);
+  max-width: 100%;
+  padding: var(--space-3);
+  border-radius: var(--radius-phone);
+  background: var(--color-phone-frame);
+  box-shadow: var(--shadow-phone);
+}
+
+.screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: clamp(var(--size-phone-screen-min), calc(100vh - var(--size-phone-chrome)), var(--size-phone-screen-max));
+  overflow: hidden;
+  border-radius: var(--radius-phone-screen);
+  background: var(--color-phone-screen);
+}
+
+.statusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2-5) var(--space-6-5) var(--space-1-25);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  font: 700 var(--text-status-bar) var(--font-site);
+}
+
+.battery {
+  position: relative;
+  display: inline-block;
+  width: var(--size-battery-width);
+  height: var(--size-battery-height);
+  margin-left: var(--space-1-25);
+  border: var(--size-battery-border) solid var(--color-on-brand);
+  border-radius: var(--radius-battery);
+}
+
+.battery::after {
+  position: absolute;
+  inset: var(--space-hairline) var(--space-1) var(--space-hairline) var(--space-hairline);
+  border-radius: var(--radius-battery-fill);
+  background: var(--color-on-brand);
+  content: '';
+}
+
+.appBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3-5);
+  padding: var(--space-2-5) var(--space-4-5) var(--space-3-75);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-avatar);
+  height: var(--size-avatar);
+  border-radius: var(--radius-round);
+  background: var(--color-card);
+}
+
+.avatarCircle {
+  fill: var(--color-brand);
+}
+
+.avatarBar {
+  fill: var(--color-on-brand);
+}
+
+.assistantName {
+  display: block;
+  font-size: var(--text-assistant-name);
+}
+
+.assistantSub {
+  display: block;
+  font-size: var(--text-assistant-sub);
+  opacity: var(--opacity-assistant-sub);
+}
+
+.newConversation {
+  margin-left: auto;
+  padding: var(--space-1) var(--space-3);
+  border: var(--space-hairline) solid var(--color-phone-button-line);
+  border-radius: var(--radius-phone-button);
+  background: transparent;
+  color: var(--color-on-brand);
+  font: 700 var(--text-phone-button) var(--font-site);
+}
+
+.newConversation:disabled {
+  cursor: default;
+  opacity: var(--opacity-disabled);
+}

@@ -11,32 +11,42 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.ai.chat.model.ChatModel;
+import com.rasitbank.assistant.support.PostgresIntegrationTest;
 
 /**
  * Gerçek sunucu ve gerçek PostgreSQL ile assistant-api iskeletinin ayağa kalktığını doğrular.
  */
-@Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class AssistantApplicationIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:0.8.1-pg18");
+class AssistantApplicationIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private Flyway flyway;
+
+    @Autowired
+    private ChatModel chatModel;
 
     @LocalServerPort
     private int port;
 
     @Test
-    void givenEmptyDatabase_whenContextStarts_thenFlywayRunsWithNoMigrations() {
-        assertThat(flyway.info().applied()).isEmpty();
+    void givenEmptyDatabase_whenContextStarts_thenFlywayAppliesConversationsMigration() {
+        assertThat(flyway.info().applied()).hasSize(1);
+        assertThat(flyway.info().applied()[0].getVersion().getVersion()).isEqualTo("1");
+        assertThat(flyway.info().applied()[0].getState().isApplied()).isTrue();
         assertThat(flyway.info().pending()).isEmpty();
+    }
+
+    @Test
+    void givenDefaultProperties_whenContextStarts_thenOllamaOptionsMatchLab() {
+        assertThat(chatModel).isInstanceOf(OllamaChatModel.class);
+        var options = ((OllamaChatModel) chatModel).getOptions();
+
+        assertThat(options.getModel()).isEqualTo("qwen3.5:9b");
+        assertThat(options.getTemperature()).isEqualTo(0.0);
+        assertThat(options.getNumCtx()).isEqualTo(8192);
+        assertThat(options.getThinkOption().toJsonValue()).isEqualTo(false);
     }
 
     @Test

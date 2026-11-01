@@ -1,0 +1,44 @@
+.composer {
+  position: relative;
+  display: flex;
+  flex: none;
+  gap: var(--space-1-75);
+  padding: var(--space-1-75) var(--space-3-5) var(--space-4);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2-5) var(--space-4);
+  border: var(--size-field-border) solid var(--color-composer-line);
+  border-radius: var(--radius-composer);
+  background: var(--color-card);
+  font: 400 var(--text-composer) var(--font-site);
+}
+
+.input:focus,
+.input:focus-visible {
+  border-color: var(--color-brand);
+  outline: none;
+}
+
+.input:disabled {
+  background: var(--color-card);
+}
+
+.send {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--size-send-button);
+  height: var(--size-send-button);
+  border: 0;
+  border-radius: var(--radius-round);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.send:disabled {
+  cursor: default;
+  opacity: var(--opacity-disabled);
+}

@@ -14,6 +14,7 @@ import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -58,6 +59,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             problem.setProperty("errorCode", errorCode);
         }
         return super.createResponseEntity(body, headers, statusCode, request);
+    }
+
+    @ExceptionHandler(BaseException.class)
+    public ResponseEntity<ProblemDetail> handleBaseException(BaseException exception, HttpServletRequest request) {
+        HttpStatus status = exception.getStatus();
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, exception.getMessage());
+        problem.setType(typeUri(exception.getErrorCode()));
+        problem.setTitle(status.getReasonPhrase());
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("errorCode", exception.getErrorCode());
+        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problem);
     }
 
     @ExceptionHandler(Exception.class)

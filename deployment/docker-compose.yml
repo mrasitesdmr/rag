@@ -30,6 +30,9 @@ services:
       CHAT_MODEL: qwen3.5:9b
       RERANKER_URL: http://host.docker.internal:8081
       RERANKER_MODEL: bge-reranker-v2-m3
+      RETRIEVAL_API_URL: http://retrieval-api:8080
+      RETRIEVAL_STRATEGY: ${RETRIEVAL_STRATEGY:-rerank}
+      ASSISTANT_HOST_LABEL: ${ASSISTANT_HOST_LABEL:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

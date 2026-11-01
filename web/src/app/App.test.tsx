@@ -58,7 +58,7 @@ describe('App shell', () => {
 
       expect(screen.getByRole('heading', { level: 1, name: title })).toBeInTheDocument()
       expect(screen.getByText(description)).toBeInTheDocument()
-      expect(screen.getByText('Dijital Asistan')).toBeInTheDocument()
+      expect(screen.getByText('Dijital Asistan', { selector: 'span' })).toBeInTheDocument()
       expect(screen.getByText('›')).toBeInTheDocument()
       expect(screen.getByText(section, { selector: 'b' })).toBeInTheDocument()
       expect(selectedMenuLabels()).toEqual([section])

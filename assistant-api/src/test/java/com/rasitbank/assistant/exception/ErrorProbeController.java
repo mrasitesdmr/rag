@@ -44,6 +44,21 @@ class ErrorProbeController {
         return "page " + page;
     }
 
+    @GetMapping("/missing")
+    String missing() {
+        throw new NotFoundException("CONVERSATION_NOT_FOUND", "missing");
+    }
+
+    @GetMapping("/conflict")
+    String conflict() {
+        throw new ConflictException("TURN_IN_PROGRESS", "busy");
+    }
+
+    @GetMapping("/unavailable")
+    String unavailable() {
+        throw new ServiceUnavailableException("RETRIEVAL_UNAVAILABLE", "down");
+    }
+
     @GetMapping("/boom")
     String boom() {
         throw new IllegalStateException("boom-secret");

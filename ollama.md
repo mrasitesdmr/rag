@@ -134,17 +134,32 @@ Makine: Apple M5, 16 GB, Metal'in kullanılabilir belleği ~12 GB. Üç model bi
 - Üç model birlikteyken başka büyük model (ör. diskteki `qwen3-vl:8b`) açma; swap artar ve her şey yavaşlar.
 
 ## 8. Servislerin kullanacağı ortam değişkenleri
-Compose'da ayarlıdır. retrieval-api değişkenlerini TASK-005'ten beri okur; assistant-api olanları sonraki task'larda okunur.
+Compose'da ayarlıdır. retrieval-api değişkenlerini TASK-005'ten beri okur; assistant-api olanları TASK-008'den beri okur.
 
 | Servis | Değişken | Docker değeri | Lokal varsayılan | Okuyacak task |
 |--------|----------|---------------|------------------|---------------|
 | retrieval-api | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | `http://localhost:11434` | TASK-005 (okunuyor) |
 | retrieval-api | `EMBEDDING_MODEL` | `bge-m3` | `bge-m3` | TASK-005 (okunuyor) |
 | retrieval-api | `EMBEDDING_DIMENSIONS` | `1024` | `1024` | TASK-005 (okunuyor) |
-| assistant-api | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | `http://localhost:11434` | TASK-008 |
-| assistant-api | `CHAT_MODEL` | `qwen3.5:9b` | `qwen3.5:9b` | TASK-008 |
-| assistant-api | `RERANKER_URL` | `http://host.docker.internal:8081` | `http://localhost:8081` | TASK-008 |
-| assistant-api | `RERANKER_MODEL` | `bge-reranker-v2-m3` | `bge-reranker-v2-m3` | TASK-008 |
+| assistant-api | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | `http://localhost:11434` | TASK-008 (okunuyor) |
+| assistant-api | `CHAT_MODEL` | `qwen3.5:9b` | `qwen3.5:9b` | TASK-008 (okunuyor) |
+| assistant-api | `RERANKER_URL` | `http://host.docker.internal:8081` | `http://localhost:8081` | TASK-008 (okunuyor) |
+| assistant-api | `RERANKER_MODEL` | `bge-reranker-v2-m3` | `bge-reranker-v2-m3` | TASK-008 (okunuyor) |
+| assistant-api | `RETRIEVAL_API_URL` | `http://retrieval-api:8080` | `http://localhost:8080` | TASK-008 (okunuyor) |
+| assistant-api | `RETRIEVAL_STRATEGY` | `rerank` (`top5` seçilebilir) | `rerank` | TASK-008 (okunuyor) |
+| assistant-api | `ASSISTANT_HOST_LABEL` | boş (ör. `Apple M5 · 16 GB`) | boş | TASK-008 (okunuyor) |
+
+Reranker okuma zaman aşımı 5 sn, bağlantı 1 sn'dir (`assistant.reranker.read-timeout`); aşılırsa ya da reranker kapalıysa assistant-api vector sırasının ilk 5'ine döner. Sıcak rerank ~0,7-1,1 sn ölçüldü (20 belge).
+
+### Cevap akışı duman testi (TASK-008)
+Önkoşul: Ollama (`qwen3.5:9b`, `bge-m3`) ve reranker açık, rehber yüklü. Soğuk ilk cevap ~10 sn sürer (60 sn ilk token zaman aşımı).
+```bash
+CID=$(curl -s -X POST localhost:3000/api/assistant/conversations -H 'Content-Type: application/json' -d '{"channel":"PREVIEW"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["conversationId"])')
+curl -sN -X POST localhost:3000/api/assistant/conversations/$CID/messages -H 'Content-Type: application/json' -H 'Accept: text/event-stream, application/problem+json' -d '{"text":"Kartımı kaybettim, ne yapmalıyım?"}'
+```
+Beklenen: çok sayıda `event:token`, sonra `event:sources` (`retrievalStrategy` `RERANK`, 5 parça), `event:done` (token sayıları dolu). Token'lar tek seferde değil, parça parça gelmelidir (nginx tamponu kapalı).
+
+**Reranker'ı kapatıp yedek yolu görme:** llama-server terminalinde Ctrl+C, aynı soruyu yeniden sor → `sources.retrievalStrategy` `RERANK_FALLBACK`, cevap yine akar, `docker compose -f deployment/docker-compose.yml logs assistant-api | grep "Reranker unavailable"`. Reranker'ı §4'teki komutla yeniden aç. Ollama kapalıyken akışta `error` olayı `CHAT_MODEL_UNAVAILABLE` gelir; servisler `healthy` kalır.
 
 ### Belge yükleme (TASK-005, TASK-027)
 retrieval-api açılışta belge içe almaz; PDF yüklenince `bge-m3` ile içe alınır (rehber için yaklaşık 154 parça, ~9 sn). **Sıra: Ollama açık → yükleme.** Ollama kapalıyken yüklenen belgenin işi `FAILED` + `EMBEDDING_UNAVAILABLE` olur (servis yine `healthy`); Ollama'yı açıp `curl -X POST localhost:8080/api/workspaces/42/sources/<id>/ingestion-jobs` ile yeniden dene. Durum: `curl localhost:8080/api/workspaces/42/ingestion-jobs/<id>`.

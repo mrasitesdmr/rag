@@ -1,0 +1,31 @@
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-25);
+  font-size: var(--text-latency);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: var(--size-latency-label) minmax(0, 1fr) var(--size-latency-value);
+  gap: var(--space-1-75);
+  align-items: center;
+}
+
+.bar {
+  display: block;
+  min-width: var(--size-latency-bar-min);
+  height: var(--size-latency-bar);
+  border-radius: var(--radius-latency-bar);
+  background: var(--color-brand);
+}
+
+.model {
+  background: var(--color-accent);
+}
+
+.value {
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}

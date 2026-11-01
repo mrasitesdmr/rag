@@ -3,6 +3,8 @@ package com.rasitbank.assistant.exception;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -13,8 +15,8 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 /**
  * GlobalExceptionHandler'ın her hata türünü sabit errorCode'lu RFC 9457 yanıtına çevirdiğini doğrular.
  */
-@WebMvcTest
-@Import({ErrorProbeController.class, GlobalExceptionHandler.class})
+@WebMvcTest(ErrorProbeController.class)
+@Import(GlobalExceptionHandler.class)
 class GlobalExceptionHandlerTest {
 
     private static final String PROBLEM_JSON = "application/problem+json";
@@ -77,6 +79,7 @@ class GlobalExceptionHandlerTest {
         assertThat(result).hasStatus(400);
         assertThat(result).bodyJson().extractingPath("$.errorCode").isEqualTo("VALIDATION_FAILED");
         assertThat(result).bodyJson().extractingPath("$.type").isEqualTo("https://rag.example/errors/validation-failed");
+        assertThat(result).bodyJson().extractingPath("$.title").isEqualTo("Validation Failed");
         assertThat(result).bodyJson().extractingPath("$.violations").asList().hasSize(1);
         assertThat(result).bodyJson().extractingPath("$.violations[0].field").isEqualTo("text");
         assertThat(result).bodyJson().extractingPath("$.violations[0].message").isEqualTo("must not be blank");
@@ -101,7 +104,25 @@ class GlobalExceptionHandlerTest {
         assertThat(result).bodyJson().extractingPath("$.type").isEqualTo("https://rag.example/errors/internal-error");
         assertThat(result).bodyJson().extractingPath("$.instance").asString().endsWith("/probe/boom");
         assertThat(result).bodyJson().extractingPath("$.detail").isEqualTo("An unexpected error occurred");
+        assertThat(result).bodyJson().extractingPath("$.title").isEqualTo("Internal Server Error");
         assertThat(result).bodyText().doesNotContain("boom-secret").doesNotContain("trace");
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @CsvSource({
+            "missing, 404, CONVERSATION_NOT_FOUND, conversation-not-found, Not Found",
+            "conflict, 409, TURN_IN_PROGRESS, turn-in-progress, Conflict",
+            "unavailable, 503, RETRIEVAL_UNAVAILABLE, retrieval-unavailable, Service Unavailable"})
+    void givenDomainException_whenGet_thenProblemJsonWithStatusCodeTypeTitleAndInstance(String path, int status,
+            String errorCode, String typeSlug, String title) {
+        var result = mvc.get().uri("/api/assistant/probe/" + path).exchange();
+
+        assertThat(result).hasStatus(status).hasContentType(PROBLEM_JSON);
+        assertThat(result).bodyJson().extractingPath("$.errorCode").isEqualTo(errorCode);
+        assertThat(result).bodyJson().extractingPath("$.type").isEqualTo("https://rag.example/errors/" + typeSlug);
+        assertThat(result).bodyJson().extractingPath("$.title").isEqualTo(title);
+        assertThat(result).bodyJson().extractingPath("$.instance").isEqualTo("/api/assistant/probe/" + path);
+        assertThat(result).bodyJson().extractingPath("$.status").isEqualTo(status);
     }
 
     @Test

@@ -33,6 +33,11 @@ describe('messageFor', () => {
     ['EMBEDDING_UNAVAILABLE', 'Embedding modeline ulaşılamadı. Model sunucusu açılınca yeniden dene.'],
     ['EMBEDDING_DIMENSION_MISMATCH', 'Embedding modeli beklenmeyen boyutta vektör döndü. Model ayarını kontrol et.'],
     ['INGESTION_INTERRUPTED', 'Servis iş sürerken kapandı. Yeniden dene.'],
+    ['CONVERSATION_NOT_FOUND', 'Konuşma bulunamadı. Yeni konuşma başlat.'],
+    ['TURN_IN_PROGRESS', 'Bu konuşmada bir cevap hâlâ yazılıyor. Bitince yeniden sor.'],
+    ['RETRIEVAL_UNAVAILABLE', 'Bilgi bankasına şu an ulaşılamıyor. Biraz sonra tekrar dene.'],
+    ['CHAT_MODEL_UNAVAILABLE', 'Dil modeline şu an ulaşılamıyor. Biraz sonra tekrar dene.'],
+    ['STREAM_INTERRUPTED', 'Cevap yarıda kesildi. Soruyu yeniden gönder.'],
   ])('givenErrorCode_whenMessageFor_thenReturnsCardText %s', (errorCode, expected) => {
     expect(messageFor(errorCode)).toBe(expected)
   })
