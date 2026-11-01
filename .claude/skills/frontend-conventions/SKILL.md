@@ -43,7 +43,7 @@ Listede olmayan bir runtime dependency (ör. markdown render, grafik kütüphane
 ### UI metni yazımı
 
 - Sentence case: "Soru sor", "Değerlendirmeyi başlat" (her kelime büyük harfle değil).
-- Buton ve etiket metinleri lab'ın sol yarısındakiyle birebir aynıdır (Önizleme: soru kutusu `aria-label="Soru"`, buton "Gönder"; Bilgi kaynakları: "Yeni sürüm yükle", "Yükle ve işle", "Vazgeç"; Değerlendirme: "Ölçümü çalıştır · rerank 20→5"). Lab'da karşılığı olmayan butonda ad ne olacağını tam söyler ("Aktar" değil "Temsilciye aktar"). Aynı eylem akış boyunca aynı adı taşır.
+- Buton ve etiket metinleri lab'ın sol yarısındakiyle birebir aynıdır (Önizleme: soru kutusu `aria-label="Soru"`, buton "Gönder"; Bilgi kaynakları: "Belge ekle", "Yükle ve işle", "Vazgeç"; Değerlendirme: "Ölçümü çalıştır · rerank 20→5"). Lab'da karşılığı olmayan butonda ad ne olacağını tam söyler ("Aktar" değil "Temsilciye aktar"). Aynı eylem akış boyunca aynı adı taşır.
 - Hata mesajı ne olduğunu ve gerekiyorsa ne yapılacağını söyler, özür dilemez: "Dil modeline şu an ulaşılamıyor. Biraz sonra tekrar dene."
 - Yönetim paneli metinlerinde hitap "sen" ile. Asistanın müşteriye cevabı dil modelinden gelir; onun dili ve hitabı sistem talimatındadır, frontend metni değildir.
 

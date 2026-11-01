@@ -14,7 +14,7 @@ Durum: TASK-002 ile compose dosyaları var (4 servis); TASK-003 ile lokal modell
 | `postgres` | pgvector'lü PostgreSQL (lab: `pgvector/pgvector:0.8.1-pg18`); iki veritabanı: `assistant` (assistant-api) ve `retrieval` (retrieval-api), ayrı kullanıcılarla | `127.0.0.1:5432` |
 | `pgadmin` | (henüz yok) Veritabanı arayüzü | `127.0.0.1:5050` |
 | Ollama (Mac'te çalışıyor, TASK-003; servisler TASK-005/008'de bağlanır) | Dil modeli `qwen3.5:9b` (assistant-api), embedding `bge-m3` 1024 boyut (retrieval-api) (lab; kesin modeller kullanıcı onayıyla) | `11434` |
-| Reranker, llama-server (Mac'te çalışıyor, TASK-003; TASK-009'da bağlanır; başlatma komutu `ollama.md`'de) | `POST /v1/rerank`, `bge-reranker-v2-m3` Q8_0 | `8081` |
+| Reranker, llama-server (Mac'te çalışıyor, TASK-003; TASK-008'de bağlanır; başlatma komutu `ollama.md`'de) | `POST /v1/rerank`, `bge-reranker-v2-m3` Q8_0 | `8081` |
 
 Geliştirme: `cd assistant-api && ./mvnw spring-boot:run` → 8090, `cd retrieval-api && ./mvnw spring-boot:run` → 8080, `cd web && npm run dev` → 5173 (Vite proxy: `/api/assistant` → `http://localhost:8090`, `/api/workspaces` → `http://localhost:8080`).
 

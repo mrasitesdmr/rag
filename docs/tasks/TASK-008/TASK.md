@@ -2,14 +2,15 @@
 
 ## Ne isteniyor
 Kullanıcı Önizleme ekranındaki telefon görünümünde serbest metinle soru sorar. assistant-api gerçek RAG hattını yürütür:
-1. retrieval-api'den 5 parça ister (top-5),
-2. numaralı parçalarla prompt kurar,
-3. `qwen3.5:9b` ile cevap üretir,
-4. cevabı token token akıtır (SSE),
-5. cevaptaki `[n]` alıntılarını ayrıştırır,
-6. turu kaydeder.
+1. retrieval-api'den 20 aday parça ister,
+2. adayları `bge-reranker-v2-m3` (llama-server) ile puanlatıp en iyi 5'ini seçer (rerank 20→5),
+3. numaralı parçalarla prompt kurar,
+4. `qwen3.5:9b` ile cevap üretir,
+5. cevabı token token akıtır (SSE),
+6. cevaptaki `[n]` alıntılarını ayrıştırır,
+7. turu kaydeder.
 
-Bu task lab'ın sağ yarısındaki "soru → retrieval → prompt → cevap → alıntı" akışının ilk gerçek hâlidir. Rerank (TASK-009) ve sorguyu yeniden yazma (TASK-010) yoktur.
+Bu task lab'ın sağ yarısındaki "soru → retrieval → rerank → prompt → cevap → alıntı" akışının ilk gerçek hâlidir. Sorguyu yeniden yazma (TASK-010) yoktur. Rerank kuralları eski TASK-009'dan bu task'a katıldı (Kural 12–18).
 
 ## Kurallar
 1. **Serbest metin:** Kullanıcı istediği soruyu yazar. Lab'daki "Bu soru önizleme kaydında yok" davranışı ve kayıtlı soruya zorlama yoktur. Boş soru gönderilemez; uzunluk sınırı onay kartında belirlenir.
@@ -42,23 +43,33 @@ Bu task lab'ın sağ yarısındaki "soru → retrieval → prompt → cevap → 
    Tur, akış bitince yazılır; model çağrısı sırasında veritabanı transaction'ı açık tutulmaz.
 10. **Loglama:** Soru, cevap, parça içeriği ve prompt loglanmaz; kimlik, uzunluk, token sayısı ve süre loglanır.
 11. retrieval-api ya da dil modeli erişilemezse kullanıcı Türkçe bir hata mesajı görür; tur hata koduyla kaydedilir.
+12. **Rerank stratejisi:** Strateji `assistant.*` yapılandırmasıyla seçilir: `top5` ya da `rerank`. Varsayılan, lab'daki gibi `rerank`'tir. Aday sayısı (20) ve prompt'a giren parça sayısı (5) da yapılandırmadır. Ekranda strateji düğmesi yoktur (lab kararı: sunucu ayarı).
+13. Rerank'te 20 adayın hepsi puanlanır. Prompt'a puanı en yüksek 5 parça girer; puan eşitse vector sırası önce gelir. `top5` stratejisinde reranker çağrılmaz.
+14. **Reranker kapalıyken:** Reranker çağrısı zaman aşımına uğrarsa ya da hata dönerse vector sırasının ilk 5'i kullanılır. Tur, stratejiyi "reranker DOWN · vector sırası" olarak kaydeder; cevap normal akar. Zaman aşımı süresi onay kartında belirlenir.
+15. Tur kaydına 20 adayın vector sırası, mesafesi ve rerank puanı eklenir. Prompt'a girenlerin hem vector sırası hem prompt'taki yeri saklanır.
+16. Yan kartta ("Son cevapta modele giden parçalar") rerank stratejisinde her parçanın rerank puanı da görünür ("rerank 0,97 · d 0,312"). Kart alt başlığı stratejiyi lab'daki metinle gösterir: "top-5", "rerank 20→5" ya da "reranker DOWN · vector sırası".
+17. Süre çubuklarına "rerank" satırı eklenir.
+18. Reranker'a giden metin loglanmaz; aday sayısı ve süre loglanır.
 
 ## Örnek senaryolar
 - Rehberin 2026.10 PDF'i Bilgi kaynakları'ndan yüklenmiştir (TASK-007). Kullanıcı "Kartımı kaybettim, ne yapmalıyım?" yazar. Cevap kelime kelime gelir, rehberin kayıp kart bölümündeki parçaya dayanır ve `[1]` gibi alıntılar taşır. `[1]`'e tıklayınca o parça açılır.
 - Kullanıcı "Bitcoin alıp satabilir miyim?" yazar. Cevap "Bu konuda rehberimizde bilgi bulamadım." olur.
 - Cevap akarken kullanıcı sayfayı kapatır; assistant-api model çağrısını iptal eder.
 - Dil modeli kapalıyken soru sorulur; Türkçe hata mesajı görünür.
+- Strateji `rerank`. "Ev kredisini erken kapatırsam ceza öder miyim?" sorusunda vector sırasında 7. olan erken ödeme parçası rerank sonrası prompt'ta 1. sıradadır. Yan kart bunu puanlarla gösterir.
+- Reranker durdurulur. Aynı soru cevaplanır; tur "reranker DOWN · vector sırası" olarak kaydedilir; prompt'a vector sırasının ilk 5'i girer.
 - Bilgi bankasında hiç belge yokken soru sorulur; parça gelmez ve cevap "Bu konuda rehberimizde bilgi bulamadım." olur. Bu durumda ekranda belge yüklenmesi gerektiğini anlatan bir ipucu gösterilip gösterilmeyeceği onay kartında sorulur.
 
 ## Kabul kriterleri
 - Gerçek modellerle en az 5 rehber sorusu ve 2 rehber dışı soru denenmiş; cevaplar, alıntılar ve süreler raporda.
 - `docs/api/sse.md` yazılmış; backend ve frontend buna uyuyor.
-- Alıntı ayrıştırma, bulamadım tespiti, prompt kurma ve akış iptali testlerle doğrulanmış.
+- Gerçek reranker ile en az 5 soruda top-5 ve rerank sıraları karşılaştırılmış, sonuç raporda. Reranker kapalıyken yedek davranış gerçek sistemde denenmiş.
+- Alıntı ayrıştırma, bulamadım tespiti, prompt kurma, akış iptali, rerank sıralaması, eşitlik, zaman aşımı ve yedek davranış testlerle doğrulanmış.
 - Önizleme ekranı lab'ın sol yarısıyla aynı görünür.
 - İki servisin `./mvnw verify`'ı ve web'in `npm run build`, `npm run lint` komutları geçer.
 
 ## Kapsam dışı
-- Rerank (TASK-009), yeniden yazma (TASK-010), yapılandırma şeridi ve Sadece LLM modu (TASK-011).
+- Yeniden yazma (TASK-010), yapılandırma şeridi ve Sadece LLM modu (TASK-011).
 - Öneri çipleri, kayıtlı sorular penceresi, otomatik tamamlama (TASK-012).
 - Geri bildirim ve temsilciye aktarma (TASK-013).
 - Konuşmalar ekranı ve tur durumu (TASK-014).
@@ -69,7 +80,7 @@ Bu task lab'ın sağ yarısındaki "soru → retrieval → prompt → cevap → 
 - [x] Web
 - [x] API sözleşmesi (REST)
 - [x] Cevap akışı (SSE)
-- [x] Dil modeli / prompt / reranker (lokal model gerekiyor mu?) (qwen3.5:9b)
+- [x] Dil modeli / prompt / reranker (lokal model gerekiyor mu?) (qwen3.5:9b, bge-reranker-v2-m3)
 - [x] Veritabanı (migration; hangi servis?) (assistant)
 - [ ] WebSocket
 - [x] Docker

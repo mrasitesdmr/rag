@@ -65,7 +65,7 @@ Isolation: veritabanı varsayılanını kullan (PostgreSQL'de `READ_COMMITTED`).
    Lock sorgusu `@Transactional` service metodundan çağrılır; lock commit/rollback'e kadar tutulur.
 3. **Optimistic lock** — çakışmanın nadir olduğu güncellemeler: entity'ye `@Version` ekle, `ObjectOptimisticLockingFailureException`'da retry et veya 409 dön. Dikkat: `@Version` sadece entity'nin kendi kolonları ve sahibi olduğu (owning side) ilişkiler değiştiğinde artar; `mappedBy` (inverse) koleksiyona eleman eklemek parent'ın versiyonunu **artırmaz**. Bu yüzden "konuşmaya tur ekle" gibi koleksiyon büyüten bir kural optimistic lock ile korunamaz.
 
-**retrieval-api, yeni sürüm yükleme:** bir kaynağın aynı anda tek aktif işi olur. `uploadSourceVersion` kaynak satırını `SourceRepository.findByWorkspaceIdAndIdForUpdate` (`PESSIMISTIC_WRITE`) ile kilitler, aktif iş varsa (`existsBySourceIdAndStageNotIn(sourceId, FINISHED)`) `INGESTION_IN_PROGRESS` (409) döner. `ingestion_jobs` üzerindeki `uk_ingestion_jobs_source_id_active` kısmi unique index'i (`WHERE stage NOT IN ('DONE', 'FAILED')`) son güvencedir; `saveAndFlush` sırasında gelen `DataIntegrityViolationException` da `INGESTION_IN_PROGRESS`'e çevrilir. İş, transaction commit edildikten sonra (`TransactionSynchronization.afterCommit`) executor'a verilir; böylece arka plan işi henüz commit edilmemiş satırı aramaz. Kuyruk biçiminde iş alma gerekirse `FOR UPDATE SKIP LOCKED` (`postgres-patterns`).
+**retrieval-api, içe almayı yeniden deneme:** bir kaynağın aynı anda tek aktif işi olur. `retryIngestion` aktif iş varsa (`existsBySourceIdAndStageIn(sourceId, activeStages())`) `INGESTION_IN_PROGRESS` (409) döner. `ingestion_jobs` üzerindeki kısmi unique index (`WHERE stage NOT IN ('DONE', 'FAILED')`) iki eşzamanlı isteğe karşı son güvencedir; `saveAndFlush` sırasında gelen `DataIntegrityViolationException` da `INGESTION_IN_PROGRESS`'e çevrilir. İş, transaction commit edildikten sonra (`TransactionSynchronization.afterCommit`) executor'a verilir; böylece arka plan işi henüz commit edilmemiş satırı aramaz. Kuyruk biçiminde iş alma gerekirse `FOR UPDATE SKIP LOCKED` (`postgres-patterns`).
 
 **assistant-api, yeni soru ve tur kaydı:** yeni soru konuşmayı kilitleyerek okur; `STREAMING` durumda tur varsa `TURN_IN_PROGRESS` (409) döner. Tur, `done` olayından önce commit edilir; dil modeli çağrısı (akış boyunca saniyeler) transaction dışındadır. Aynı tura ikinci geri bildirim `FEEDBACK_ALREADY_SUBMITTED` (409) döner.
 
@@ -103,7 +103,7 @@ public class SourceRenameRetryService {
 - Örnekteki çakışma `Source`'un kendi kolonlarındaki değişikliktir (worker `status`'u güncellerken kullanıcı adı değiştirir; `@Version` artar); her deneme güncel state'i yeniden okur ve kuralı (kaynak işlenirken ad değişebilir mi?) yeniden uygular.
 - Embedding modeli çağrısının retry'ı ayrı bir konudur (dil modeli akışı retry edilmez): ağ hatasında (429/5xx) backoff ile `EmbeddingClient` seviyesinde yapılır, hiçbir transaction açık değilken.
 - Idempotent olmayan işlemi retry etme (çift kayıt = bug).
-- Yeni sürüm yükleme retry'a ihtiyaç duymaz: pessimistic lock ile sıraya girer (yukarıdaki "retrieval-api, yeni sürüm yükleme").
+- İçe almayı yeniden deneme retry'a ihtiyaç duymaz: eşzamanlı ikinci istek kısmi unique index'e takılır ve 409 alır (yukarıdaki "retrieval-api, içe almayı yeniden deneme").
 
 ## Commit sonrası yan etkiler
 
@@ -141,14 +141,13 @@ public void recordEmbeddingProgress(long jobId, int embeddedChunks) {
 public void completeJob(long jobId, List<ChunkDraft> drafts, List<float[]> embeddings) {
     IngestionJob job = getJob(jobId);
     Source source = lockSource(job);                     // kaynak satırı PESSIMISTIC_WRITE
-    chunkRepository.deleteBySourceId(source.getId());    // eski sürümün parçaları
-    chunkRepository.saveAll(newChunks);                  // yeni sürümün parçaları (aynı transaction)
+    chunkRepository.saveAll(newChunks);                  // parçalar ve kaynak durumu aynı transaction'da
     source.completeIngestion(job.getVersion(), job.getFileName(), newChunks.size(), now);
     job.complete(now);
 }
 ```
 
-Eski parçaların silinmesi ve yenilerinin yazılması aynı transaction'dadır: iş sürerken arama eski sürümü döndürür, commit anında yeni sürüme geçer; arada parçasız bir an yoktur.
+Parçaların yazılması ve kaynağın tamamlandı işaretlenmesi aynı transaction'dadır: commit anına kadar arama bu belgeyi görmez, yarım yazılmış parça kümesi aranmaz.
 
 **WebSocket gelirse:** ilerleme yayını da commit'e bağlanır (`@TransactionalEventListener(phase = AFTER_COMMIT)` ya da aynı `afterCommit` senkronizasyonu). Event ve STOMP payload'ı entity değil, immutable `record`'dur; alanları `IngestionJobResponse` ile aynıdır (`spring-websocket`).
 

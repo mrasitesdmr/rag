@@ -84,14 +84,14 @@ class IngestionServiceTest {
     }
 
     @Test
-    void givenSourceWithActiveJob_whenUploadSourceVersion_thenThrowsIngestionInProgress() {
+    void givenSourceWithActiveJob_whenRetryIngestion_thenThrowsIngestionInProgress() {
         // Arrange
-        given(sourceRepository.findByWorkspaceIdAndIdForUpdate(42L, 10001L))
-                .willReturn(Optional.of(SourceFixtures.sourceWithActiveJob(10001L)));
-        given(fileTypeDetector.detect(eq("urun-ve-hizmet-rehberi.pdf"), any())).willReturn(SourceKind.PDF);
+        given(sourceRepository.findByIdAndWorkspaceId(10001L, 42L))
+                .willReturn(Optional.of(SourceFixtures.failedSource(10001L)));
+        given(ingestionJobRepository.existsBySourceIdAndStageIn(eq(10001L), any())).willReturn(true);
 
         // Act
-        Throwable thrown = catchThrowable(() -> ingestionService.uploadSourceVersion(42L, 10001L, "2026.11", FILE));
+        Throwable thrown = catchThrowable(() -> ingestionService.retryIngestion(42L, 10001L));
 
         // Assert
         assertThat(thrown).isInstanceOf(ConflictException.class)
@@ -101,7 +101,7 @@ class IngestionServiceTest {
 }
 ```
 
-Constructor'da `Clock` gibi mock'lanmayacak bir bağımlılık olduğu için service `@BeforeEach`'te elle kurulur (`@InjectMocks` karşılanamayan parametreye `null` geçer). Tek aktif iş kuralı ayrıca doğrudan `Source.startIngestion` üzerinde unit test edilir; iş aşamaları ve ilerleme hesabı `IngestionJob` entity'si üzerinde (`IngestionJobTest`).
+Constructor'da `Clock` gibi mock'lanmayacak bir bağımlılık olduğu için service `@BeforeEach`'te elle kurulur (`@InjectMocks` karşılanamayan parametreye `null` geçer). Tek aktif iş kuralının son güvencesi olan kısmi unique index ayrıca Testcontainers'lı repository testinde doğrulanır; iş aşamaları ve ilerleme hesabı `IngestionJob` entity'si üzerinde (`IngestionJobTest`).
 
 Pattern'ler:
 - Arrange-Act-Assert, `// Arrange` / `// Act` / `// Assert` yorumlarıyla

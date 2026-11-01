@@ -156,7 +156,7 @@ export function MessageComposer({ conversationId }: MessageComposerProps) {
 
 SPA'da action sıradan bir async function'dır (`"use server"` yoktur). Validation şema kütüphanesiyle (Zod vb.) değil `messageRules.ts`'teki sabit ve function'larla yapılır; backend çağrısı hook üzerinden yapılır. Etiket, placeholder ve buton metinleri lab'ın sol yarısındaki Önizleme ekranıyla aynıdır (`aria-label="Soru"`, "Sorunu yaz…", "Gönder"). Hangi `errorCode`'un nerede gösterileceği `frontend-conventions` bölüm 7'deki tablodadır; metinler `errorMessages.ts` ve `messageRules.ts`'ten gelir (bölüm 7 ve 10). Akış sürerken buton kapalıdır; akışın kendisi ve testleri `sse-streaming`'dedir.
 
-Dosya alanlı form aynı kalıpla yazılır: Bilgi kaynakları'ndaki `UploadSourceVersionDialog` (lab: başlık "Yeni sürüm yükle", alan "Sürüm etiketi", butonlar "Yükle ve işle" / "Vazgeç") dosyayı `FormData` ile mutation hook'una verir; başarılı yüklemede `202` ile dönen iş polling ile izlenir ve kaynak detayı invalidate edilir (`react-state-management/references/details.md`).
+Dosya alanlı form aynı kalıpla yazılır: Bilgi kaynakları'ndaki "Belge ekle" penceresi dosyayı `FormData` ile mutation hook'una verir; başarılı yüklemede `202` ile dönen iş polling ile izlenir ve kaynak listesi invalidate edilir (`react-state-management/references/details.md`).
 
 ### Controlled input'lar
 

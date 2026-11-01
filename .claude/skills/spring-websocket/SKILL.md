@@ -11,7 +11,7 @@ metadata:
 
 # Spring WebSocket (STOMP)
 
-Proje modeli: bu projede STOMP henüz yoktur; cevap SSE ile akar (`sse-streaming`), içe alma ve değerlendirme ilerlemesi polling ile izlenir. STOMP gerekirse kalıp şudur: istemci REST ile rehberin yeni sürümünü yükler, sonra STOMP ile kaynağın topic'ine abone olur; sunucu içe alma ilerlemesini (parçalama, embedding üretme, yazma) topic'e yayınlar. Arama ve cevap WebSocket'e taşınmaz. İstemciden sunucuya STOMP komutu şu an gerekmez; gerekirse `/app/...` üzerinden gelir.
+Proje modeli: bu projede STOMP henüz yoktur; cevap SSE ile akar (`sse-streaming`), içe alma ve değerlendirme ilerlemesi polling ile izlenir. STOMP gerekirse kalıp şudur: istemci REST ile belgeyi yükler, sonra STOMP ile kaynağın topic'ine abone olur; sunucu içe alma ilerlemesini (parçalama, embedding üretme, yazma) topic'e yayınlar. Arama ve cevap WebSocket'e taşınmaz. İstemciden sunucuya STOMP komutu şu an gerekmez; gerekirse `/app/...` üzerinden gelir.
 
 
 > **Proje durumu:** Projede WebSocket henüz yok; içe alma ilerlemesi iş durumu sorgulanarak (polling), cevap akışı SSE ile izlenir (`frontend-conventions` bölüm 8). Bu skill, canlı güncellemeyi getiren ilk task için hedef tasarımdır; dependency (`spring-boot-starter-websocket`) ve `docs/api/websocket.md` o task'ın planında eklenir.

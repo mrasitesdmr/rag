@@ -9,7 +9,7 @@ Raşit Bankası Ürün ve Hizmet Rehberi'nin 2026.11 sürümü, 2026.10 sürüm�
 - 2026.11 rehberi eski değerleri anmaz. Rehberde "önceki ücret" ya da "bu sürümde değişenler" gibi bir bölüm yoktur.
 
 ## Kısa özet
-Yeni sürüm yükleme penceresinde (TASK-015) gösterilecek biçimdedir: önce eski satır, sonra yeni satır. Parantezdeki sayfalar 2026.11 PDF'indeki sayfalardır.
+Önce eski satır, sonra yeni satır. Parantezdeki sayfalar 2026.11 PDF'indeki sayfalardır.
 
 1. Raşit Gold yıllık üyelik ücreti 1.450 TL
    → Raşit Gold yıllık üyelik ücreti 1.650 TL · yürürlük 1 Kasım 2026 (s. 8, 18, 65)
@@ -42,7 +42,7 @@ Bir fark birden fazla yerde geçiyorsa her geçiş ayrı satırdır. "— " ekle
 | F4.5 | Kaldırılan | Şifre cihazı (ücret tarifesi) | `Şifre cihazı (ilk cihaz ya da yenisi) 150 TL` | — | 10.5 | 66 | — | 1 Kasım 2026 |
 
 ## Asistanda beklenen etki
-Bu sorular TASK-015'te yeni sürüm yüklendikten sonra, TASK-016'da golden set'te kullanılır.
+Bu sorular 2026.11 ayrı belge olarak yüklendiğinde iki sürümün cevaplarını karşılaştırmak için ve TASK-016'da golden set'te kullanılabilir.
 
 | Soru | 2026.10 içe alınmışken | 2026.11 işlendikten sonra |
 |------|------------------------|---------------------------|

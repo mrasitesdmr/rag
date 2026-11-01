@@ -1,7 +1,7 @@
 # TASK-007: Bilgi kaynakları ekranı
 
 ## Ne isteniyor
-Lab'ın sol yarısındaki Bilgi kaynakları ekranı ve kaynak detay ekranı gerçek veriyle çalışır. Veriyi retrieval-api'nin kaynak, sürüm, parça ve içe alma uçları verir; web bu uçları doğrudan çağırır (lab'daki gibi). Ekranda `../embedding-pgvector`'deki gibi bir "Belge ekle" düğmesi ve penceresi vardır; kullanıcı kendi belgesini buradan yükler ve belge gerçek içe alma hattından geçer (uç: TASK-027). Lab'da bu düğme yoktu, çünkü demoda rehber hazır geliyordu; görünümü lab'ın tasarım diline uygun yapılır. "Yeni sürüm yükle" bu task'ta yok (TASK-015).
+Lab'ın sol yarısındaki Bilgi kaynakları ekranı ve kaynak detay ekranı gerçek veriyle çalışır. Veriyi retrieval-api'nin kaynak, sürüm, parça ve içe alma uçları verir; web bu uçları doğrudan çağırır (lab'daki gibi). Ekranda `../embedding-pgvector`'deki gibi bir "Belge ekle" düğmesi ve penceresi vardır; kullanıcı kendi belgesini buradan yükler ve belge gerçek içe alma hattından geçer (uç: TASK-027). Lab'da bu düğme yoktu, çünkü demoda rehber hazır geliyordu; görünümü lab'ın tasarım diline uygun yapılır. "Yeni sürüm yükle" bu projede yok.
 
 ## Kurallar
 1. **Liste ekranı (`/kaynaklar`):**
@@ -57,7 +57,7 @@ Lab'ın sol yarısındaki Bilgi kaynakları ekranı ve kaynak detay ekranı ger�
 - Backend ve frontend testleri ile `./mvnw verify`, `npm run build` ve `npm run lint` geçer.
 
 ## Kapsam dışı
-- Yeni sürüm yükleme, "Yeni sürüm yükle" düğmesi ve ilerleme kartı (TASK-015).
+- Yeni sürüm yükleme, "Yeni sürüm yükle" düğmesi ve ilerleme kartı.
 - Kaynak silme.
 
 ## Etkilenen katmanlar

@@ -108,10 +108,6 @@ r; `ddl-auto=validate` uyuşmazlığı açılışta yakalar.
 ```java
 public interface SourceRepository extends JpaRepository<Source, Long> {
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select s from Source s where s.workspace.id = :workspaceId and s.id = :id")
-    Optional<Source> findByWorkspaceIdAndIdForUpdate(@Param("workspaceId") long workspaceId, @Param("id") long id);
-
     @Query("select s from Source s where s.workspace.id = :workspaceId and s.id = :id")
     Optional<Source> findByWorkspaceIdAndId(@Param("workspaceId") long workspaceId, @Param("id") long id);
 
@@ -129,7 +125,7 @@ public interface ChunkRepository extends JpaRepository<Chunk, Long> {
 
 - Spring Data interface'lerine `@Repository` eklenmez.
 - Derived query isimleri entity alan adlarıyla; türetilmiş getter'ı olan alanlarda (`Source.getWorkspaceId()`) derived query yanlış özelliği bulur, açık `@Query` + JPQL attribute yolu (`s.workspace.id`) yazılır.
-- Toplu silme JPQL `@Modifying` ile yapılır (parçalar belleğe yüklenmez); yeni sürüm yazılırken eski parçalar aynı transaction'da silinir.
+- Toplu silme JPQL `@Modifying` ile yapılır (parçalar belleğe yüklenmez).
 - `@Modifying` sorguları service'teki `@Transactional` metottan çağrılır.
 
 ### Benzerlik sorgusu (native)
@@ -195,23 +191,30 @@ public class IngestionService {
     // constructor injection (SourceRepository, IngestionJobRepository, IngestionJobRunner, Clock ...)
 
     @Transactional
-    public IngestionJobResponse uploadSourceVersion(long workspaceId, long sourceId, @Nullable String version, MultipartFile file) {
-        Source source = sourceRepository.findByWorkspaceIdAndIdForUpdate(workspaceId, sourceId)
+    public IngestionJobResponse retryIngestion(long workspaceId, long sourceId) {
+        Source source = sourceRepository.findByIdAndWorkspaceId(sourceId, workspaceId)
                 .orElseThrow(() -> new NotFoundException("SOURCE_NOT_FOUND", "Source not found: " + sourceId));
-        byte[] content = readContent(file);
-        SourceKind kind = fileTypeDetector.detect(fileName(file), content);
-        Instant now = Instant.now(clock);
-        IngestionJob job = ingestionJobRepository.saveAndFlush(
-                source.startIngestion(version, fileName(file), content.length, now));
-        submitAfterCommit(job.getId(), content, kind);
+        if (ingestionJobRepository.existsBySourceIdAndStageIn(sourceId, IngestionStage.activeStages())) {
+            throw new ConflictException("INGESTION_IN_PROGRESS", "Source has an active ingestion job: " + sourceId);
+        }
+        IngestionJob previousJob = ingestionJobRepository.findFirstBySourceIdOrderByIdDesc(sourceId).orElseThrow();
+        byte[] content = ingestionJobFileRepository.findById(previousJob.getId()).orElseThrow().getContent();
+        IngestionJob job;
+        try {
+            job = ingestionJobRepository.saveAndFlush(IngestionJob.queued(workspaceId, sourceId,
+                    previousJob.getVersion(), previousJob.getFileName(), previousJob.getFileSizeBytes(), Instant.now(clock)));
+        } catch (DataIntegrityViolationException exception) {  // kısmi unique index: eşzamanlı ikinci istek
+            throw new ConflictException("INGESTION_IN_PROGRESS", "Source has an active ingestion job: " + sourceId);
+        }
+        submitAfterCommit(job.getId(), content);
         return IngestionJobResponse.from(job);
     }
 
-    private void submitAfterCommit(long jobId, byte[] content, SourceKind kind) {
+    private void submitAfterCommit(long jobId, byte[] content) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                ingestionJobRunner.submit(jobId, content, kind);
+                ingestionJobRunner.submit(jobId, content);
             }
         });
     }
@@ -222,7 +225,7 @@ public class IngestionService {
 - İçe alma işini başlatmak gibi yan etkiler transaction içinde değil commit sonrasında yapılır (`TransactionSynchronization.afterCommit`, ya da event kullanılıyorsa `@TransactionalEventListener(phase = AFTER_COMMIT)`; bkz. `spring-transactions`). Aksi halde arka plan işi henüz commit edilmemiş kaynağı ve işi arar.
 - `Source.getWorkspaceId()` gibi türetilmiş getter'lar yüzünden Spring Data `workspaceId`'yi özellik sanar; ilişki üzerinden sorgu açık JPQL ile yazılır (`s.workspace.id`), derived query ile değil (`retrieval-api/CLAUDE.md`).
 - Embedding modeli çağrısı (ağ, saniyeler sürebilir) transaction içinde yapılmaz; bağlantıyı ve kilidi o süre boyunca tutar. Önce embedding'ler üretilir, sonra kısa bir transaction'da yazılır.
-- Yeni sürüm yüklemede kaynak `findByWorkspaceIdAndIdForUpdate` (pessimistic lock) ile okunur; aktif iş varsa `startIngestion` `INGESTION_IN_PROGRESS` fırlatır. Strateji ayrıntısı `spring-transactions`'ta.
+- İçe almayı yeniden denemede aktif iş varsa `retryIngestion` `INGESTION_IN_PROGRESS` fırlatır; `ingestion_jobs` üzerindeki kısmi unique index son güvencedir. Strateji ayrıntısı `spring-transactions`'ta.
 
 ## Zaman alanları
 

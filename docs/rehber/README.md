@@ -4,8 +4,8 @@ Asistanın cevaplarını dayandırdığı belge. Banka kurgusaldır; ücret, fai
 
 | Sürüm | Yürürlük | Kullanım | PDF |
 |-------|----------|----------|-----|
-| 2026.10 | 1 Ekim 2026 | Bilgi bankasına ilk içe alınan sürüm (TASK-005) | `pdf/Rasit-Bankasi-Urun-Hizmet-Rehberi-2026.10.pdf` |
-| 2026.11 | 1 Kasım 2026 | Bilgi kaynakları ekranında "Yeni sürüm yükle" ile işlenen sürüm (TASK-015) | `pdf/Rasit-Bankasi-Urun-Hizmet-Rehberi-2026.11.pdf` |
+| 2026.10 | 1 Ekim 2026 | Bilgi kaynakları'ndaki "Belge ekle" ile yüklenen ana sürüm | `pdf/Rasit-Bankasi-Urun-Hizmet-Rehberi-2026.10.pdf` |
+| 2026.11 | 1 Kasım 2026 | İsteğe bağlı ikinci belge: "Belge ekle" ile ayrı bir adla yüklenip 2026.10 ile karşılaştırılabilir (yeni sürüm yükleme yok) | `pdf/Rasit-Bankasi-Urun-Hizmet-Rehberi-2026.11.pdf` |
 
 İki sürüm arasındaki farklar: `degisiklik-ozeti-2026.11.md`. Rehberde bilerek bulunmayan konular ("Bu konuda rehberimizde bilgi bulamadım." cevabı beklenenler): `rehberde-olmayan-konular.md`.
 

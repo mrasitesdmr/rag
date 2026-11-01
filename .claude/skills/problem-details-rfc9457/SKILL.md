@@ -43,7 +43,7 @@ throw new ConflictException("INGESTION_IN_PROGRESS", "Source has an active inges
 | assistant-api | `ServiceUnavailableException` | 503 | `RERANKER_UNAVAILABLE` | Reranker kapalı ve TASK yedek yol yerine hata istiyor |
 | retrieval-api | `NotFoundException` | 404 | `WORKSPACE_NOT_FOUND` | Var olmayan çalışma alanı (sadece 42 vardır) |
 | retrieval-api | `NotFoundException` | 404 | `SOURCE_NOT_FOUND` | Var olmayan kaynak |
-| retrieval-api | `ConflictException` | 409 | `INGESTION_IN_PROGRESS` | Kaynağın aktif içe alma işi varken yeni sürüm yükleme |
+| retrieval-api | `ConflictException` | 409 | `INGESTION_IN_PROGRESS` | Kaynağın aktif içe alma işi varken içe almayı yeniden deneme |
 | retrieval-api | `ConflictException` | 409 | `EMBEDDING_MODEL_MISMATCH` | Yüklemenin ya da sorgu vektörünün modeli çalışma alanının modeliyle (`bge-m3@1024`) uyuşmuyor |
 | retrieval-api | `ServiceUnavailableException` | 503 | `EMBEDDING_UNAVAILABLE` | Embedding modeli yanıt vermiyor ya da 5xx dönüyor (retry'lar tükendikten sonra) |
 | İkisi | Bean Validation (`@Valid` gövde ve `@RequestParam`/`@PathVariable` kısıtları; `MethodArgumentNotValidException` ve `HandlerMethodValidationException`) | 400 | `VALIDATION_FAILED` + `violations` (`field` = gövde alanı ya da parametre adı) | Soru metni 2-1000 karakter (assistant-api); arama metni boş olamaz, `limit` 1-50 (retrieval-api) |

@@ -157,7 +157,7 @@ Hardening "saldırgan okuyabilir mi?" diye sorar. Gizlilik "bunu hiç tutmalı m
 | "Güvenliği sonra ekleriz" | Sonradan güvenlik eklemek 10 kat zordur. Şimdi ekle. |
 | "Kimse bunu sömürmeye çalışmaz" | Otomatik tarayıcılar bulur. Gizlilikle sağlanan güvenlik, güvenlik değildir. |
 | "React XSS'i zaten önlüyor" | `{value}` için evet; `dangerouslySetInnerHTML`, `javascript:` URL'leri ve ref ile DOM yazımı için hayır. |
-| "Butonu kapattık, kimse işlenen kaynağa yeni sürüm yükleyemez" | DevTools'tan istek göndermek bir saniye sürer. Yetki backend'de kontrol edilir. |
+| "Butonu kapattık, kimse işlenen kaynakta içe almayı yeniden deneyemez" | DevTools'tan istek göndermek bir saniye sürer. Yetki backend'de kontrol edilir. |
 | "Frontend'de validate ediyoruz" | Client-side validation UX'tir; isteği curl ile gönderen biri onu hiç görmez. |
 | "Bu env variable'ı sadece frontend kullanıyor" | `VITE_` ile başlıyorsa bundle'dadır ve herkes okuyabilir. |
 | "Audit geçti, dependency güvenli" | Audit bilinen advisory'leri eşler. Yeni zararlı bir paketi yakalamaz. |

@@ -314,13 +314,13 @@ export function useIngestionJobsPolling(jobs: IngestionJobResponse[]) {
   })
 }
 
-export function useUploadSourceVersionMutation(sourceId: number) {
+export function useCreateSourceMutation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: UploadSourceVersionInput) => uploadSourceVersion(sourceId, input),
+    mutationFn: (input: CreateSourceInput) => createSource(input),
     onSuccess: (job) => {
       queryClient.setQueryData(sourceKeys.ingestionJob(job.jobId), job)
-      void queryClient.invalidateQueries({ queryKey: sourceKeys.detail(sourceId) })
+      void queryClient.invalidateQueries({ queryKey: sourceKeys.list() })
     },
   })
 }

@@ -182,7 +182,7 @@ spring.jpa.hibernate.ddl-auto=validate
 |-----------|-------|--------|
 | Uygulamanın her ortamda çalışması için gereken referans veri | Tek çalışma alanı (42, "Raşit Bankası · Dijital Asistan"), kaynak türü kodları | Versioned migration (`V6__seed_workspace.sql`, retrieval-api); değişiklik yeni `V` dosyası |
 | Embedding'i olan demo içeriği | Lab'daki bilgi bankası parçaları | Migration değil: içe alma akışıyla (embedding modeli) ya da önceden üretilmiş vektörleri yükleyen ayrı bir import komutuyla; vektörler SQL dosyasına gömülmez (dosya şişer, model değişince geçersizleşir) |
-| Sadece geliştirmeyi kolaylaştıran sahte veri | Örnek kaynak kaydı (rehberin kendisi tercihen Bilgi kaynakları'ndaki "Yeni sürüm yükle" ile içe alınır) | `@Profile("dev")` seeder (aşağıda) |
+| Sadece geliştirmeyi kolaylaştıran sahte veri | Örnek kaynak kaydı (bu projede yok: belgeler sadece Bilgi kaynakları'ndaki "Belge ekle" ile girer) | `@Profile("dev")` seeder (aşağıda) |
 | Test verisi | Senaryoya özel kayıtlar, elle hesaplanmış küçük vektörler | Testin kendisi (`TestEntityManager`, `<Entity>Fixtures`) |
 
 ```java

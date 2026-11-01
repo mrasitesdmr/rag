@@ -109,16 +109,12 @@ public class Source implements Persistable<Long> {
 }
 ```
 
-Schema Flyway migration'ı ile oluşturulur (`flyway-migrations`); entity sadece mapping'dir. Getter'lar elle yazılır (Lombok yok); setter yoktur, durum domain fiiliyle değişir (`completeIngestion`, `failIngestion`). Id sequence'ten elle verildiği için (`sourceRepository.nextSourceId()`) entity `Persistable` ile kendi "yeni mi" bilgisini taşır; aksi halde Spring Data `save` id'si dolu entity'yi `merge` eder. Yeni kaynak her zaman `INGESTING` doğar; ilk iş başarısız olursa `FAILED`, önceki sürümü olan kaynakta başarısız yeni sürüm `READY` bırakır. Embedding kolonlu `Chunk` entity'si ve benzerlik sorgusu için `references/data.md`.
+Schema Flyway migration'ı ile oluşturulur (`flyway-migrations`); entity sadece mapping'dir. Getter'lar elle yazılır (Lombok yok); setter yoktur, durum domain fiiliyle değişir (`completeIngestion`, `failIngestion`). Id sequence'ten elle verildiği için (`sourceRepository.nextSourceId()`) entity `Persistable` ile kendi "yeni mi" bilgisini taşır; aksi halde Spring Data `save` id'si dolu entity'yi `merge` eder. Yeni kaynak her zaman `INGESTING` doğar; ilk iş başarısız olursa `FAILED` olur. Embedding kolonlu `Chunk` entity'si ve benzerlik sorgusu için `references/data.md`.
 
 ### Repository
 
 ```java
 public interface SourceRepository extends JpaRepository<Source, Long> {
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select s from Source s where s.workspace.id = :workspaceId and s.id = :sourceId")
-    Optional<Source> findByWorkspaceIdAndIdForUpdate(@Param("workspaceId") long workspaceId, @Param("sourceId") long sourceId);
 
     @Query(value = "select s from Source s where s.workspace.id = :workspaceId order by s.id",
             countQuery = "select count(s) from Source s where s.workspace.id = :workspaceId")
@@ -158,7 +154,7 @@ public class IngestionService {
 }
 ```
 
-Yeni sürüm yüklemede (`uploadSourceVersion`) kaynak satırı kilitlenerek okunur; aktif iş varsa `INGESTION_IN_PROGRESS` döner (`backend-conventions` bölüm 3, `spring-transactions`). İş, transaction commit edildikten sonra arka plan executor'ına verilir (`submitAfterCommit`).
+İçe almayı yeniden denemede (`retryIngestion`) aktif iş varsa `INGESTION_IN_PROGRESS` döner; kısmi unique index son güvencedir (`backend-conventions` bölüm 3, `spring-transactions`). İş, transaction commit edildikten sonra arka plan executor'ına verilir (`submitAfterCommit`).
 
 ### REST Controller
 

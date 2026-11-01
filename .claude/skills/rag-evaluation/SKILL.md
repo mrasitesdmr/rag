@@ -14,7 +14,7 @@ Lab'daki gibi **retrieval** ölçülür: cevabın geçtiği parça, modele giden
 ## 2. Golden set
 
 - Her kayıt: soru + cevabın geçtiği parça kimliği (ya da kimlikleri) + kategori (lab'daki soru listesi kategorileri).
-- Parça kimlikleri retrieval-api'den gelir ve rehberin yeni sürümünde değişir; bu yüzden altın parça sürüme bağlıdır (lab: "rehber 2026.10"). Sürüm değişince golden set güncellenir ya da ölçüm hangi sürüme karşı yapıldığını gösterir.
+- Parça kimlikleri retrieval-api'den gelir ve belge silinip yeniden yüklenince değişir; bu yüzden altın parça yüklenen belgeye bağlıdır (lab: "rehber 2026.10"). Belge değişince golden set güncellenir ya da ölçüm hangi belgeye karşı yapıldığını gösterir.
 - Rehberde cevabı olmayan sorular ayrıca işaretlenir; recall hesabına girmez, qa'nın "bulamadım" denemesinde kullanılır.
 - Golden set'in nerede durduğu (migration, kaynak dosyası, tablo) plan kararıdır.
 
@@ -54,4 +54,4 @@ Lab'daki gibi **retrieval** ölçülür: cevabın geçtiği parça, modele giden
 - recall düşükse sorun parçalama ya da retrieval'dadır (parça çok büyük/küçük, başlık embed edilmemiş, sorgu yeniden yazma kapalı).
 - recall yüksek ama cevap yanlışsa sorun prompt ya da modeldedir.
 - Rerank'in kazancı "sırası değişenler" listesinde görünür; kazanç yoksa reranker'ın maliyeti (gecikme) tartılır.
-- Rehberin yeni sürümünden sonra ölçüm yeniden yapılır; sonuçlar sürüm etiketiyle karşılaştırılır.
+- Belge yeniden yüklendikten sonra ölçüm yeniden yapılır; sonuçlar belge sürüm etiketiyle karşılaştırılır.

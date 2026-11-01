@@ -47,10 +47,10 @@ export function useEmbeddingModelsQuery() {
 **Mutation'lar için:**
 
 ```tsx
-function UploadSourceVersionButton({ sourceId, file }: { sourceId: number; file: File }) {
-  const uploadMutation = useUploadSourceVersionMutation(sourceId)
+function UploadSourceButton({ input }: { input: CreateSourceInput }) {
+  const uploadMutation = useCreateSourceMutation()
   return (
-    <button type="button" disabled={uploadMutation.isPending} onClick={() => uploadMutation.mutate({ file })}>
+    <button type="button" disabled={uploadMutation.isPending} onClick={() => uploadMutation.mutate(input)}>
       Yükle ve işle
     </button>
   )

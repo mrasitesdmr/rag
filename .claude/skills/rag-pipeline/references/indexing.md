@@ -8,7 +8,7 @@
 - Yükleme `202 Accepted` + `Location` (`/api/workspaces/42/ingestion-jobs/{jobId}`) + iş DTO'su döner; istemci işi polling ile izler (`frontend-conventions` bölüm 8).
 - Aşamalar (lab): `QUEUED → PARSING → CHUNKING → EMBEDDING → WRITING → DONE`, hata olursa `FAILED` (`errorCode` ile). `progress` 0-1 arası, `embeddedChunks` / `totalChunks` ilerlemeyi taşır.
 - İş, oluşturan transaction commit edildikten sonra arka plan executor'ına verilir (`TransactionSynchronization.afterCommit`). Her aşama kendi kısa transaction'ında yazılır; böylece polling eden ekran ilerlemeyi görür.
-- Bir kaynağın aynı anda tek aktif işi olur: yeni sürüm yüklenirken kaynak satırı kilitlenir, aktif iş varsa 409 `INGESTION_IN_PROGRESS`; `ingestion_jobs` üzerindeki partial unique index son güvencedir.
+- Bir kaynağın aynı anda tek aktif işi olur: içe alma yeniden denenirken aktif iş varsa 409 `INGESTION_IN_PROGRESS`; `ingestion_jobs` üzerindeki partial unique index son güvencedir.
 
 ## 2. Okuma (PARSING)
 
@@ -41,7 +41,7 @@ ingestion.embedding-batch-size=96
 
 ## 5. Yazma (WRITING)
 
-- Yeni sürümde eski parçalar silinip yenileri **tek transaction'da** yazılır; iş sürerken arama eski sürümü döndürür, commit anında yeni sürüme geçer. Arada parçasız bir an yoktur (lab: yükleme sürerken asistan eski rehberden cevap vermeye devam eder).
+- Parçalar **tek transaction'da** yazılır; commit anına kadar arama bu belgeyi görmez, yarım yazılmış parça kümesi aranmaz. Yeni sürüm yükleme bu projede yoktur.
 - `Chunk` id'si `SEQUENCE` (`allocationSize = 50`) ile üretilir; `hibernate.jdbc.batch_size=100` ile toplu insert yapılır (`IDENTITY` batch insert yapmaz).
 - Kaynağın `version`, `chunkCount`, `syncedAt` alanları iş bitince güncellenir.
 
@@ -57,5 +57,5 @@ ingestion.embedding-batch-size=96
 
 - Gerçek embedding modeline gidilmez: sahte `EmbeddingClient` girdiden deterministik vektör üretir (aynı metin → aynı vektör); elle hesaplanmış küçük vektörlerle (`[1,0,0]`, `[0.8,0.6,0]`) sıralama doğrulanır.
 - Repository ve arama sorguları Testcontainers ile gerçek pgvector imajına karşı test edilir (`spring-jpa-testing`); imaj deployment'takiyle aynıdır.
-- Örnek test adları: `givenSourceWithActiveJob_whenUploadSourceVersion_thenThrowsIngestionInProgress`, `givenThreeChunks_whenFindNearest_thenReturnsChunksOrderedByCosineDistance`, `givenNewVersionWritten_whenSearchDuringIngestion_thenReturnsOldVersionChunks`.
+- Örnek test adları: `givenSourceWithActiveJob_whenRetryIngestion_thenThrowsIngestionInProgress`, `givenThreeChunks_whenFindNearest_thenReturnsChunksOrderedByCosineDistance`, `givenSourceWithoutDoneVersion_whenSearch_thenSkipsItsChunks`.
 - Ollama kapalıyken `./mvnw verify` geçer (ör. `EMBEDDING_BASE_URL=http://127.0.0.1:9 ./mvnw verify` kalıbı servisin `CLAUDE.md`'sinde).

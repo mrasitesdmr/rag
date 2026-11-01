@@ -80,10 +80,10 @@ expect(screen.getByTestId('sidebar-mock')).toBeInTheDocument()
 ```typescript
 // ❌ API modülünü mock'lamak: httpClient'ın ProblemDetail → ApiError dönüşümü,
 //    errorCode → Türkçe mesaj eşlemesi ve URL/payload test dışında kalır
-vi.mock('../api/sourceApi.ts', () => ({ uploadSourceVersion: vi.fn().mockResolvedValue(job) }))
+vi.mock('../api/sourceApi.ts', () => ({ retryIngestion: vi.fn().mockResolvedValue(job) }))
 
 // ✅ Sadece network sınırını mock'la (MSW); httpClient, hata eşlemesi ve component gerçek
-server.use(http.post('/api/workspaces/42/sources/:sourceId/versions', () => problem(409, 'INGESTION_IN_PROGRESS')))
+server.use(http.post('/api/workspaces/42/sources/:sourceId/ingestion-jobs', () => problem(409, 'INGESTION_IN_PROGRESS')))
 ```
 
 Backend'de karşılığı: repository *sorgularının* davranışı mock'la değil Testcontainers ile gerçek PostgreSQL'e karşı `@DataJpaTest` ile test edilir (`spring-jpa-testing`). Service unit testlerinde repository I/O sınırı olduğu için mock'lanır (`backend-conventions` bölüm 5); ama assertion mock'a değil service'in gözlemlenebilir sonucuna (dönüş, exception, kaydedilen değer) yapılır.

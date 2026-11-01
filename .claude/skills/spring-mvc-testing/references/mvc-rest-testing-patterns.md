@@ -151,15 +151,14 @@ Validation hata formatı (`errorCode`, `violations`) `problem-details-rfc9457`'d
 
 ```java
 @Test
-void givenSourceWithActiveJob_whenUploadSourceVersion_thenReturns409IngestionInProgress() {
+void givenSourceWithActiveJob_whenRetryIngestion_thenReturns409IngestionInProgress() {
     // Arrange
-    given(ingestionService.uploadSourceVersion(eq(42L), eq(10001L), eq("2026.11"), any(MultipartFile.class)))
+    given(ingestionService.retryIngestion(42L, 10001L))
             .willThrow(new ConflictException("INGESTION_IN_PROGRESS", "Source has an active ingestion job: 10001"));
 
     // Act
-    MvcTestResult result = mockMvcTester.post().uri("/api/workspaces/{workspaceId}/sources/{sourceId}/versions", 42, 10001).multipart()
-            .part(new MockPart("version", "2026.11".getBytes(StandardCharsets.UTF_8)))
-            .file(new MockMultipartFile("file", "urun-ve-hizmet-rehberi.pdf", "application/pdf", PDF_BYTES))
+    MvcTestResult result = mockMvcTester.post()
+            .uri("/api/workspaces/{workspaceId}/sources/{sourceId}/ingestion-jobs", 42, 10001)
             .exchange();
 
     // Assert

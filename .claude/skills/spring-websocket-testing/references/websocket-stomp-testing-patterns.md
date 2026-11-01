@@ -81,7 +81,7 @@ import org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 
 @Test
-void givenSubscribedToSourceIngestion_whenVersionUploaded_thenReceivesProgressEndingWithDone() throws Exception {
+void givenSubscribedToSourceIngestion_whenIngestionRetried_thenReceivesProgressEndingWithDone() throws Exception {
     // Arrange
     BlockingQueue<IngestionProgressMessage> received = new LinkedBlockingQueue<>();
     long sourceId = 302L;
@@ -99,7 +99,7 @@ void givenSubscribedToSourceIngestion_whenVersionUploaded_thenReceivesProgressEn
     });
 
     // Act
-    uploadVersion(42L, sourceId, pdfWithChunks(3));
+    retryIngestion(42L, sourceId);
 
     // Assert
     IngestionProgressMessage last = pollUntilStage(received, IngestionStage.DONE);
@@ -108,7 +108,7 @@ void givenSubscribedToSourceIngestion_whenVersionUploaded_thenReceivesProgressEn
 }
 ```
 
-`uploadVersion` / `pdfWithChunks` / `pollUntilStage` test sınıfındaki küçük yardımcı metotlardır; yükleme multipart REST çağrısıdır (`RestTestClient`), `pollUntilStage` kuyruktan timeout'lu `poll` ile beklenen aşamayı görene kadar okur. Abonelik ile aksiyon arasında yarış olmaması için aksiyon, `subscribe` çağrısından sonra yapılır; gerekirse önce sunucudan bir ilk mesaj (snapshot) beklenir.
+`retryIngestion` / `pollUntilStage` test sınıfındaki küçük yardımcı metotlardır; `retryIngestion` ilk içe alması başarısız olmuş 3 parçalık bir kaynakta yeniden deneme REST çağrısıdır (`RestTestClient`), `pollUntilStage` kuyruktan timeout'lu `poll` ile beklenen aşamayı görene kadar okur. Abonelik ile aksiyon arasında yarış olmaması için aksiyon, `subscribe` çağrısından sonra yapılır; gerekirse önce sunucudan bir ilk mesaj (snapshot) beklenir.
 
 **Timeout önerisi**: `poll()` / `await()` çağrılarında 5–10 saniye kullan. WebSocket testlerinin gerçek bir açılış maliyeti vardır — 1 saniyelik timeout'lar CI'da flaky hatalara yol açar.
 

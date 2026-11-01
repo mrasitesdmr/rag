@@ -143,8 +143,8 @@ Compose'da ayarlıdır. retrieval-api değişkenlerini TASK-005'ten beri okur; a
 | retrieval-api | `EMBEDDING_DIMENSIONS` | `1024` | `1024` | TASK-005 (okunuyor) |
 | assistant-api | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | `http://localhost:11434` | TASK-008 |
 | assistant-api | `CHAT_MODEL` | `qwen3.5:9b` | `qwen3.5:9b` | TASK-008 |
-| assistant-api | `RERANKER_URL` | `http://host.docker.internal:8081` | `http://localhost:8081` | TASK-009 |
-| assistant-api | `RERANKER_MODEL` | `bge-reranker-v2-m3` | `bge-reranker-v2-m3` | TASK-009 |
+| assistant-api | `RERANKER_URL` | `http://host.docker.internal:8081` | `http://localhost:8081` | TASK-008 |
+| assistant-api | `RERANKER_MODEL` | `bge-reranker-v2-m3` | `bge-reranker-v2-m3` | TASK-008 |
 
 ### Belge yükleme (TASK-005, TASK-027)
 retrieval-api açılışta belge içe almaz; PDF yüklenince `bge-m3` ile içe alınır (rehber için yaklaşık 154 parça, ~9 sn). **Sıra: Ollama açık → yükleme.** Ollama kapalıyken yüklenen belgenin işi `FAILED` + `EMBEDDING_UNAVAILABLE` olur (servis yine `healthy`); Ollama'yı açıp `curl -X POST localhost:8080/api/workspaces/42/sources/<id>/ingestion-jobs` ile yeniden dene. Durum: `curl localhost:8080/api/workspaces/42/ingestion-jobs/<id>`.

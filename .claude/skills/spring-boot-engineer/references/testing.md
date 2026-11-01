@@ -85,14 +85,14 @@ class IngestionServiceTest {
     }
 
     @Test
-    void givenSourceWithActiveJob_whenUploadSourceVersion_thenThrowsIngestionInProgress() {
+    void givenSourceWithActiveJob_whenRetryIngestion_thenThrowsIngestionInProgress() {
         // Arrange
-        given(sourceRepository.findByWorkspaceIdAndIdForUpdate(42L, 10001L))
-                .willReturn(Optional.of(SourceFixtures.sourceWithActiveJob(10001L)));
-        given(fileTypeDetector.detect(eq("urun-ve-hizmet-rehberi.pdf"), any())).willReturn(SourceKind.PDF);
+        given(sourceRepository.findByIdAndWorkspaceId(10001L, 42L))
+                .willReturn(Optional.of(SourceFixtures.failedSource(10001L)));
+        given(ingestionJobRepository.existsBySourceIdAndStageIn(eq(10001L), any())).willReturn(true);
 
         // Act
-        Throwable thrown = catchThrowable(() -> ingestionService.uploadSourceVersion(42L, 10001L, "2026.11", FILE));
+        Throwable thrown = catchThrowable(() -> ingestionService.retryIngestion(42L, 10001L));
 
         // Assert
         assertThat(thrown).isInstanceOf(ConflictException.class)

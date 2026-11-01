@@ -129,14 +129,17 @@ test.describe('Preview', () => {
 
 ```typescript
 // e2e/sources.spec.ts
-test('givenGuideSource_whenUploadVersionAndReload_thenProgressContinuesAndBecomesReady', async ({ page }) => {
+test('givenUploadDialog_whenUploadDocumentAndReload_thenProgressContinuesAndBecomesReady', async ({ page }) => {
   // Arrange
-  await page.goto('/kaynaklar/10001')
-  await page.getByRole('button', { name: 'Yeni sürüm yükle' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Yeni sürüm yükle' })
-  await dialog.getByLabel('Dosya').setInputFiles(GUIDE_NEXT_VERSION_PDF)
+  const sourceName = `E2E rehber ${Date.now()}`  // kaynak adı tekildir; her koşuda yeni ad
+  await page.goto('/kaynaklar')
+  await page.getByRole('button', { name: 'Belge ekle' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Belge ekle' })
+  await dialog.getByLabel('Dosya').setInputFiles(GUIDE_PDF)
+  await dialog.getByLabel('Kaynak adı').fill(sourceName)
+  await dialog.getByLabel('Sürüm etiketi').fill('2026.10')
   const uploadResponse = page.waitForResponse(
-    (response) => response.url().endsWith('/api/workspaces/42/sources/10001/versions') && response.status() === 202,
+    (response) => response.url().endsWith('/api/workspaces/42/sources') && response.status() === 202,
   )
 
   // Act
@@ -144,18 +147,17 @@ test('givenGuideSource_whenUploadVersionAndReload_thenProgressContinuesAndBecome
   await uploadResponse
 
   // Assert
-  await expect(page.getByRole('progressbar')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Yeni sürüm yükle' })).toBeDisabled()
+  const row = page.getByRole('row', { name: new RegExp(sourceName) })
+  await expect(row.getByRole('progressbar')).toBeVisible()
   await page.reload()
-  await expect(page.getByRole('progressbar')).toBeVisible()
+  await expect(row.getByRole('progressbar')).toBeVisible()
   // Sabit bekleme yok; gerçek Ollama ile iş uzun sürebileceği için timeout büyük
-  await expect(page.getByText(/2026\.11/)).toBeVisible({ timeout: INGESTION_TIMEOUT_MS })
-  await expect(page.getByRole('button', { name: 'Yeni sürüm yükle' })).toBeEnabled()
+  await expect(row.getByText('Hazır')).toBeVisible({ timeout: INGESTION_TIMEOUT_MS })
 })
 ```
 
 - Gerçek Ollama ile iş çoğu zaman 1-2 saniyede biter; "yenilemeden sonra ilerleme görünüyor" adımı bu yüzden işin süresine bağlıdır ve kırılgan olabilir. Kalıcı çözüm yavaşlatılmış bir embedding ortamıdır; o kurulana kadar bu risk raporda yazılır.
-- Testler gerçek veriyi değiştirir (yeni rehber sürümü). Tekrar koşulabilir olmaları için veriyi kalıcı değiştiren testler (yeni sürüm) sona konur; temiz başlangıç gerekiyorsa `docker compose ... down -v` + `up` (`deployment/CLAUDE.md`).
+- Testler gerçek veriyi değiştirir (yeni belge). Kaynak adı tekil olduğu için her koşu benzersiz ad kullanır; veriyi kalıcı değiştiren testler sona konur; temiz başlangıç gerekiyorsa `docker compose ... down -v` + `up` (`deployment/CLAUDE.md`).
 
 ## Playwright configuration
 
@@ -241,7 +243,7 @@ await answerResponse
 ```typescript
 // Locator.click() elemanın görünür, stabil (animasyonu bitmiş) ve etkin olmasını zaten bekler;
 // ekstra waitFor veya networkidle gerekmez
-await page.getByRole('button', { name: 'Yeni sürüm yükle' }).click()
+await page.getByRole('button', { name: 'Belge ekle' }).click()
 ```
 
 ## Artifact yönetimi
@@ -338,21 +340,23 @@ jobs:
 
 ## Kritik akış testi
 
-Geri alınamayan ya da gerçek kaynak harcayan akışlarda (rehberin yeni sürümünü yükleyip eski parçaları değiştirme, gerçek modellerle uzun değerlendirme çalıştırması vb.) testi production'a karşı koşturma, onay adımını doğrula ve sonucu backend response'u üzerinden bekle. Locator ve AAA kuralları burada da geçerlidir:
+Geri alınamayan ya da gerçek kaynak harcayan akışlarda (belge yükleyip bilgi bankasını kalıcı değiştirme, gerçek modellerle uzun değerlendirme çalıştırması vb.) testi production'a karşı koşturma, onay adımını doğrula ve sonucu backend response'u üzerinden bekle. Locator ve AAA kuralları burada da geçerlidir:
 
 ```typescript
-test('givenUploadDialog_whenAdminConfirmsNewVersion_thenIngestionStarts', async ({ page }) => {
+test('givenUploadDialog_whenUserConfirmsUpload_thenIngestionStarts', async ({ page }) => {
   test.skip(!!process.env.E2E_BASE_URL, 'Veriyi kalıcı değiştirir; sadece lokal ortamda koşar')
 
   // Arrange
-  await page.goto('/kaynaklar/10001')
-  await page.getByRole('button', { name: 'Yeni sürüm yükle' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Yeni sürüm yükle' })
-  await dialog.getByLabel('Dosya').setInputFiles(GUIDE_NEXT_VERSION_PDF)
+  await page.goto('/kaynaklar')
+  await page.getByRole('button', { name: 'Belge ekle' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Belge ekle' })
+  await dialog.getByLabel('Dosya').setInputFiles(GUIDE_PDF)
+  await dialog.getByLabel('Kaynak adı').fill(`E2E rehber ${Date.now()}`)
+  await dialog.getByLabel('Sürüm etiketi').fill('2026.10')
 
   // Act
   const uploadResponse = page.waitForResponse(
-    (response) => response.url().endsWith('/api/workspaces/42/sources/10001/versions') && response.request().method() === 'POST',
+    (response) => response.url().endsWith('/api/workspaces/42/sources') && response.request().method() === 'POST',
   )
   await dialog.getByRole('button', { name: 'Yükle ve işle' }).click()
   await uploadResponse

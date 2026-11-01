@@ -30,13 +30,10 @@ public class SourceController {
         return sourceService.getSource(workspaceId, sourceId);
     }
 
-    @PostMapping(path = "/{sourceId}/versions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<IngestionJobResponse> uploadSourceVersion(@PathVariable long workspaceId,
-            @PathVariable long sourceId,
-            @RequestPart(name = "file", required = false) @NotEmptyFile @Nullable MultipartFile file,
-            @RequestPart(name = "version", required = false) @Pattern(regexp = VERSION_SIZE_PATTERN, message = "size must be at most 40")
-            @Nullable String version) {
-        IngestionJobResponse job = ingestionService.uploadSourceVersion(workspaceId, sourceId, version, Objects.requireNonNull(file));
+    @PostMapping("/{sourceId}/ingestion-jobs")
+    public ResponseEntity<IngestionJobResponse> retryIngestion(@PathVariable long workspaceId,
+            @PathVariable long sourceId) {
+        IngestionJobResponse job = ingestionService.retryIngestion(workspaceId, sourceId);
         return ResponseEntity.accepted().location(URI.create(job.statusUrl())).body(job);
     }
 }
