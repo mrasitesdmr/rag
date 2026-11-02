@@ -1,10 +1,8 @@
-import { Fragment } from 'react'
 import { Link } from 'react-router'
 import { messageFor } from '../../../shared/api/errorMessages.ts'
+import { AnswerText } from '../../../shared/turn/AnswerText.tsx'
 import type { HandoffControls } from '../hooks/useHandoffRequests.ts'
 import type { FeedbackControls } from '../hooks/useTurnFeedback.ts'
-import { formatAnswer } from '../model/answerFormat.ts'
-import type { AnswerInline } from '../model/answerFormat.ts'
 import { citedChunks, contextChunkOf, sourceButtonLabel, sourceButtonTitle } from '../model/citations.ts'
 import { MESSAGE_RULE_MESSAGE } from '../model/messageRules.ts'
 import type { PreviewTurn, SourcesEvent } from '../model/types.ts'
@@ -41,7 +39,7 @@ export function AnswerMessage({ turn, feedback, handoff, onCitationOpen }: Answe
     )
   }
 
-  const blocks = formatAnswer(turn.answer, doneSources === null ? null : doneSources.contextChunks.length)
+  const contextSize = doneSources === null ? null : doneSources.contextChunks.length
   const sourceChunks = doneSources !== null && turn.done?.notFoundAnswer === false ? citedChunks(doneSources) : []
   const done = turn.phase === 'done' ? turn.done : null
   const conversationId = turn.conversationId
@@ -56,21 +54,7 @@ export function AnswerMessage({ turn, feedback, handoff, onCitationOpen }: Answe
   return (
     <div className={className}>
       <div className={message.bubble}>
-        {blocks.map((block, blockIndex) =>
-          block.kind === 'paragraph' ? (
-            <p key={blockIndex}>
-              <Inlines inlines={block.inlines} onCitation={openCitation} />
-            </p>
-          ) : (
-            <ul key={blockIndex}>
-              {block.items.map((item, itemIndex) => (
-                <li key={itemIndex}>
-                  <Inlines inlines={item} onCitation={openCitation} />
-                </li>
-              ))}
-            </ul>
-          ),
-        )}
+        <AnswerText text={turn.answer} contextSize={contextSize} onCitation={openCitation} />
         {isFailed && turn.errorCode !== null ? (
           <p role="alert" className={styles.error}>
             {turn.errorCode === VALIDATION_FAILED ? MESSAGE_RULE_MESSAGE : messageFor(turn.errorCode)}
@@ -119,31 +103,4 @@ export function AnswerMessage({ turn, feedback, handoff, onCitationOpen }: Answe
 
 function isEmptyKnowledgeBase(sources: SourcesEvent): boolean {
   return sources.generationMode === 'RAG' && sources.contextChunks.length === 0
-}
-
-function Inlines({ inlines, onCitation }: { inlines: AnswerInline[]; onCitation: (n: number) => void }) {
-  return inlines.map((inline, index) => {
-    switch (inline.kind) {
-      case 'text':
-        return <Fragment key={index}>{inline.text}</Fragment>
-      case 'bold':
-        return (
-          <strong key={index}>
-            <Inlines inlines={inline.children} onCitation={onCitation} />
-          </strong>
-        )
-      case 'citation':
-        return (
-          <button
-            key={index}
-            type="button"
-            className={styles.cite}
-            aria-label={`Kaynak ${inline.n}`}
-            onClick={() => onCitation(inline.n)}
-          >
-            {inline.n}
-          </button>
-        )
-    }
-  })
 }

@@ -1,0 +1,13 @@
+.openButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.used {
+  color: var(--color-green);
+  font-weight: 700;
+}

@@ -65,6 +65,10 @@
   --color-feedback-line: #e3d9de;
   --color-feedback-button-ink: #4f4248;
   --color-toast-bg: #2a1f24;
+  --color-callout-warning-line: #ecd7a8;
+  --color-callout-warning-ink: #5f4410;
+  --color-nav-count-bg: #efe8eb;
+  --color-search-query-code-bg: #f3eef0;
 
   --font-site: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -117,6 +121,8 @@
   --text-feedback: 11px;
   --text-toast: 13px;
   --text-dialog-note: 13px;
+  --text-nav-count: 10.5px;
+  --text-turn-answer: 13.5px;
   --line-height-bubble: 1.5;
   --line-height-context: 1.35;
   --line-height-note: 1.4;
@@ -127,6 +133,7 @@
   --line-height-table-text: 1.4;
   --line-height-chunk: 1.55;
   --line-height-code: 1.5;
+  --line-height-turn-answer: 1.5;
   --letter-spacing-tight: -0.01em;
   --letter-spacing-caps: 0.05em;
   --letter-spacing-autocomplete-heading: 0.06em;
@@ -188,6 +195,7 @@
   --size-autocomplete-max: 250px;
   --size-question-list-max: 380px;
   --offset-autocomplete-bottom: 56px;
+  --size-turn-answer-rule: 3px;
 
   --radius-badge: 5px;
   --radius-pager: 6px;
@@ -217,6 +225,7 @@
   --radius-composer: 18px;
   --radius-phone-screen: 26px;
   --radius-phone: 34px;
+  --radius-nav-count: 9px;
   --radius-round: 50%;
 
   --shadow-dialog: 0 20px 60px rgba(0, 0, 0, 0.3);

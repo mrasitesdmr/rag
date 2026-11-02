@@ -1,9 +1,14 @@
 import type { ReactNode } from 'react'
 import styles from './Callout.module.css'
 
-type CalloutProps = { children: ReactNode }
+type CalloutTone = 'info' | 'warning'
 
-export function Callout({ children }: CalloutProps) {
+type CalloutProps = { tone?: CalloutTone; children: ReactNode }
+
+export function Callout({ tone = 'info', children }: CalloutProps) {
+  if (tone === 'warning') {
+    return <div className={`${styles.callout} ${styles.warning}`}>{children}</div>
+  }
   return (
     <div className={styles.callout}>
       <svg

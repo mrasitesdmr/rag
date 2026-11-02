@@ -67,7 +67,7 @@ public class AnswerService {
         Instant receivedAt = Instant.now(clock);
         conversationService.getConversation(conversationId);
         String question = Objects.requireNonNull(request.text()).strip();
-        if (!activeTurnRegistry.tryStart(conversationId)) {
+        if (!activeTurnRegistry.tryStart(conversationId, question, receivedAt)) {
             throw new ConflictException("TURN_IN_PROGRESS",
                     "An answer is still being produced in conversation: " + conversationId);
         }

@@ -26,3 +26,15 @@ export function formatTime(value: string | Date): string {
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? ''
   return `${part('hour')}:${part('minute')}`
 }
+
+const DAY_FORMAT = new Intl.DateTimeFormat('tr-TR', {
+  timeZone: 'Europe/Istanbul',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+
+export function formatListTime(iso: string, now: Date): string {
+  const date = new Date(iso)
+  return DAY_FORMAT.format(date) === DAY_FORMAT.format(now) ? formatTime(date) : formatDateTime(iso)
+}

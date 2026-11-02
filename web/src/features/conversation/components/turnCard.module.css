@@ -1,0 +1,48 @@
+.turnCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2-5);
+  padding: var(--space-4);
+  border: var(--space-hairline) solid var(--color-line);
+  border-radius: var(--radius-table);
+  background: var(--color-card);
+}
+
+.question {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.searchQuery {
+  color: var(--color-muted);
+  font-size: var(--text-label);
+  overflow-wrap: anywhere;
+}
+
+.searchQuery code {
+  padding: 0 var(--space-1-25);
+  border-radius: var(--radius-cite);
+  background: var(--color-search-query-code-bg);
+  font-size: var(--text-small);
+}
+
+.answer {
+  padding-left: var(--space-3);
+  border-left: var(--size-turn-answer-rule) solid var(--color-brand);
+  color: var(--color-text-soft);
+  font-size: var(--text-turn-answer);
+  line-height: var(--line-height-turn-answer);
+  overflow-wrap: anywhere;
+}
+
+.numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  color: var(--color-muted);
+  font-size: var(--text-small);
+}
+
+.numbers b {
+  color: var(--color-ink);
+}

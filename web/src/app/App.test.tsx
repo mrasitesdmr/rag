@@ -112,7 +112,7 @@ describe('App shell', () => {
     expect(within(header).queryByText('Ürün sahibi')).not.toBeInTheDocument()
   })
 
-  it.each(['/yok', '/konusmalar/12'])(
+  it.each(['/yok', '/kaynaklarim'])(
     'givenUnknownPath_whenRendered_thenShowsNotFoundScreenWithNoMenuItemSelected %s',
     (path) => {
       renderAppAt(path)

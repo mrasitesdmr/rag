@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDateTime, formatTime } from './formatDateTime.ts'
+import { formatDateTime, formatListTime, formatTime } from './formatDateTime.ts'
 import { formatDuration } from './formatDuration.ts'
 import { formatDecimal, formatInteger } from './formatNumber.ts'
 import { collapseWhitespace, shortenText } from './formatText.ts'
@@ -77,5 +77,18 @@ describe('formatTime', () => {
   ])('givenIso_whenFormatTime_thenIstanbulHourMinute %s', (iso, expected) => {
     expect(formatTime(iso)).toBe(expected)
     expect(formatTime(new Date(iso))).toBe(expected)
+  })
+})
+
+describe('formatListTime', () => {
+  const now = new Date('2026-11-02T10:31:05Z')
+
+  it.each([
+    ['2026-11-02T10:31:05Z', '13:31'],
+    ['2026-11-01T10:31:05Z', '01.11.2026 13:31'],
+    ['2026-11-02T21:30:00Z', '03.11.2026 00:30'],
+    ['2026-11-01T20:59:00Z', '01.11.2026 23:59'],
+  ])('givenInstant_whenListTimeFormatted_thenTimeOnlyForSameIstanbulDay %s', (iso, expected) => {
+    expect(formatListTime(iso, now)).toBe(expected)
   })
 })

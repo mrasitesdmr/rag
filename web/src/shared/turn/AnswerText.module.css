@@ -1,0 +1,15 @@
+.cite {
+  margin-left: var(--space-0-5);
+  padding: 0 var(--space-1-25);
+  border: 0;
+  border-radius: var(--radius-cite);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-dark);
+  font: 700 var(--text-cite) var(--font-site);
+  vertical-align: var(--offset-cite);
+}
+
+.cite:hover {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}

@@ -1,0 +1,14 @@
+.conversationLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.conversationLink:hover {
+  color: var(--color-brand-dark);
+}
+
+.statusCell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1-25);
+}

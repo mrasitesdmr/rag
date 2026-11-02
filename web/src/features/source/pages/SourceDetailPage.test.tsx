@@ -400,7 +400,7 @@ describe('SourceDetailPage', () => {
       expect(await screen.findByRole('heading', { level: 1, name: 'Kaynak bulunamadı.' })).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Bilgi kaynaklarına dön' })).toBeInTheDocument()
       await sleep(100)
-      expect(log.urls).toHaveLength(0)
+      expect(log.urls.filter((url) => url.pathname.startsWith('/api/workspaces'))).toHaveLength(0)
     },
   )
 

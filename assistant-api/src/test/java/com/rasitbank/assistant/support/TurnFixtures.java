@@ -44,6 +44,31 @@ public final class TurnFixtures {
                 returning id""", Long.class, conversationId, turnNo);
     }
 
+    public long conversationCreatedAt(String createdAt) {
+        return jdbc.queryForObject(
+                "insert into conversations (channel, created_at) values ('PREVIEW', ?::timestamptz) returning id",
+                Long.class, createdAt);
+    }
+
+    public void describeTurn(long turnId, String question, String searchQuery, int[] cited) {
+        jdbc.update("update conversation_turns set question = ?, search_query = ?, cited = ?::int[] where id = ?",
+                question, searchQuery, "{" + java.util.Arrays.stream(cited).mapToObj(String::valueOf)
+                        .collect(java.util.stream.Collectors.joining(",")) + "}", turnId);
+    }
+
+    public void setTurnCreatedAt(long turnId, String createdAt) {
+        jdbc.update("update conversation_turns set created_at = ?::timestamptz where id = ?", createdAt, turnId);
+    }
+
+    public void addChunk(long turnId, int vectorRank, long chunkId, Integer promptPosition, double distance,
+            Double rerankScore) {
+        jdbc.update("""
+                insert into turn_chunks (turn_id, vector_rank, chunk_id, source_id, version, chunk_no, page_number,
+                    heading, distance, rerank_score, prompt_position)
+                values (?, ?, ?, 10001, '2026.10', ?, 19, '2.16 Kayıp ya da çalıntı bildirimi', ?, ?, ?)""",
+                turnId, vectorRank, chunkId, (int) (chunkId % 1000), distance, rerankScore, promptPosition);
+    }
+
     public int count(String table) {
         return jdbc.queryForObject("select count(*) from " + table, Integer.class);
     }

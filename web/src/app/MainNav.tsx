@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router'
+import { useConversationCountQuery } from '../features/conversation/api/conversationQueries.ts'
 import styles from './MainNav.module.css'
 
-type NavItem = { path: string; label: string; end: boolean; icon: ReactNode }
+type NavItem = { path: string; label: string; end: boolean; icon: ReactNode; count?: number }
+
+const CONVERSATIONS_PATH = '/konusmalar'
 
 const NAV_ITEMS: NavItem[] = [
   {
@@ -17,8 +20,8 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
-    path: '/konusmalar',
-    end: true,
+    path: CONVERSATIONS_PATH,
+    end: false,
     label: 'Konuşmalar',
     icon: <path d="M4 6h16M4 12h16M4 18h10" />,
   },
@@ -46,9 +49,11 @@ function navLinkClassName({ isActive }: { isActive: boolean }): string {
 }
 
 export function MainNav() {
+  const conversationCount = useConversationCountQuery().data
+  const items = NAV_ITEMS.map((item) => (item.path === CONVERSATIONS_PATH ? { ...item, count: conversationCount } : item))
   return (
     <nav className={styles.mainNav} aria-label="Menü">
-      {NAV_ITEMS.map((item) => (
+      {items.map((item) => (
         <NavLink key={item.path} to={item.path} end={item.end} className={navLinkClassName}>
           <svg
             className={styles.navIcon}
@@ -63,6 +68,7 @@ export function MainNav() {
             {item.icon}
           </svg>
           {item.label}
+          {item.count === undefined ? null : <span className={styles.count}>{item.count}</span>}
         </NavLink>
       ))}
     </nav>

@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router'
+import { ConversationDetailPage } from '../features/conversation/pages/ConversationDetailPage.tsx'
 import { ConversationListPage } from '../features/conversation/pages/ConversationListPage.tsx'
 import { EvaluationPage } from '../features/evaluation/pages/EvaluationPage.tsx'
 import { PreviewPage } from '../features/preview/pages/PreviewPage.tsx'
@@ -14,6 +15,7 @@ export function App() {
         <Route index element={<Navigate to="/onizleme" replace />} />
         <Route path="onizleme" element={<PreviewPage />} />
         <Route path="konusmalar" element={<ConversationListPage />} />
+        <Route path="konusmalar/:conversationId" element={<ConversationDetailPage />} />
         <Route path="kaynaklar" element={<SourceListPage />} />
         <Route path="kaynaklar/:sourceId" element={<SourceDetailPage />} />
         <Route path="degerlendirme" element={<EvaluationPage />} />

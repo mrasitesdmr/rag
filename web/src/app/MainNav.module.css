@@ -38,3 +38,11 @@
 .isActive .navIcon {
   color: var(--color-brand);
 }
+
+.count {
+  padding: var(--space-hairline) var(--space-1-75);
+  border-radius: var(--radius-nav-count);
+  background: var(--color-nav-count-bg);
+  color: var(--color-neutral-ink);
+  font: 700 var(--text-nav-count) var(--font-site);
+}

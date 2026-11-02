@@ -92,6 +92,20 @@ class AnswerServiceTest {
     }
 
     @Test
+    void givenQuestionWithSpaces_whenSendMessage_thenRegistersStrippedQuestionAndReceivedAt() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        given(contextRetriever.retrieveContext(anyString())).willReturn(ContextFixtures.emptyContext(RetrievalStrategy.RERANK));
+
+        // Act
+        service.sendMessage(CONVERSATION_ID, request("  Kartımı kaybettim, ne yapmalıyım?  "));
+
+        // Assert
+        assertThat(registry.findActiveTurn(CONVERSATION_ID)).contains(
+                new ActiveTurn("Kartımı kaybettim, ne yapmalıyım?", Instant.parse("2026-11-01T10:00:00Z")));
+    }
+
+    @Test
     void givenRetrievalUnavailable_whenSendMessage_thenThrows503AndRecordsTurnWithErrorCode() {
         given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
         given(contextRetriever.retrieveContext(anyString()))
@@ -111,7 +125,7 @@ class AnswerServiceTest {
         assertThat(draft.getValue().context()).isNull();
         verifyNoInteractions(answerStreamer);
         assertThat(outcome.getValue().latencyMs()).isBetween(0L, 5_000L);
-        assertThat(registry.tryStart(CONVERSATION_ID)).as("next request must not get 409").isTrue();
+        assertThat(registry.tryStart(CONVERSATION_ID, "q", Instant.EPOCH)).as("next request must not get 409").isTrue();
     }
 
     @Test
@@ -123,13 +137,13 @@ class AnswerServiceTest {
 
         assertThatThrownBy(() -> service.sendMessage(CONVERSATION_ID, request("Soru")))
                 .isInstanceOf(ServiceUnavailableException.class);
-        assertThat(registry.tryStart(CONVERSATION_ID)).isTrue();
+        assertThat(registry.tryStart(CONVERSATION_ID, "q", Instant.EPOCH)).isTrue();
     }
 
     @Test
     void givenTurnInProgress_whenSendMessage_thenThrowsTurnInProgressAndDoesNotSearch() {
         given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
-        registry.tryStart(CONVERSATION_ID);
+        registry.tryStart(CONVERSATION_ID, "q", Instant.EPOCH);
 
         assertThatThrownBy(() -> service.sendMessage(CONVERSATION_ID, request("Soru")))
                 .isInstanceOfSatisfying(ConflictException.class,
@@ -137,7 +151,7 @@ class AnswerServiceTest {
 
         verifyNoInteractions(contextRetriever, answerStreamer);
         verify(turnService, never()).recordTurn(any(), any());
-        assertThat(registry.tryStart(CONVERSATION_ID)).as("first turn stays active").isFalse();
+        assertThat(registry.tryStart(CONVERSATION_ID, "q", Instant.EPOCH)).as("first turn stays active").isFalse();
     }
 
     @Test
@@ -150,7 +164,7 @@ class AnswerServiceTest {
                         exception -> assertThat(exception.getErrorCode()).isEqualTo("CONVERSATION_NOT_FOUND"));
 
         verifyNoInteractions(contextRetriever, answerStreamer, turnService);
-        assertThat(registry.tryStart(99L)).isTrue();
+        assertThat(registry.tryStart(99L, "q", Instant.EPOCH)).isTrue();
     }
 
     @Test
@@ -181,7 +195,7 @@ class AnswerServiceTest {
 
         service.sendMessage(CONVERSATION_ID, request("Soru"));
 
-        assertThat(registry.tryStart(CONVERSATION_ID)).isFalse();
+        assertThat(registry.tryStart(CONVERSATION_ID, "q", Instant.EPOCH)).isFalse();
     }
 
     @Test
@@ -193,7 +207,7 @@ class AnswerServiceTest {
         assertThatThrownBy(() -> service.sendMessage(CONVERSATION_ID, request("Soru")))
                 .isInstanceOf(IllegalStateException.class);
 
-        assertThat(registry.tryStart(CONVERSATION_ID)).isTrue();
+        assertThat(registry.tryStart(CONVERSATION_ID, "q", Instant.EPOCH)).isTrue();
     }
 
     @Test
@@ -247,7 +261,7 @@ class AnswerServiceTest {
     @Test
     void givenTurnInProgress_whenSendMessage_thenNoHistoryReadAndNoRewrite() {
         given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
-        registry.tryStart(CONVERSATION_ID);
+        registry.tryStart(CONVERSATION_ID, "q", Instant.EPOCH);
 
         assertThatThrownBy(() -> service.sendMessage(CONVERSATION_ID, request("Soru")))
                 .isInstanceOfSatisfying(ConflictException.class,
@@ -353,7 +367,7 @@ class AnswerServiceTest {
     void givenLlmOnlyAndTurnInProgress_whenSendMessage_thenConflictAndModelNotCalled() {
         // Arrange
         given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
-        registry.tryStart(CONVERSATION_ID);
+        registry.tryStart(CONVERSATION_ID, "q", Instant.EPOCH);
 
         // Act
         Throwable thrown = org.assertj.core.api.Assertions

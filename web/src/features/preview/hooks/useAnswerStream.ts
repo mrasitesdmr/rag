@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from '../../../shared/api/ApiError.ts'
 import { isAbortError, STREAM_INTERRUPTED } from '../../../shared/api/eventStream.ts'
+import { conversationKeys } from '../../../shared/conversation/conversationKeys.ts'
 import { liveConfigKeys } from '../../../shared/liveConfig/liveConfigQueries.ts'
 import { createConversation, sendMessage } from '../api/previewApi.ts'
 import { canSendMessage, normalizeMessage } from '../model/messageRules.ts'
@@ -40,8 +41,9 @@ export function useAnswerStream(): AnswerStream {
     setTurns((current) => current.map((turn) => (turn.localId === localId ? update(turn) : turn)))
   }, [])
 
-  const refreshLiveConfig = useCallback(() => {
+  const refreshAfterTurn = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: liveConfigKeys.all })
+    void queryClient.invalidateQueries({ queryKey: conversationKeys.all })
   }, [queryClient])
 
   const rememberConversation = useCallback((nextConversationId: number | null) => {
@@ -79,7 +81,7 @@ export function useAnswerStream(): AnswerStream {
             updateTurn(localId, (turn) => applyEvent(turn, event))
             if (event.type === 'done' || event.type === 'error') {
               isFinished = true
-              refreshLiveConfig()
+              refreshAfterTurn()
               break
             }
           }
@@ -98,7 +100,7 @@ export function useAnswerStream(): AnswerStream {
             rememberConversation(null)
           }
           if (error instanceof ApiError) {
-            refreshLiveConfig()
+            refreshAfterTurn()
           }
           updateTurn(localId, (turn) => failTurn(turn, errorCode))
         } finally {
@@ -110,7 +112,7 @@ export function useAnswerStream(): AnswerStream {
 
       void streamAnswer()
     },
-    [refreshLiveConfig, rememberConversation, updateTurn],
+    [refreshAfterTurn, rememberConversation, updateTurn],
   )
 
   const isStreaming = turns.some((turn) => turn.phase === 'waiting' || turn.phase === 'streaming')

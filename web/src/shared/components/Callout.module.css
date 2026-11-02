@@ -16,3 +16,9 @@
   height: var(--size-callout-icon);
   margin-top: var(--space-0-5);
 }
+
+.warning {
+  border-color: var(--color-callout-warning-line);
+  background: var(--color-accent-soft);
+  color: var(--color-callout-warning-ink);
+}
