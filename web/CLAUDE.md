@@ -2,7 +2,7 @@
 AMAÇ: Claude (ve ekip üyeleri) web/ altında bir dosyayı okuyunca ya da düzenleyince yüklenir.
 İçerik: ürün hedefi, harita, komutlar, dosya sahipliği, tuzaklar, iş → skill yönlendirmesi.
 Kuralların ayrıntısı frontend-conventions skill'inde. Orada yazanı burada tekrar etme.
-Durum: iskelet ve kabuk TASK-002'de Vite react-ts şablonuyla kuruldu (üst bar, menü, dört ekranın başlığı, "Sayfa bulunamadı"). TASK-007: Bilgi kaynakları listesi ve kaynak detayı gerçek veriyle (retrieval-api), "Belge ekle" penceresi, "Yeniden dene", içe alma polling'i, parça penceresi (shared/chunk). TASK-008: Önizleme (telefon görünümü, SSE ile akan cevap, alıntı ve kaynak düğmeleri, yan kart ve süre çubukları; assistant-api). TASK-011: Önizleme yan sütununda canlı yapılandırma şeridi (GET /api/assistant/live-config, 15 sn yoklama + her cevaptan sonra yenileme), "Asistan nasıl cevaplıyor?" metni yapılandırmadan, Sadece LLM (LLM_ONLY) cevabının görünümü. TASK-012: Önizleme soru önerileri (GET /api/assistant/suggestions; öneri çipleri, "Soru listesi" düğmesi ve "Kayıtlı sorular" penceresi, combobox otomatik tamamlama; eşleştirme tarayıcıda: 4 harflik kök + IDF + önek bonusu). Konuşmalar ve Değerlendirme içerikleri sonraki task'larda gelir.
+Durum: iskelet ve kabuk TASK-002'de Vite react-ts şablonuyla kuruldu (üst bar, menü, dört ekranın başlığı, "Sayfa bulunamadı"). TASK-007: Bilgi kaynakları listesi ve kaynak detayı gerçek veriyle (retrieval-api), "Belge ekle" penceresi, "Yeniden dene", içe alma polling'i, parça penceresi (shared/chunk). TASK-008: Önizleme (telefon görünümü, SSE ile akan cevap, alıntı ve kaynak düğmeleri, yan kart ve süre çubukları; assistant-api). TASK-011: Önizleme yan sütununda canlı yapılandırma şeridi (GET /api/assistant/live-config, 15 sn yoklama + her cevaptan sonra yenileme), "Asistan nasıl cevaplıyor?" metni yapılandırmadan, Sadece LLM (LLM_ONLY) cevabının görünümü. TASK-012: Önizleme soru önerileri (GET /api/assistant/suggestions; öneri çipleri, "Soru listesi" düğmesi ve "Kayıtlı sorular" penceresi, combobox otomatik tamamlama; eşleştirme tarayıcıda: 4 harflik kök + IDF + önek bonusu). TASK-013: Önizleme'de tamamlanmış cevabın altında "Faydalı mı? Evet / Hayır" satırı ve cevabın saati (POST /api/assistant/turns/{turnId}/feedback), "cevap yok" turunda "Temsilciye bağlan" → "Temsilci kuyruğundasın" (POST /api/assistant/conversations/{conversationId}/handoff, konuşma düzeyinde), lab'ın toast'ı (shared/toast). Konuşmalar ve Değerlendirme içerikleri sonraki task'larda gelir.
 -->
 
 # web (React yönetim paneli)
@@ -18,7 +18,7 @@ Lab'da üretim modu (Sadece LLM / RAG), retrieval (top-5 / rerank 20→5), takip
 - Cevap akışı (SSE) native `fetch` + `ReadableStream` ile okunur; ek paket gerekmez (`frontend-conventions` bölüm 1, 8; `sse-streaming`).
 - Referans uygulama: `../embedding-pgvector/frontend`: Bilgi kaynakları, yükleme ve içe alma ekranlarının çalışan örneği; okunur kalıp referansı, değiştirilmez.
 - Cevap akışı `shared/api/eventStream.ts`'tedir (`postEventStream`, `parseEventStream`; TASK-008). Olaylar `features/preview/model/answerStreamEvents.ts`'te `AnswerStreamEvent`'e daraltılır.
-- **Henüz olmayanlar:** `shared/toast/`. `@stomp/stompjs`, Stryker (mutation testi), form kütüphanesi, global store (Zustand), markdown render kütüphanesi de yok. Skill örnekleri kullansa bile bunları varmış gibi kod yazma; eklemek plan kararıdır.
+- **Henüz olmayanlar:** `@stomp/stompjs`, Stryker (mutation testi), form kütüphanesi, global store (Zustand), markdown render kütüphanesi de yok. Skill örnekleri kullansa bile bunları varmış gibi kod yazma; eklemek plan kararıdır.
 - Vite dev server `/api/assistant`'ı `http://localhost:8090`'a (assistant-api), `/api/workspaces`'ı `http://localhost:8080`'e (retrieval-api) proxy'ler (`vite.config.ts`); SSE için proxy tamponlamamalıdır (`vite-patterns`, `sse-streaming`). Docker'da aynı yönlendirmeyi nginx yapar (`deployment/CLAUDE.md`).
 - `kaynaklar/rag-lab.html`'in sol yarısı ürünün kendisidir (Ürün hedefi); `kaynaklar/rag.html` anlatımdır. Değiştirilmez.
 
@@ -33,13 +33,16 @@ web/
     ├── index.css            design token'ları (--color-*, --space-*, --radius-*, --text-*), reset
     ├── app/                 App (route'lar), AppProviders, queryClient, AdminLayout (ErrorBoundary), AppHeader, MainNav, NotFoundPage
     ├── features/            preview, conversation, source, evaluation (lab'ın yan menüsü)
-    │   └── preview/         api/ (previewApi: createConversation, sendMessage akışı, getSuggestions; previewQueries: previewKeys,
-    │                        useSuggestionsQuery), hooks/ (useAnswerStream, useClock),
+    │   └── preview/         api/ (previewApi: createConversation, sendMessage akışı, getSuggestions, submitFeedback, requestHandoff;
+    │                        previewQueries: previewKeys, useSuggestionsQuery, useSubmitFeedbackMutation, useRequestHandoffMutation),
+    │                        hooks/ (useAnswerStream, useClock, useTurnFeedback: tur anahtarlı geri bildirim durumu,
+    │                        useHandoffRequests: konuşma anahtarlı aktarma durumu),
     │                        model/ (types, answerStreamEvents, messageRules, answerFormat, citations, strategyLabels, latencyRows,
-    │                        liveConfigItems, howItWorks, suggestionText, suggestionMatcher, suggestions), components/ (PhoneFrame,
-    │                        MessageList, UserMessage, AnswerMessage, MessageComposer, SuggestionChips, AutocompleteList,
+    │                        liveConfigItems, howItWorks, suggestionText, suggestionMatcher, suggestions, feedbackMessages),
+    │                        components/ (PhoneFrame, MessageList, UserMessage, AnswerMessage, TurnFeedback, HandoffAction
+    │                        (ortak stil feedbackRow.module.css = lab .fb), MessageComposer, SuggestionChips, AutocompleteList,
     │                        QuestionListDialog, HowItWorksCard, ContextChunksCard, LatencyBars, LiveConfigStrip), pages/PreviewPage
-    ├── shared/              api/ (httpClient, eventStream, ApiError, errorMessages, pagination, workspace), components/ (PageHeader, Dialog, Pagination, StatusBadge, ErrorAlert, Callout, button/table stilleri), format/ (sayı, ondalık, tarih, saat, süre, metin), chunk/ (ChunkDialog: Bilgi kaynakları ve Önizleme alıntıları açar), liveConfig/ (GET /api/assistant/live-config: type'lar, `liveConfigKeys`, `useLiveConfigQuery`; Önizleme ve TASK-016'da Değerlendirme okur); hedef: toast/
+    ├── shared/              api/ (httpClient, eventStream, ApiError, errorMessages, pagination, workspace), components/ (PageHeader, Dialog, Pagination, StatusBadge, ErrorAlert, Callout, button/table stilleri), format/ (sayı, ondalık, tarih, saat, süre, metin), chunk/ (ChunkDialog: Bilgi kaynakları ve Önizleme alıntıları açar), liveConfig/ (GET /api/assistant/live-config: type'lar, `liveConfigKeys`, `useLiveConfigQuery`; Önizleme ve TASK-016'da Değerlendirme okur), toast/ (ToastProvider `AdminLayout`'ta `<main>` içinde, `useToast().showToast(message)`, `toastContext`, `toastRules`: `TOAST_DURATION_MS` 2600; bölge `aria-live="polite"`, lab `.toasts`)
     └── test/                Vitest setup, MSW server ve handler'lar, SSE yardımcıları (tester)
 ```
 - Feature adları servis paketleriyle aynı: `conversation`, `evaluation` → assistant-api; `source` → retrieval-api. `preview` sadece web'dedir: Önizleme ekranı assistant-api'nin `conversation` API'sini kullanır.

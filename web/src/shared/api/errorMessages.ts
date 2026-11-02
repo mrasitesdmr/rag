@@ -26,6 +26,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   RETRIEVAL_UNAVAILABLE: 'Bilgi bankasına şu an ulaşılamıyor. Biraz sonra tekrar dene.',
   CHAT_MODEL_UNAVAILABLE: 'Dil modeline şu an ulaşılamıyor. Biraz sonra tekrar dene.',
   STREAM_INTERRUPTED: 'Cevap yarıda kesildi. Soruyu yeniden gönder.',
+  TURN_NOT_FOUND: 'Bu cevap bulunamadı. Sayfayı yenile.',
+  TURN_NOT_COMPLETED: 'Tamamlanmamış bir cevaba geri bildirim verilemez.',
+  HANDOFF_NOT_ALLOWED: 'Temsilciye sadece asistanın cevap bulamadığı sorularda bağlanabilirsin.',
 }
 
 export const FALLBACK_MESSAGE = 'Beklenmeyen bir hata oluştu. Tekrar dene.'

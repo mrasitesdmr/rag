@@ -24,7 +24,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Konuşmanın bir turudur (bir soru ve cevabı); cevabın neye dayandığını sonradan incelemek için üretim modu, arama
- * sorgusu, strateji, aday parçalar, alıntılar, token sayıları, süreler ve hata kodu bu kayıtta durur.
+ * sorgusu, strateji, aday parçalar, alıntılar, token sayıları, süreler, hata kodu ve müşterinin geri bildirimi bu
+ * kayıtta durur.
  */
 @Entity
 @Table(name = "conversation_turns")
@@ -107,6 +108,12 @@ public class Turn {
 
     @Column(name = "error_code")
     private @Nullable String errorCode;
+
+    @Column(name = "helpful")
+    private @Nullable Boolean helpful;
+
+    @Column(name = "feedback_at")
+    private @Nullable Instant feedbackAt;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -249,6 +256,14 @@ public class Turn {
 
     public @Nullable String getErrorCode() {
         return errorCode;
+    }
+
+    public @Nullable Boolean getHelpful() {
+        return helpful;
+    }
+
+    public @Nullable Instant getFeedbackAt() {
+        return feedbackAt;
     }
 
     public Instant getCreatedAt() {

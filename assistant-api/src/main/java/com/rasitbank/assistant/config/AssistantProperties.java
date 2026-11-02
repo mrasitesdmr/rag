@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.time.Duration;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -16,8 +17,8 @@ import org.springframework.validation.annotation.Validated;
 
 /**
  * Asistanın sunucu ayarlarını taşır: çalışma alanı, üretim modu, retrieval-api ve reranker adresleri, reranker sağlık
- * kontrolü, retrieval stratejisi, sorgu yeniden yazma, konuşma geçmişi sınırı, zaman aşımları ve sabit "bulamadım"
- * cümlesi.
+ * kontrolü, retrieval stratejisi, sorgu yeniden yazma, konuşma geçmişi sınırı, temsilci kuyruğu, zaman aşımları ve
+ * sabit "bulamadım" cümlesi.
  */
 @Validated
 @ConfigurationProperties("assistant")
@@ -29,7 +30,8 @@ public record AssistantProperties(
         @Valid @NotNull Reranker reranker,
         @Valid @NotNull Generation generation,
         @Valid @NotNull QueryRewrite queryRewrite,
-        @Valid @NotNull History history) {
+        @Valid @NotNull History history,
+        @Valid @NotNull Handoff handoff) {
 
     public AssistantProperties {
         hostLabel = hostLabel == null || hostLabel.isBlank() ? null : hostLabel.strip();
@@ -78,5 +80,8 @@ public record AssistantProperties(
     }
 
     public record History(@Min(1) @Max(10) int maxTurns) {
+    }
+
+    public record Handoff(@NotBlank @Size(max = 40) String queue) {
     }
 }

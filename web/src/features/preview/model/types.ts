@@ -74,12 +74,14 @@ export type TurnPhase = (typeof TURN_PHASES)[number]
 
 export type PreviewTurn = {
   localId: string
+  conversationId: number | null
   question: string
   askedAt: string
   answer: string
   phase: TurnPhase
   sources: SourcesEvent | null
   done: DoneEvent | null
+  answeredAt: string | null
   errorCode: string | null
 }
 
@@ -104,3 +106,18 @@ export const SUGGESTION_KINDS = ['followUp', 'question'] as const
 export type SuggestionKind = (typeof SUGGESTION_KINDS)[number]
 
 export type SuggestionItem = { text: string; kind: SuggestionKind }
+
+export type SubmitFeedbackRequest = { helpful: boolean }
+
+export const HANDOFF_REASONS = ['NO_ANSWER'] as const
+export type HandoffReason = (typeof HANDOFF_REASONS)[number]
+
+export type RequestHandoffRequest = { turnId: number; reason: HandoffReason }
+
+export type HandoffResponse = {
+  conversationId: number
+  turnId: number
+  reason: HandoffReason
+  queue: string
+  createdAt: string
+}

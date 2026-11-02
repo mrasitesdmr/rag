@@ -5,7 +5,10 @@ import type {
   AnswerStreamEvent,
   ConversationResponse,
   CreateConversationRequest,
+  HandoffResponse,
+  RequestHandoffRequest,
   SendMessageRequest,
+  SubmitFeedbackRequest,
   SuggestionSetResponse,
 } from '../model/types.ts'
 
@@ -33,4 +36,17 @@ const SUGGESTIONS_PATH = '/api/assistant/suggestions'
 
 export function getSuggestions(): Promise<SuggestionSetResponse> {
   return request<SuggestionSetResponse>(SUGGESTIONS_PATH)
+}
+
+const TURNS_PATH = '/api/assistant/turns'
+
+export function submitFeedback(turnId: number, body: SubmitFeedbackRequest): Promise<void> {
+  return request<void>(`${TURNS_PATH}/${turnId}/feedback`, { method: 'POST', body: JSON.stringify(body) })
+}
+
+export function requestHandoff(conversationId: number, body: RequestHandoffRequest): Promise<HandoffResponse> {
+  return request<HandoffResponse>(`${CONVERSATIONS_PATH}/${conversationId}/handoff`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }

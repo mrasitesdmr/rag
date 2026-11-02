@@ -59,7 +59,7 @@ export function useAnswerStream(): AnswerStream {
       controllerRef.current = controller
       turnCounterRef.current += 1
       const localId = `turn-${turnCounterRef.current}`
-      setTurns((current) => [...current, newTurn(localId, question)])
+      setTurns((current) => [...current, newTurn(localId, conversationIdRef.current, question)])
 
       async function streamAnswer() {
         let isFinished = false
@@ -70,8 +70,10 @@ export function useAnswerStream(): AnswerStream {
             if (controller.signal.aborted) {
               return
             }
-            activeConversationId = conversation.conversationId
-            rememberConversation(activeConversationId)
+            const createdConversationId = conversation.conversationId
+            activeConversationId = createdConversationId
+            rememberConversation(createdConversationId)
+            updateTurn(localId, (turn) => ({ ...turn, conversationId: createdConversationId }))
           }
           for await (const event of sendMessage(activeConversationId, { text: question }, controller.signal)) {
             updateTurn(localId, (turn) => applyEvent(turn, event))
@@ -148,15 +150,17 @@ export function useAnswerStream(): AnswerStream {
   }
 }
 
-function newTurn(localId: string, question: string): PreviewTurn {
+function newTurn(localId: string, conversationId: number | null, question: string): PreviewTurn {
   return {
     localId,
+    conversationId,
     question,
     askedAt: new Date().toISOString(),
     answer: '',
     phase: 'waiting',
     sources: null,
     done: null,
+    answeredAt: null,
     errorCode: null,
   }
 }
@@ -168,7 +172,7 @@ function applyEvent(turn: PreviewTurn, event: AnswerStreamEvent): PreviewTurn {
     case 'sources':
       return { ...turn, sources: event.data }
     case 'done':
-      return { ...turn, done: event.data, phase: 'done' }
+      return { ...turn, done: event.data, phase: 'done', answeredAt: new Date().toISOString() }
     case 'error':
       return failTurn(turn, event.data.errorCode)
   }

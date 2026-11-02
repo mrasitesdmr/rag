@@ -40,6 +40,8 @@ export function turn(question: string, phase: TurnPhase = 'done', localId = ques
     localId,
     question,
     askedAt: '2026-11-01T10:00:00Z',
+    conversationId: 1,
+    answeredAt: phase === 'done' ? '2026-11-01T10:00:05Z' : null,
     answer: 'Cevap',
     phase,
     sources: null,

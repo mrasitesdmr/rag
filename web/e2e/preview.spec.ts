@@ -134,3 +134,17 @@ test('givenRunningSystem_whenPreviewOpens_thenChipsMatchSuggestionSet', async ({
     page.getByRole('dialog', { name: `Kayıtlı sorular · ${set.questionCount} soru, ${set.followUpCount} takip` }),
   ).toBeVisible()
 })
+
+test('givenRunningSystem_whenAnswerDoneAndYesClicked_thenYesPressed', async ({ page }) => {
+  test.setTimeout(180_000)
+
+  await askQuestion(page, 'Kartımı kaybettim, ne yapmalıyım?')
+  await waitUntilAnswerDone(page)
+
+  const group = page.getByRole('group', { name: 'Geri bildirim' })
+  await expect(group.getByText('Faydalı mı?')).toBeVisible()
+  await group.getByRole('button', { name: 'Evet' }).click()
+
+  await expect(group.getByRole('button', { name: 'Evet' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText('Geri bildirim kaydedildi', { exact: true })).toBeVisible()
+})

@@ -19,6 +19,9 @@
 #   `assistant.generation.mode=llm` iken retrieval yapmaz; olay alanları docs/api/sse.md).
 #   TASK-012: Önizleme soru önerileri (GET /api/assistant/suggestions: web okur; PUT /api/assistant/suggestions: ürün ekibi
 #   bütün listeyi tek istekle yükler/değiştirir, ekranı yok). Liste kendiliğinden dolmaz; yüklenene kadar boştur.
+#   TASK-013: tura geri bildirim (POST /api/assistant/turns/{turnId}/feedback; "Faydalı mı? Evet / Hayır", son seçim geçerli)
+#   ve "cevap yok" turundan sonra konuşmanın temsilci kuyruğuna aktarılması (POST /api/assistant/conversations/{conversationId}/handoff;
+#   202, konuşma başına tek kayıt, tekrar istek aynı kaydı döner). Gerçek çağrı merkezi yoktur; kayıt assistant veritabanındadır.
 # Bilgi bankasına hiçbir belge kendiliğinden girmez: retrieval-api açılışta kaynak, sürüm, parça ya da iş oluşturmaz (TASK-027).
 #   Belgeler sadece POST .../sources ile girer. Yeni sürüm yükleme ucu yoktur (kapsam dışı).
 # Ortak davranış (TASK-002): iki serviste de tanımsız bir path'e gelen her istek 404 + application/problem+json + errorCode NOT_FOUND döner
@@ -31,6 +34,10 @@ info:
 tags:
   - name: Conversations
     description: Conversations of the Önizleme screen and the streamed answer to each question (assistant-api)
+  - name: Turns
+    description: Feedback on a single answered turn ("Faydalı mı?") (assistant-api)
+  - name: Handoff
+    description: Handing a conversation over to the human agent queue after a "not found" answer (assistant-api)
   - name: Live config
     description: The assistant's effective server configuration shown on Önizleme (assistant-api)
   - name: Suggestions
@@ -128,6 +135,9 @@ paths:
         503 (`RETRIEVAL_UNAVAILABLE`) → 200 stream. In `llm` mode: 400 → 404 → 409 → 200 stream.
         A `RETRIEVAL_UNAVAILABLE` turn is recorded with that error code (and the search query and rewrite outcome); 400,
         404 and 409 record nothing.
+
+        Handoff (TASK-013): a conversation that was handed over to the agent queue (`requestHandoff`) still accepts
+        questions exactly as before; the handoff record is not changed by later turns.
       parameters:
         - name: conversationId
           in: path
@@ -189,6 +199,154 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/assistant/turns/{turnId}/feedback:
+    post:
+      tags: [Turns]
+      operationId: submitFeedback
+      summary: Record whether the answer of a turn was helpful ("Faydalı mı? Evet / Hayır")
+      description: |
+        assistant-api (TASK-013). Stores `helpful` on the turn together with the time of the request
+        (`conversation_turns.helpful`, `conversation_turns.feedback_at`). The last request wins: sending `false` after
+        `true` replaces it; sending the same value again succeeds and keeps the value. There is no way to remove a
+        feedback (no "neutral" value).
+
+        Only a completed turn accepts feedback. A turn is completed when its answer stream ended with `done`, i.e. the
+        turn record has no `errorCode`. Turns that ended with `error`, were cancelled by the client (`STREAM_CANCELLED`)
+        or failed before the stream (`RETRIEVAL_UNAVAILABLE`) are not completed. A turn whose answer is still streaming
+        has no id yet (the turn is recorded when the stream ends, see `docs/api/sse.md`), so it cannot be addressed.
+        "Not found" turns (`notFoundAnswer` true) and Sadece LLM turns are completed and accept feedback.
+
+        Concurrent requests for the same turn are applied one after the other; the stored value is the one of the
+        request applied last, and no other field of the turn is changed.
+
+        Check order: 400 → 404 (`TURN_NOT_FOUND`) → 409 (`TURN_NOT_COMPLETED`) → 204.
+      parameters:
+        - name: turnId
+          in: path
+          required: true
+          description: Turn id from the `done` event (`turnId`)
+          schema:
+            type: integer
+            format: int64
+            example: 12
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitFeedbackRequest'
+      responses:
+        '204':
+          description: The feedback was stored
+        '400':
+          description: |
+            `VALIDATION_FAILED`: `helpful` missing or null — `violations[].field` = `helpful`, message `must not be null`.
+            `BAD_REQUEST`: body missing or not valid JSON, `helpful` has a value the JSON reader cannot convert to a
+            boolean (e.g. `"yes"`, an object, an array), or the path `turnId` is not an integer (framework).
+            Values the JSON reader converts with its default coercion (e.g. `"true"`, `1` → `true`) are accepted as that
+            boolean and are not an error. Clients send a JSON boolean.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`TURN_NOT_FOUND`: no turn with this id'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: '`TURN_NOT_COMPLETED`: the turn did not end with `done` (its record has an `errorCode`); nothing is stored'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '415':
+          description: '`UNSUPPORTED_MEDIA_TYPE`: the request body is not `application/json` (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/assistant/conversations/{conversationId}/handoff:
+    post:
+      tags: [Handoff]
+      operationId: requestHandoff
+      summary: Put the conversation into the human agent queue after a "not found" answer
+      description: |
+        assistant-api (TASK-013). The web calls this from the "Temsilciye bağlan" button, which is shown only under a
+        completed "not found" answer. There is no real contact center: the handoff is a record in the assistant
+        database (`handoffs`: conversation, the turn that triggered it, reason, queue, time). No agent answer is ever
+        produced.
+
+        The handoff is per conversation and is created at most once. The queue is the configured
+        `assistant.handoff.queue` (`bireysel`); the reason is always `NO_ANSWER`.
+        - First valid request: the record is created; `202` with it.
+        - Any later valid request for the same conversation (also concurrent ones, also with another "not found" turn
+          of the same conversation): nothing is created or changed; `202` with the existing record (its `turnId` and
+          `createdAt` are those of the first request).
+
+        The turn must belong to the conversation, be completed (no `errorCode`) and be a "not found" turn
+        (`notFoundAnswer` true; never the case for Sadece LLM turns). A handed-off conversation keeps accepting
+        questions (`sendMessage`).
+
+        Check order: 400 → 404 (`CONVERSATION_NOT_FOUND`) → 404 (`TURN_NOT_FOUND`) → 409 (`HANDOFF_NOT_ALLOWED`) → 202.
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          description: Conversation id returned by `createConversation`
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestHandoffRequest'
+      responses:
+        '202':
+          description: The conversation is in the agent queue (created now or earlier). No `Location` header; there is no endpoint to read a handoff.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HandoffResponse'
+        '400':
+          description: |
+            `VALIDATION_FAILED` (`violations[].field` = `turnId` or `reason`): missing or null — message `must not be null`.
+            `BAD_REQUEST`: body missing or not valid JSON, `reason` is not one of the enum values, `turnId` has a value
+            the JSON reader cannot convert to an integer (e.g. `"abc"`, an object, an array), or the path
+            `conversationId` is not an integer (framework). Values the JSON reader converts with its default coercion
+            (e.g. `"12"`, `12.5` → `12`) are accepted as that integer and are not an error. Clients send a JSON integer.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: |
+            `CONVERSATION_NOT_FOUND`: no conversation with this id.
+            `TURN_NOT_FOUND`: no turn with this id in this conversation (also when the turn belongs to another conversation)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: '`HANDOFF_NOT_ALLOWED`: the turn is not a completed "not found" turn (it has an answer, ended with an `errorCode`, or is a Sadece LLM turn); nothing is stored'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '415':
+          description: '`UNSUPPORTED_MEDIA_TYPE`: the request body is not `application/json` (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/assistant/live-config:
     get:
       tags: [Live config]
@@ -928,6 +1086,61 @@ components:
             (Java `String.length()`, counted before stripping). Stripped before it is searched, sent to the model and
             stored; case and Turkish letters are kept as sent.
           example: Kartımı kaybettim, ne yapmalıyım?
+    SubmitFeedbackRequest:
+      type: object
+      description: Body of `submitFeedback`. Unknown fields are ignored.
+      required: [helpful]
+      properties:
+        helpful:
+          type: boolean
+          description: '`true` = "Evet" (the answer was helpful), `false` = "Hayır"'
+          example: false
+    HandoffReason:
+      type: string
+      description: Why the conversation was handed over. `NO_ANSWER` = the assistant answered with the fixed "not found" sentence. The only value.
+      enum: [NO_ANSWER]
+    RequestHandoffRequest:
+      type: object
+      description: Body of `requestHandoff`. Unknown fields are ignored.
+      required: [turnId, reason]
+      properties:
+        turnId:
+          type: integer
+          format: int64
+          description: The "not found" turn under which "Temsilciye bağlan" was pressed (`done.turnId`)
+          example: 12
+        reason:
+          $ref: '#/components/schemas/HandoffReason'
+    HandoffResponse:
+      type: object
+      description: The conversation's handoff record (the same one for every request of the conversation)
+      required: [conversationId, turnId, reason, queue, createdAt]
+      properties:
+        conversationId:
+          type: integer
+          format: int64
+          example: 1
+        turnId:
+          type: integer
+          format: int64
+          description: The turn of the first successful request
+          example: 12
+        reason:
+          $ref: '#/components/schemas/HandoffReason'
+        queue:
+          type: string
+          description: Agent queue the conversation waits in (`assistant.handoff.queue`)
+          example: bireysel
+        createdAt:
+          type: string
+          format: date-time
+          description: When the handoff was first recorded
+      example:
+        conversationId: 1
+        turnId: 12
+        reason: NO_ANSWER
+        queue: bireysel
+        createdAt: '2026-11-02T10:31:05Z'
     GenerationMode:
       type: string
       description: |
@@ -1224,6 +1437,9 @@ components:
             - TURN_IN_PROGRESS
             - RETRIEVAL_UNAVAILABLE
             - CHAT_MODEL_UNAVAILABLE
+            - TURN_NOT_FOUND
+            - TURN_NOT_COMPLETED
+            - HANDOFF_NOT_ALLOWED
         violations:
           type: array
           description: Only for `VALIDATION_FAILED`

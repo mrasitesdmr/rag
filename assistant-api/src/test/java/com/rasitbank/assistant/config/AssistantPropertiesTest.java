@@ -38,7 +38,8 @@ class AssistantPropertiesTest {
             "assistant.query-rewrite.enabled=true",
             "assistant.query-rewrite.timeout=20s",
             "assistant.query-rewrite.max-length=1000",
-            "assistant.history.max-turns=3"
+            "assistant.history.max-turns=3",
+            "assistant.handoff.queue=bireysel"
     };
 
     @Configuration
@@ -162,5 +163,30 @@ class AssistantPropertiesTest {
     @Test
     void givenModeFoo_whenBound_thenContextFails() {
         runner("assistant.generation.mode=foo").run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void givenShippedProperties_whenBound_thenHandoffQueueIsBireysel() {
+        ApplicationContextRunner shipped = new ApplicationContextRunner().withUserConfiguration(Config.class)
+                .withInitializer(new ConfigDataApplicationContextInitializer());
+
+        shipped.run(context -> assertThat(context.getBean(AssistantProperties.class).handoff().queue())
+                .isEqualTo("bireysel"));
+    }
+
+    @Test
+    void givenQueueOverride_whenBound_thenThatQueue() {
+        runner("assistant.handoff.queue=kurumsal").run(context ->
+                assertThat(context.getBean(AssistantProperties.class).handoff().queue()).isEqualTo("kurumsal"));
+    }
+
+    @Test
+    void givenBlankHandoffQueue_whenBound_thenContextFails() {
+        runner("assistant.handoff.queue= ").run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void givenHandoffQueueLongerThan40_whenBound_thenContextFails() {
+        runner("assistant.handoff.queue=" + "a".repeat(41)).run(context -> assertThat(context).hasFailed());
     }
 }

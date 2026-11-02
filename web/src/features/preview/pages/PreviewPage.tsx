@@ -15,6 +15,8 @@ import { PhoneFrame } from '../components/PhoneFrame.tsx'
 import { QuestionListDialog } from '../components/QuestionListDialog.tsx'
 import { SuggestionChips } from '../components/SuggestionChips.tsx'
 import { useAnswerStream } from '../hooks/useAnswerStream.ts'
+import { useHandoffRequests } from '../hooks/useHandoffRequests.ts'
+import { useTurnFeedback } from '../hooks/useTurnFeedback.ts'
 import { createSuggestionMatcher } from '../model/suggestionMatcher.ts'
 import { autocompleteItems, followUpsFor, listQuestionTexts, suggestionChips } from '../model/suggestions.ts'
 import type { PreviewTurn, SuggestionItem } from '../model/types.ts'
@@ -24,6 +26,8 @@ const UNEXPECTED_ERROR = 'UNEXPECTED_ERROR'
 
 export function PreviewPage() {
   const answerStream = useAnswerStream()
+  const feedback = useTurnFeedback()
+  const handoff = useHandoffRequests()
   const liveConfig = useLiveConfigQuery()
   const [openChunkId, setOpenChunkId] = useState<number | null>(null)
   const suggestionsQuery = useSuggestionsQuery()
@@ -64,6 +68,8 @@ export function PreviewPage() {
                 previousTurns={answerStream.previousTurns}
                 turns={answerStream.turns}
                 conversationId={answerStream.conversationId}
+                feedback={feedback}
+                handoff={handoff}
                 onCitationOpen={setOpenChunkId}
               />
               <SuggestionChips

@@ -1,4 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
+import type { HandoffControls } from '../hooks/useHandoffRequests.ts'
+import type { FeedbackControls } from '../hooks/useTurnFeedback.ts'
 import type { PreviewTurn } from '../model/types.ts'
 import { AnswerMessage } from './AnswerMessage.tsx'
 import message from './message.module.css'
@@ -16,10 +18,19 @@ type MessageListProps = {
   previousTurns: PreviewTurn[]
   turns: PreviewTurn[]
   conversationId: number | null
+  feedback: FeedbackControls
+  handoff: HandoffControls
   onCitationOpen: (chunkId: number) => void
 }
 
-export function MessageList({ previousTurns, turns, conversationId, onCitationOpen }: MessageListProps) {
+export function MessageList({
+  previousTurns,
+  turns,
+  conversationId,
+  feedback,
+  handoff,
+  onCitationOpen,
+}: MessageListProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const spacerRef = useRef<HTMLDivElement>(null)
 
@@ -37,7 +48,13 @@ export function MessageList({ previousTurns, turns, conversationId, onCitationOp
       {previousTurns.length > 0 ? (
         <>
           {previousTurns.map((turn) => (
-            <TurnMessages key={turn.localId} turn={turn} onCitationOpen={onCitationOpen} />
+            <TurnMessages
+              key={turn.localId}
+              turn={turn}
+              feedback={feedback}
+              handoff={handoff}
+              onCitationOpen={onCitationOpen}
+            />
           ))}
           <div className={styles.systemMessage}>
             {conversationId === null ? 'Yeni konuşma' : `Yeni konuşma · ${conversationId}`}
@@ -45,18 +62,31 @@ export function MessageList({ previousTurns, turns, conversationId, onCitationOp
         </>
       ) : null}
       {turns.map((turn) => (
-        <TurnMessages key={turn.localId} turn={turn} onCitationOpen={onCitationOpen} />
+        <TurnMessages
+          key={turn.localId}
+          turn={turn}
+          feedback={feedback}
+          handoff={handoff}
+          onCitationOpen={onCitationOpen}
+        />
       ))}
       <div ref={spacerRef} className={styles.spacer} aria-hidden="true" />
     </div>
   )
 }
 
-function TurnMessages({ turn, onCitationOpen }: { turn: PreviewTurn; onCitationOpen: (chunkId: number) => void }) {
+type TurnMessagesProps = {
+  turn: PreviewTurn
+  feedback: FeedbackControls
+  handoff: HandoffControls
+  onCitationOpen: (chunkId: number) => void
+}
+
+function TurnMessages({ turn, feedback, handoff, onCitationOpen }: TurnMessagesProps) {
   return (
     <>
       <UserMessage question={turn.question} askedAt={turn.askedAt} />
-      <AnswerMessage turn={turn} onCitationOpen={onCitationOpen} />
+      <AnswerMessage turn={turn} feedback={feedback} handoff={handoff} onCitationOpen={onCitationOpen} />
     </>
   )
 }
