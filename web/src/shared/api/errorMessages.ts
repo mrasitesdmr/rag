@@ -29,6 +29,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   TURN_NOT_FOUND: 'Bu cevap bulunamadı. Sayfayı yenile.',
   TURN_NOT_COMPLETED: 'Tamamlanmamış bir cevaba geri bildirim verilemez.',
   HANDOFF_NOT_ALLOWED: 'Temsilciye sadece asistanın cevap bulamadığı sorularda bağlanabilirsin.',
+  GOLDEN_SET_NOT_LOADED: "Golden set yüklenmemiş. Önce golden set'i yükle.",
+  GOLDEN_SET_NOT_IN_KNOWLEDGE_BASE: "Golden set'in belgesi bilgi bankasında yok. Önce belgeyi yükle.",
+  EVAL_RUN_IN_PROGRESS: 'Bir ölçüm zaten sürüyor. Bitmesini bekle.',
+  EVAL_NOT_AVAILABLE_IN_LLM_ONLY: "Sadece LLM modunda arama yok; ölçmek için üretimi RAG'e al.",
 }
 
 export const FALLBACK_MESSAGE = 'Beklenmeyen bir hata oluştu. Tekrar dene.'

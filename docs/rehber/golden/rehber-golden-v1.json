@@ -1,0 +1,605 @@
+{
+  "version": "rehber-golden-v1",
+  "questions": [
+    {
+      "category": "Bu rehber hakkında",
+      "text": "Ücret değişiklikleri bana ne kadar önceden bildiriliyor?",
+      "pageNumber": 5,
+      "answerText": "Aleyhinize olan ücret değişiklikleri, yürürlük tarihinden en az 30 gün önce SMS ve e-posta ile size bildirilir."
+    },
+    {
+      "category": "Bu rehber hakkında",
+      "text": "Sözleşmemde rehberden farklı bir koşul varsa hangisi geçerli olur?",
+      "pageNumber": 5,
+      "answerText": "Sözleşmenizde bu rehberden farklı ve sizin lehinize bir koşul varsa sözleşmenizdeki koşul uygulanır."
+    },
+    {
+      "category": "Bu rehber hakkında",
+      "text": "Dolar cinsinden belirlenen bir ücreti hangi kurla ödüyorum?",
+      "pageNumber": 6,
+      "answerText": "ücret işlem günündeki Raşit Bankası döviz satış kuruyla Türk lirasına çevrilerek tahsil edilir."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Banka kartımın limitini artırdım, ne zaman geçerli olur?",
+      "pageNumber": 7,
+      "answerText": "Limit artırma, güvenlik nedeniyle talepten 2 saat sonra geçerli olur."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Şubeden 300.000 TL nakit çekmek için önceden haber vermem gerekiyor mu?",
+      "pageNumber": 7,
+      "answerText": "250.000 TL'nin üzerindeki çekimler için 1 iş günü önceden şubenize haber vermeniz gerekir."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Otelin kartımda bloke ettiği tutar ne zaman kalkar?",
+      "pageNumber": 7,
+      "answerText": "Bloke tutar işlem tamamlandığında ya da en geç 30 gün içinde kalkar."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Banka kartıyla aldığım ürünü iade ettim, para hesabıma ne zaman yatar?",
+      "pageNumber": 7,
+      "answerText": "İade edilen bir alışverişin tutarı, işyerinin iade işlemini yaptığı günden itibaren en geç 7 iş günü içinde hesabınıza geri yatar."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Raşit Platinum ile yılda kaç kez havalimanı salonuna ücretsiz girebilirim?",
+      "pageNumber": 8,
+      "answerText": "Yılda 6 kez yurt içi ve yurt dışı havalimanı yolcu salonlarına ücretsiz giriş hakkı verir."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Bir kredi kartına en fazla kaç ek kart çıkarılabilir?",
+      "pageNumber": 8,
+      "answerText": "Bir ana karta en fazla 4 ek kart bağlanabilir."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Raşit Gold başvurusu için gelirim en az ne kadar olmalı?",
+      "pageNumber": 8,
+      "answerText": "Başvuru için aylık net gelirin en az 40.000 TL olması gerekir."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Yıllık üyelik ücreti kesilmeden önce bana haber veriliyor mu?",
+      "pageNumber": 9,
+      "answerText": "Ücret yansıtılmadan en az 30 gün önce size SMS ile bilgi verilir"
+    },
+    {
+      "category": "Kartlar",
+      "text": "Kart limitimi yeni artırdım, tekrar artış ne zaman isteyebilirim?",
+      "pageNumber": 10,
+      "answerText": "Son limit artırımından sonraki 6 ay içinde yeni artırım talebi değerlendirilmez."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Kredi kartının son ödeme tarihi kesimden kaç gün sonra?",
+      "pageNumber": 10,
+      "answerText": "Son ödeme tarihi, hesap kesim tarihinden 10 gün sonradır."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Eski ekstrelerimi kaç ay geriye kadar indirebilirim?",
+      "pageNumber": 11,
+      "answerText": "Geçmiş 24 aya ait ekstrelerinizi Raşit Mobil'den PDF olarak indirebilirsiniz."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Ekstremi yılda kaç kez taksitlendirebilirim?",
+      "pageNumber": 12,
+      "answerText": "Bir takvim yılında en fazla 3 kez ekstre taksitlendirme yapılabilir."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Asgari tutarı hiç ödemezsem kartım ne zaman kapanır?",
+      "pageNumber": 12,
+      "answerText": "Son ödeme tarihinden itibaren 90 gün içinde asgari tutar ödenmezse kart kullanıma kapatılır"
+    },
+    {
+      "category": "Kartlar",
+      "text": "Kredi kartıyla en fazla ne kadar nakit avans çekebilirim?",
+      "pageNumber": 13,
+      "answerText": "Nakit avans limiti, kart limitinizin %50'sidir."
+    },
+    {
+      "category": "Kartlar",
+      "text": "RaşitPuan'ı en az kaç puandan itibaren kullanabilirim?",
+      "pageNumber": 13,
+      "answerText": "En az kullanım 10 RaşitPuan'dır."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Ayda kaç kez yeni sanal kart oluşturabilirim?",
+      "pageNumber": 14,
+      "answerText": "Bir ay içinde en fazla 5 kez yeni sanal kart oluşturulabilir."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Yurt dışındaki bir ATM'den para çekersem ne kadar ücret öderim?",
+      "pageNumber": 15,
+      "answerText": "Yurt dışındaki ATM'lerden nakit çekimde ayrıca işlem tutarının %1,5'i, en az 75 TL ücret alınır."
+    },
+    {
+      "category": "Kartlar",
+      "text": "İnternet alışverişindeki doğrulama kodu ne kadar süre geçerli?",
+      "pageNumber": 16,
+      "answerText": "Doğrulama kodu 3 dakika geçerlidir ve yalnızca kodu istediğiniz işlem için kullanılabilir."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Kartım çalındı, bildirimden önce yapılan harcamalardan sorumlu muyum?",
+      "pageNumber": 16,
+      "answerText": "Bildirimden önceki 24 saat içinde onayınız olmadan yapılan işlemlerde sorumluluğunuz 250 TL ile sınırlıdır."
+    },
+    {
+      "category": "Kartlar",
+      "text": "Bir harcamaya en geç ne zamana kadar itiraz edebilirim?",
+      "pageNumber": 17,
+      "answerText": "İtiraz, işlemin ekstrenize yansıdığı tarihten itibaren en geç 120 gün içinde yapılmalıdır."
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Türkiye'deki IBAN kaç karakterden oluşur?",
+      "pageNumber": 20,
+      "answerText": "Türkiye'deki IBAN'lar TR ile başlar ve 26 karakterdir."
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Maaş müşterisi ayrıcalıklarım ne zaman sona erer?",
+      "pageNumber": 20,
+      "answerText": "Ayrıcalıklar, maaşınızın hesabınıza ilk yattığı günden itibaren geçerli olur ve maaş ödemesi 2 ay üst üste gelmezse sona erer."
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Açtığım vadeli hesaba sonradan para ekleyebilir miyim?",
+      "pageNumber": 21,
+      "answerText": "Açılmış bir vadeli hesaba vade içinde para eklenemez."
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Kaç tane Kumbara hesabı açabilirim?",
+      "pageNumber": 21,
+      "answerText": "Her müşteri en fazla 1 Kumbara hesabı açabilir."
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Düzenli birikim talimatını nereden veriyorum?",
+      "pageNumber": 22,
+      "answerText": "Talimat Raşit Mobil'de Birikimlerim > Düzenli birikim ekranından verilir."
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Hangi para birimlerinde döviz hesabı açabilirim?",
+      "pageNumber": 22,
+      "answerText": "ABD doları, euro, İngiliz sterlini ve İsviçre frangı cinsinden vadesiz ve vadeli döviz hesabı açabilirsiniz."
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Şubeden 15.000 dolar efektif çekmek için önceden haber vermem gerekir mi?",
+      "pageNumber": 22,
+      "answerText": "Tek seferde 10.000 ABD doları ya da euro karşılığının üzerindeki efektif çekimler için 2 iş günü önceden şubenize talep vermeniz gerekir."
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Altın biriktirme talimatında alım hangi fiyattan yapılıyor?",
+      "pageNumber": 22,
+      "answerText": "Alım, o günün saat 10.00'daki Raşit Bankası altın satış fiyatından yapılır."
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Çocuk birikim hesabı Kumbara'dan ne kadar fazla faiz verir?",
+      "pageNumber": 23,
+      "answerText": "Hesaba Kumbara hesabının faiz oranına ek yıllık 1 puan faiz uygulanır"
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Ortak hesabın türünü sonradan değiştirebilir miyiz?",
+      "pageNumber": 23,
+      "answerText": "Ortak hesap türü sonradan değiştirilemez; değişiklik için yeni hesap açılır."
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Yabancı uyruklu biri Raşit Mobil'den müşteri olabilir mi?",
+      "pageNumber": 24,
+      "answerText": "Yabancı uyruklu kişiler yalnızca şubeden müşteri olabilir;"
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Maaşımın yattığı hesabı kapatabilir miyim?",
+      "pageNumber": 25,
+      "answerText": "Maaşınızın yattığı hesap, kurumunuzun maaş protokolü devam ettiği sürece kapatılamaz."
+    },
+    {
+      "category": "Hesaplar",
+      "text": "Mirası reddetmek için ne kadar sürem var?",
+      "pageNumber": 26,
+      "answerText": "Mirasın reddi, ölümü öğrenme tarihinden itibaren 3 ay içinde sulh hukuk mahkemesine başvurularak yapılır."
+    },
+    {
+      "category": "Krediler",
+      "text": "Konut kredisinde yaş sınırı var mı?",
+      "pageNumber": 29,
+      "answerText": "Konut kredisinde, son taksitin ödeneceği tarihte 75 yaşın aşılmaması gerekir."
+    },
+    {
+      "category": "Krediler",
+      "text": "Kredi taksitlerim gelirimin en fazla ne kadarı olabilir?",
+      "pageNumber": 29,
+      "answerText": "aylık net gelirinizin %50'sini aşmaması gerekir"
+    },
+    {
+      "category": "Krediler",
+      "text": "İhtiyaç kredisinde en fazla ne kadar çekebilirim?",
+      "pageNumber": 30,
+      "answerText": "Tutar: 5.000 TL ile 1.000.000 TL arası."
+    },
+    {
+      "category": "Krediler",
+      "text": "200.000 TL ihtiyaç kredisini en fazla kaç ay vadeyle alabilirim?",
+      "pageNumber": 30,
+      "answerText": "125.000,01-250.000 TL 24 ay"
+    },
+    {
+      "category": "Krediler",
+      "text": "İhtiyaç kredisinin ilk taksidini ne zaman öderim?",
+      "pageNumber": 30,
+      "answerText": "İlk taksit, kullandırım tarihinden en az 15, en fazla 45 gün sonraya denk gelir."
+    },
+    {
+      "category": "Krediler",
+      "text": "Elektrikli araç için taşıt kredisi faizi ne kadar?",
+      "pageNumber": 31,
+      "answerText": "Sıfır elektrikli araçlarda taşıt kredisi faizi aylık %2,89'dan başlar."
+    },
+    {
+      "category": "Krediler",
+      "text": "İlk evim için ev değerinin ne kadarı kadar kredi alabilirim?",
+      "pageNumber": 31,
+      "answerText": "İlk konutunuz için ekspertiz değerinin %80'ine, ikinci ve sonraki konutlarınız için %50'sine kadar."
+    },
+    {
+      "category": "Krediler",
+      "text": "Değişken faizli konut kredisinde faiz ne sıklıkla değişir?",
+      "pageNumber": 32,
+      "answerText": "faiz, sözleşmede yazan gösterge faize göre her 6 ayda bir güncellenir"
+    },
+    {
+      "category": "Krediler",
+      "text": "Ekspertiz raporu ne kadar süre geçerli?",
+      "pageNumber": 32,
+      "answerText": "Ekspertiz raporu, düzenlendiği tarihten itibaren 3 ay geçerlidir."
+    },
+    {
+      "category": "Krediler",
+      "text": "Ek Hesap limiti ne kadar olabilir?",
+      "pageNumber": 32,
+      "answerText": "Ek Hesap limiti gelirinize ve KKB kayıtlarınıza göre 1.000 TL ile 250.000 TL arasında belirlenir."
+    },
+    {
+      "category": "Krediler",
+      "text": "Ek Hesap'ı faizsiz kullanabileceğim bir süre var mı?",
+      "pageNumber": 32,
+      "answerText": "Bir takvim ayı içinde Ek Hesap'ı kullandığınız ilk 10 gün için faiz alınmaz."
+    },
+    {
+      "category": "Krediler",
+      "text": "Kredi notum 1.600 ise bana hangi faiz uygulanır?",
+      "pageNumber": 34,
+      "answerText": "1.500-1.699 Başlangıç oranı + 0,20 puan"
+    },
+    {
+      "category": "Krediler",
+      "text": "Kredi taksidini geciktirirsem gecikme faizi nasıl hesaplanır?",
+      "pageNumber": 35,
+      "answerText": "gecikmenin ilk gününden itibaren sözleşmedeki akdi faiz oranının %30 fazlası gecikme faizi olarak işler"
+    },
+    {
+      "category": "Krediler",
+      "text": "Taşıt kredim bitti, araçtaki rehin ne zaman kalkar?",
+      "pageNumber": 36,
+      "answerText": "Taşıt kredisi tamamen ödendikten sonra araç üzerindeki rehin 3 iş günü içinde Raşit Bankası tarafından elektronik olarak kaldırılır."
+    },
+    {
+      "category": "Para transferi ve ödemeler",
+      "text": "Havaleyi onayladıktan sonra iptal edebilir miyim?",
+      "pageNumber": 38,
+      "answerText": "Havale anında gerçekleştiği için onaylandıktan sonra iptal edilemez"
+    },
+    {
+      "category": "Para transferi ve ödemeler",
+      "text": "Alıcı banka EFT'yi kabul etmezse param ne zaman geri döner?",
+      "pageNumber": 38,
+      "answerText": "Alıcı banka EFT'yi aynı gün kabul etmezse tutar en geç izleyen iş günü hesabınıza iade edilir."
+    },
+    {
+      "category": "Para transferi ve ödemeler",
+      "text": "Kolay Adres'imi iki farklı bankada tanımlayabilir miyim?",
+      "pageNumber": 39,
+      "answerText": "Bir Kolay Adres aynı anda yalnızca bir bankadaki bir hesaba tanımlanabilir."
+    },
+    {
+      "category": "Para transferi ve ödemeler",
+      "text": "SWIFT talimatını saat kaça kadar verirsem aynı gün gönderilir?",
+      "pageNumber": 39,
+      "answerText": "İş günlerinde saat 16.00'ya kadar verilen SWIFT talimatları aynı gün gönderilir;"
+    },
+    {
+      "category": "Para transferi ve ödemeler",
+      "text": "Yurt dışına gönderdiğim paradan aradaki bankaların kestiği masrafı görebilir miyim?",
+      "pageNumber": 39,
+      "answerText": "Ekranda işlemin aradaki bankalardan geçişi ve kesilen masraflar yer alır."
+    },
+    {
+      "category": "Para transferi ve ödemeler",
+      "text": "SWIFT iade talebim olumsuz sonuçlanırsa talep ücreti geri verilir mi?",
+      "pageNumber": 40,
+      "answerText": "talep ücreti, sonuç olumsuz olsa da iade edilmez"
+    },
+    {
+      "category": "Para transferi ve ödemeler",
+      "text": "Yurt dışından bana gelen SWIFT için ücret ödüyor muyum?",
+      "pageNumber": 40,
+      "answerText": "Gelen SWIFT için Raşit Bankası ücret almaz."
+    },
+    {
+      "category": "Para transferi ve ödemeler",
+      "text": "Oluşturduğum transfer karekodu ne kadar süre geçerli?",
+      "pageNumber": 42,
+      "answerText": "İşyerinde ödeme için gösterilen karekod 3 dakika, sizin oluşturduğunuz transfer karekodu 24 saat geçerlidir."
+    },
+    {
+      "category": "Para transferi ve ödemeler",
+      "text": "Düzenli transferin açıklamasına en fazla kaç karakter yazabilirim?",
+      "pageNumber": 42,
+      "answerText": "Açıklama en fazla 140 karakterdir."
+    },
+    {
+      "category": "Para transferi ve ödemeler",
+      "text": "Faturamı şubede ödersem ücret alınıyor mu?",
+      "pageNumber": 43,
+      "answerText": "Fatura ödemeleri dijital kanallarda ve ATM'lerde ücretsizdir; şubede fatura başına 9,90 TL alınır."
+    },
+    {
+      "category": "Para transferi ve ödemeler",
+      "text": "Yanlış kişiye gönderdiğim paranın iadesi kaç gün sürer?",
+      "pageNumber": 43,
+      "answerText": "Bu süreç genellikle 3 ile 10 iş günü sürer."
+    },
+    {
+      "category": "Dijital bankacılık",
+      "text": "Raşit Mobil hangi Android ve iOS sürümlerinde çalışıyor?",
+      "pageNumber": 45,
+      "answerText": "Raşit Mobil, Android 10 ve üzeri ile iOS 16 ve üzeri sürümlerde çalışır."
+    },
+    {
+      "category": "Dijital bankacılık",
+      "text": "İşlem yapmazsam Raşit Mobil oturumu ne zaman kapanır?",
+      "pageNumber": 45,
+      "answerText": "İşlem yapılmadığında Raşit Mobil oturumu 5 dakika, İnternet Şubesi oturumu 10 dakika sonra kendiliğinden kapanır."
+    },
+    {
+      "category": "Dijital bankacılık",
+      "text": "Eski dijital bankacılık şifremi yeniden kullanabilir miyim?",
+      "pageNumber": 46,
+      "answerText": "Son 3 şifrenizi yeniden kullanamazsınız."
+    },
+    {
+      "category": "Dijital bankacılık",
+      "text": "Raşit Mobil'i aynı anda kaç cihazda eşleyebilirim?",
+      "pageNumber": 46,
+      "answerText": "Aynı anda en fazla 2 cihaz eşli olabilir."
+    },
+    {
+      "category": "Dijital bankacılık",
+      "text": "Uzun süre kullanmadığım telefonun eşlemesi kalkar mı?",
+      "pageNumber": 46,
+      "answerText": "180 gün boyunca Raşit Mobil'e giriş yapılmayan cihazların eşlemesi güvenlik nedeniyle kendiliğinden kaldırılır."
+    },
+    {
+      "category": "Dijital bankacılık",
+      "text": "Parmak iziyle kaç liraya kadar transfer onaylayabilirim?",
+      "pageNumber": 47,
+      "answerText": "Biyometrik doğrulama, 50.000 TL'ye kadar transferlerin onayında da kullanılabilir."
+    },
+    {
+      "category": "Dijital bankacılık",
+      "text": "Dijital transfer limitimi artırma talebi ne zaman geçerli olur?",
+      "pageNumber": 47,
+      "answerText": "Artırma talebi SMS doğrulama koduyla onaylanır ve güvenlik nedeniyle 24 saat sonra geçerli olur."
+    },
+    {
+      "category": "Dijital bankacılık",
+      "text": "Raşit Bankası e-postaları hangi alan adından gelir?",
+      "pageNumber": 48,
+      "answerText": "Raşit Bankası e-postaları yalnızca rasitbank.example alan adından gelir."
+    },
+    {
+      "category": "Dijital bankacılık",
+      "text": "Güvenli alıcı listesine eklediğim kişiye ne zaman para gönderebilirim?",
+      "pageNumber": 48,
+      "answerText": "Listeye eklenen yeni alıcı 12 saat sonra kullanılabilir."
+    },
+    {
+      "category": "Dijital bankacılık",
+      "text": "Şifre cihazı almak ücretli mi?",
+      "pageNumber": 49,
+      "answerText": "Şifre cihazı şubelerden kimlikle başvurularak alınır ve 150 TL'ye verilir."
+    },
+    {
+      "category": "Yatırım",
+      "text": "Yatırım uygunluk testi ne sıklıkla yenilenir?",
+      "pageNumber": 51,
+      "answerText": "Test 2 yılda bir yenilenir."
+    },
+    {
+      "category": "Yatırım",
+      "text": "Raşit Mobil'den kaç farklı yatırım fonu alabilirim?",
+      "pageNumber": 51,
+      "answerText": "600'den fazla yatırım fonunu alıp satabilirsiniz"
+    },
+    {
+      "category": "Yatırım",
+      "text": "Verdiğim fon talimatını iptal edebilir miyim?",
+      "pageNumber": 52,
+      "answerText": "Gerçekleşmemiş bir talimatı saat 13.30'a kadar iptal edebilirsiniz."
+    },
+    {
+      "category": "Yatırım",
+      "text": "Kredili hisse işlemi ya da açığa satış yapabilir miyim?",
+      "pageNumber": 52,
+      "answerText": "Kredili işlem ve açığa satış yapılmaz."
+    },
+    {
+      "category": "Yatırım",
+      "text": "Döviz alırken onay ekranındaki kur ne kadar süre geçerli?",
+      "pageNumber": 53,
+      "answerText": "İşlem onay ekranında gösterilen kur 30 saniye geçerlidir"
+    },
+    {
+      "category": "Yatırım",
+      "text": "Altın hesabına yatırmak için altın en az kaç ayar olmalı?",
+      "pageNumber": 53,
+      "answerText": "Kabul edilen en düşük ayar 14 ayardır."
+    },
+    {
+      "category": "Yatırım",
+      "text": "Gerçekleşmeyen hisse limit emrim ne olur?",
+      "pageNumber": 54,
+      "answerText": "Gerçekleşmeyen limit emirleri gün sonunda iptal olur"
+    },
+    {
+      "category": "Yatırım",
+      "text": "Hazine bonosu faizinden ne kadar stopaj kesilir?",
+      "pageNumber": 54,
+      "answerText": "Devlet tahvili ve hazine bonosu faizi %10"
+    },
+    {
+      "category": "Şube, ATM ve müşteri hizmetleri",
+      "text": "Şube randevuma geç kalırsam ne olur?",
+      "pageNumber": 57,
+      "answerText": "Randevunuza 15 dakikadan fazla geç kalırsanız randevu iptal olur ve sıra numarası almanız gerekir."
+    },
+    {
+      "category": "Şube, ATM ve müşteri hizmetleri",
+      "text": "Kiralık kasama hangi saatlerde erişebilirim?",
+      "pageNumber": 57,
+      "answerText": "Kasanıza hafta içi 09.00-16.30 saatleri arasında erişebilirsiniz."
+    },
+    {
+      "category": "Şube, ATM ve müşteri hizmetleri",
+      "text": "Kiralık kasa anahtarımı kaybedersem ne olur?",
+      "pageNumber": 57,
+      "answerText": "Kasanın kilidi, kiracının ve iki banka görevlisinin hazır bulunduğu tutanakla açılır ve değiştirilir; kilit değişim ücreti 3.250 TL'dir."
+    },
+    {
+      "category": "Şube, ATM ve müşteri hizmetleri",
+      "text": "Kartsız para çekme kodu ne kadar süre geçerli?",
+      "pageNumber": 58,
+      "answerText": "Kod 30 dakika geçerlidir."
+    },
+    {
+      "category": "Şube, ATM ve müşteri hizmetleri",
+      "text": "ATM hangi banknotları kabul ediyor?",
+      "pageNumber": 58,
+      "answerText": "ATM'ler yalnızca 10, 20, 50, 100 ve 200 TL'lik banknotları kabul eder."
+    },
+    {
+      "category": "Şube, ATM ve müşteri hizmetleri",
+      "text": "Kartım ATM'de kaldı, geri alabilir miyim?",
+      "pageNumber": 59,
+      "answerText": "ATM'de kalan kartlar güvenlik nedeniyle iade edilmez ve imha edilir"
+    },
+    {
+      "category": "Şube, ATM ve müşteri hizmetleri",
+      "text": "Dijital asistandan temsilciye hangi saatlerde aktarılabilirim?",
+      "pageNumber": 60,
+      "answerText": "temsilciye aktarma hafta içi 08.00-22.00, hafta sonu 09.00-18.00 saatleri arasında yapılır."
+    },
+    {
+      "category": "Şikâyet, itiraz ve kişisel veriler",
+      "text": "Haksız alınan ücret iade edilirken faiz de ödeniyor mu?",
+      "pageNumber": 62,
+      "answerText": "Haklı bulunan ücretler, tahsil tarihinden itibaren işlemiş yasal faiziyle birlikte hesabınıza iade edilir."
+    },
+    {
+      "category": "Şikâyet, itiraz ve kişisel veriler",
+      "text": "Tüketici hakem heyetine başvurmak ücretli mi?",
+      "pageNumber": 62,
+      "answerText": "Tüketici hakem heyetine başvuru ücretsizdir ve e-Devlet üzerinden yapılabilir."
+    },
+    {
+      "category": "Şikâyet, itiraz ve kişisel veriler",
+      "text": "Dijital asistanla yazışmalarım ne kadar süre saklanıyor?",
+      "pageNumber": 63,
+      "answerText": "Raşit Mobil'deki dijital asistanla yaptığınız yazışmalar, hizmet kalitesini ölçmek ve şikâyetleri incelemek için 1 yıl saklanır."
+    },
+    {
+      "category": "Şikâyet, itiraz ve kişisel veriler",
+      "text": "KVKK başvuruma verilen cevabı beğenmezsem Kurum'a ne kadar sürede başvurabilirim?",
+      "pageNumber": 63,
+      "answerText": "Cevabımızdan memnun kalmazsanız cevabı aldığınız tarihten itibaren 30 gün içinde Kişisel Verileri Koruma Kurumu'na şikâyette bulunabilirsiniz."
+    },
+    {
+      "category": "Ücret tarifesi",
+      "text": "Şubeden kâğıt hesap belgesi almak kaç lira?",
+      "pageNumber": 65,
+      "answerText": "Şubeden kâğıt hesap belgesi (belge başına) 25 TL"
+    },
+    {
+      "category": "Ücret tarifesi",
+      "text": "Süresi dolan kartımın yenilenmesi ücretli mi?",
+      "pageNumber": 65,
+      "answerText": "Süresi dolan, yıpranan ya da ATM'de kalan kartın yenilenmesi Ücretsiz"
+    },
+    {
+      "category": "Ücret tarifesi",
+      "text": "Borcu yoktur yazısı için ücret ödüyor muyum?",
+      "pageNumber": 66,
+      "answerText": "Borcu yoktur yazısı (dijital ya da ıslak imzalı) Ücretsiz"
+    },
+    {
+      "category": "Ücret tarifesi",
+      "text": "Kart harcamaları için SMS bildirimi ücretli mi?",
+      "pageNumber": 66,
+      "answerText": "SMS ile kart harcama bildirimi Ücretsiz"
+    },
+    {
+      "category": "Ücret tarifesi",
+      "text": "Eurobond alım satımında ne kadar ücret alınıyor?",
+      "pageNumber": 67,
+      "answerText": "Eurobond alım satımı Tutarın binde 1'i, en az 10 ABD doları karşılığı"
+    },
+    {
+      "category": "Ücret tarifesi",
+      "text": "Braille alfabesiyle belge istemek ücretli mi?",
+      "pageNumber": 67,
+      "answerText": "Braille alfabesiyle ya da büyük puntolu belge Ücretsiz"
+    },
+    {
+      "category": "Terimler sözlüğü",
+      "text": "Fek ne demek?",
+      "pageNumber": 68,
+      "answerText": "Fek: İpoteğin tapu kaydından kaldırılması"
+    },
+    {
+      "category": "Terimler sözlüğü",
+      "text": "Dain-i mürtehin ne anlama geliyor?",
+      "pageNumber": 68,
+      "answerText": "Dain-i mürtehin: Sigorta poliçesinde, tazminattan önce alacağını alma hakkı bulunan taraf"
+    },
+    {
+      "category": "Terimler sözlüğü",
+      "text": "Muaccel ne demek?",
+      "pageNumber": 69,
+      "answerText": "Muaccel: Borcun vadesi beklenmeden tamamının bir anda istenebilir hâle gelmesi"
+    },
+    {
+      "category": "Terimler sözlüğü",
+      "text": "Muhabir banka nedir?",
+      "pageNumber": 69,
+      "answerText": "Muhabir banka: Yurt dışı transferlerde gönderen ve alıcı banka arasında aracılık eden banka"
+    }
+  ]
+}

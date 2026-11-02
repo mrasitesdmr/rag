@@ -1,7 +1,9 @@
 import type { MouseEvent } from 'react'
+import { StatusBadge } from '../../../shared/components/StatusBadge.tsx'
 import table from '../../../shared/components/table.module.css'
 import { formatDecimal } from '../../../shared/format/formatNumber.ts'
 import { DISTANCE_FRACTION_DIGITS, RERANK_FRACTION_DIGITS } from '../model/conversationRules.ts'
+import { ANSWER_CHUNK_LABEL } from '../model/conversationTexts.ts'
 import type { TurnChunkResponse } from '../model/types.ts'
 import styles from './TurnChunkTable.module.css'
 
@@ -64,6 +66,12 @@ function TurnChunkRow({ chunk, isCited, hasRerank, onChunkOpen }: TurnChunkRowPr
         <button type="button" className={styles.openButton} title={chunk.heading}>
           {`s. ${chunk.pageNumber} · #${chunk.chunkNo}`}
         </button>
+        {chunk.containsAnswer ? (
+          <>
+            {' '}
+            <StatusBadge tone="run">{ANSWER_CHUNK_LABEL}</StatusBadge>
+          </>
+        ) : null}
       </td>
       <td className={table.num}>{chunk.vectorRank}</td>
       <td className={table.num}>{formatDecimal(chunk.distance, DISTANCE_FRACTION_DIGITS)}</td>

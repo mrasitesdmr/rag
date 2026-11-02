@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -72,14 +73,14 @@ public class AnswerStreamer {
         this.properties = properties;
     }
 
-    public void streamModelAnswer(TurnDraft draft, Prompt prompt, SseEmitter emitter) {
-        StreamingTurn turn = new StreamingTurn(draft, emitter);
+    public void streamModelAnswer(TurnDraft draft, Prompt prompt, SseEmitter emitter, Set<Long> answerChunkIds) {
+        StreamingTurn turn = new StreamingTurn(draft, emitter, answerChunkIds);
         turn.registerEmitterCallbacks();
         turn.start(prompt);
     }
 
     public void streamFixedAnswer(TurnDraft draft, String answer, SseEmitter emitter) {
-        StreamingTurn turn = new StreamingTurn(draft, emitter);
+        StreamingTurn turn = new StreamingTurn(draft, emitter, Set.of());
         turn.registerEmitterCallbacks();
         turn.completeWithFixedAnswer(answer);
     }
@@ -111,6 +112,7 @@ public class AnswerStreamer {
         private final SseEmitter emitter;
         private final AtomicBoolean finished = new AtomicBoolean();
         private final StringBuilder sentAnswer = new StringBuilder();
+        private final Set<Long> answerChunkIds;
 
         private volatile @Nullable Disposable subscription;
         private @Nullable Long generationStartNanos;
@@ -118,12 +120,13 @@ public class AnswerStreamer {
         private @Nullable Integer promptTokens;
         private @Nullable Integer completionTokens;
 
-        private StreamingTurn(TurnDraft draft, SseEmitter emitter) {
+        private StreamingTurn(TurnDraft draft, SseEmitter emitter, Set<Long> answerChunkIds) {
             this.draft = draft;
             this.context = isRag(draft)
                     ? Objects.requireNonNull(draft.context(), "A RAG turn needs a retrieved context")
                     : null;
             this.emitter = emitter;
+            this.answerChunkIds = Set.copyOf(answerChunkIds);
         }
 
         private void registerEmitterCallbacks() {
@@ -356,7 +359,8 @@ public class AnswerStreamer {
                         chunk.hit().version(),
                         chunk.vectorRank(),
                         chunk.hit().distance(),
-                        chunk.rerankScore()));
+                        chunk.rerankScore(),
+                        answerChunkIds.contains(chunk.hit().chunkId())));
             }
             return new SourcesEvent(GenerationMode.RAG, context.strategy(), context.candidates(), context.topK(),
                     draft.searchQuery(), draft.queryRewriteStatus(), chunks, citations);

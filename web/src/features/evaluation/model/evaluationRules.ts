@@ -1,0 +1,5 @@
+export const EVAL_POLL_INTERVAL_MS = 1000
+export const RECALL_PASS_THRESHOLD = 0.95
+export const EVAL_RUNS_PAGE_SIZE = 20
+export const KPI_FRACTION_DIGITS = 2
+export const RUN_TABLE_FRACTION_DIGITS = 3

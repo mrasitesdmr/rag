@@ -92,7 +92,8 @@ function isContextChunk(value: unknown): value is ContextChunk {
     typeof value.version === 'string' &&
     isInteger(value.vectorRank) &&
     isFiniteNumber(value.distance) &&
-    (value.rerankScore === null || isFiniteNumber(value.rerankScore))
+    (value.rerankScore === null || isFiniteNumber(value.rerankScore)) &&
+    typeof value.containsAnswer === 'boolean'
   )
 }
 

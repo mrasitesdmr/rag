@@ -35,6 +35,9 @@ public interface TurnRepository extends JpaRepository<Turn, Long> {
             + "order by t.turnNo")
     List<Turn> findAllWithChunks(@Param("conversationId") long conversationId);
 
+    @Query("select distinct t from Turn t left join fetch t.chunks where t.id in :turnIds")
+    List<Turn> findAllWithChunksByIdIn(@Param("turnIds") Collection<Long> turnIds);
+
     @Modifying
     @Query("update Turn t set t.helpful = :helpful, t.feedbackAt = :feedbackAt where t.id = :turnId")
     int updateFeedback(@Param("turnId") long turnId, @Param("helpful") boolean helpful,

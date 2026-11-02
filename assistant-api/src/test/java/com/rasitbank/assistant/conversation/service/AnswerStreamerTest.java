@@ -29,6 +29,7 @@ import com.rasitbank.assistant.support.TestProperties;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -85,7 +86,7 @@ class AnswerStreamerTest {
         });
 
         streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.rerankContext(7, 2, 15, 1, 3)),
-                PROMPT, emitter);
+                PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         assertThat(emitter.timeline()).containsExactly("token", "token", "token", "recordTurn", "sources", "done",
@@ -139,7 +140,7 @@ class AnswerStreamerTest {
         given(turnService.recordTurn(any(), any())).willReturn(1L);
 
         streamer(TestProperties.withHostLabel("Apple M5 · 16 GB")).streamModelAnswer(
-                draft(ContextFixtures.topKContext()), PROMPT, emitter);
+                draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         DoneEvent done = (DoneEvent) emitter.events().get(emitter.events().size() - 1).data();
@@ -154,7 +155,7 @@ class AnswerStreamerTest {
                 ChatResponses.text("b")));
         given(turnService.recordTurn(any(), any())).willReturn(1L);
 
-        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         TurnOutcome outcome = recordedOutcome();
@@ -169,7 +170,7 @@ class AnswerStreamerTest {
                 ChatResponses.text("Merhaba"), ChatResponses.textWithUsage("", 10, 2)));
         given(turnService.recordTurn(any(), any())).willReturn(1L);
 
-        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         assertThat(emitter.eventNames()).containsExactly("token", "sources", "done");
@@ -184,7 +185,7 @@ class AnswerStreamerTest {
                 Flux.concat(Flux.just(ChatResponses.text("Kartını ")), Flux.error(new IllegalStateException("down"))));
         given(turnService.recordTurn(any(), any())).willReturn(3L);
 
-        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         assertThat(emitter.eventNames()).containsExactly("token", "error");
@@ -203,7 +204,7 @@ class AnswerStreamerTest {
         given(chatModel.stream(any(Prompt.class))).willReturn(Flux.error(new IllegalStateException("refused")));
         given(turnService.recordTurn(any(), any())).willReturn(3L);
 
-        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         assertThat(emitter.events()).hasSize(1);
@@ -221,7 +222,7 @@ class AnswerStreamerTest {
         given(chatModel.stream(any(Prompt.class))).willThrow(new IllegalStateException("refused"));
         given(turnService.recordTurn(any(), any())).willReturn(3L);
 
-        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         assertThat(emitter.eventNames()).containsExactly("error");
@@ -238,7 +239,7 @@ class AnswerStreamerTest {
                 .doOnCancel(() -> modelCancelled.set(true)));
         given(turnService.recordTurn(any(), any())).willReturn(4L);
 
-        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         assertThat(modelCancelled).isTrue();
@@ -258,7 +259,7 @@ class AnswerStreamerTest {
         given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.text("Kartını "))
                 .concatWith(Flux.never()).doOnCancel(() -> modelCancelled.set(true)));
         given(turnService.recordTurn(any(), any())).willReturn(4L);
-        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         await().atMost(Duration.ofSeconds(5)).until(() -> emitter.eventNames().contains("token"));
 
         switch (callback) {
@@ -283,7 +284,7 @@ class AnswerStreamerTest {
         TurnDraft slowDraft = new TurnDraft(7L, GenerationMode.RAG, "q", "q", QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"),
                 System.nanoTime() - Duration.ofSeconds(2).toNanos(), ContextFixtures.topKContext());
 
-        streamer(TestProperties.defaults()).streamModelAnswer(slowDraft, PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(slowDraft, PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         DoneEvent done = (DoneEvent) emitter.events().get(emitter.events().size() - 1).data();
@@ -300,7 +301,7 @@ class AnswerStreamerTest {
                 Flux.just(ChatResponses.text("a")).concatWith(Flux.never()));
         given(turnService.recordTurn(any(), any())).willReturn(1L);
 
-        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         assertThat(emitter.eventNames()).containsExactly("error");
@@ -313,7 +314,7 @@ class AnswerStreamerTest {
         RecordingSseEmitter emitter = new RecordingSseEmitter();
         given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.text("Merhaba [1]")));
         given(turnService.recordTurn(any(), any())).willReturn(1L);
-        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         emitter.simulateCompletionCallback();
@@ -333,7 +334,7 @@ class AnswerStreamerTest {
         AssistantProperties properties = TestProperties.withModelTimeouts(Duration.ofMillis(100),
                 Duration.ofSeconds(30));
 
-        streamer(properties).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(properties).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         assertThat(emitter.eventNames()).containsExactly("error");
@@ -352,7 +353,7 @@ class AnswerStreamerTest {
         AssistantProperties properties = TestProperties.withModelTimeouts(Duration.ofSeconds(30),
                 Duration.ofMillis(100));
 
-        streamer(properties).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(properties).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         assertThat(emitter.eventNames()).containsExactly("token", "error");
@@ -368,7 +369,7 @@ class AnswerStreamerTest {
                 ChatResponses.text("bilgi bulamadım. [1]")));
         given(turnService.recordTurn(any(), any())).willReturn(6L);
 
-        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         DoneEvent done = (DoneEvent) emitter.events().get(emitter.events().size() - 1).data();
@@ -388,7 +389,7 @@ class AnswerStreamerTest {
         });
         given(turnService.recordTurn(any(), any())).willReturn(1L);
 
-        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         assertThat(transactionActive.get()).isFalse();
@@ -402,7 +403,7 @@ class AnswerStreamerTest {
         given(turnService.recordTurn(any(), any())).willThrow(new IllegalStateException("db down"))
                 .willReturn(9L);
 
-        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter);
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         assertThat(emitter.eventNames()).containsExactly("token", "error");
@@ -469,7 +470,7 @@ class AnswerStreamerTest {
         given(turnService.recordTurn(any(), any())).willReturn(31L);
 
         // Act
-        streamer(TestProperties.withMode("llm", "rerank")).streamModelAnswer(llmOnlyDraft(), PROMPT, emitter);
+        streamer(TestProperties.withMode("llm", "rerank")).streamModelAnswer(llmOnlyDraft(), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         // Assert
@@ -495,12 +496,35 @@ class AnswerStreamerTest {
         given(turnService.recordTurn(any(), any())).willReturn(32L);
 
         // Act
-        streamer(TestProperties.withMode("llm", "rerank")).streamModelAnswer(llmOnlyDraft(), PROMPT, emitter);
+        streamer(TestProperties.withMode("llm", "rerank")).streamModelAnswer(llmOnlyDraft(), PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
 
         // Assert
         DoneEvent done = (DoneEvent) emitter.events().get(emitter.events().size() - 1).data();
         assertThat(done.notFoundAnswer()).isFalse();
         assertThat(recordedOutcome().notFoundAnswer()).isFalse();
+    }
+
+    @Test
+    void givenAnswerChunkIds_whenStreamModelAnswer_thenOnlyThoseChunksMarkedContainsAnswer() throws Exception {
+        // Arrange: prompt sırası vector 7,2,15,1,3 → chunkId 107,102,115,101,103; cevap parçaları 102 ve 103
+        RecordingSseEmitter emitter = new RecordingSseEmitter();
+        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.text("Merhaba [1]")));
+        given(turnService.recordTurn(any(), any())).willReturn(1L);
+
+        // Act
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.rerankContext(7, 2, 15, 1, 3)),
+                PROMPT, emitter, Set.of(102L, 103L, 999L));
+        awaitCompleted(emitter);
+
+        // Assert
+        SourcesEvent sources = (SourcesEvent) emitter.events().stream()
+                .filter(event -> event.data() instanceof SourcesEvent).findFirst().orElseThrow().data();
+        assertThat(sources.contextChunks()).extracting(ContextChunk::chunkId, ContextChunk::containsAnswer)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(107L, false),
+                        org.assertj.core.groups.Tuple.tuple(102L, true),
+                        org.assertj.core.groups.Tuple.tuple(115L, false),
+                        org.assertj.core.groups.Tuple.tuple(101L, false),
+                        org.assertj.core.groups.Tuple.tuple(103L, true));
     }
 }

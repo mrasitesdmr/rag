@@ -69,6 +69,8 @@
   --color-callout-warning-ink: #5f4410;
   --color-nav-count-bg: #efe8eb;
   --color-search-query-code-bg: #f3eef0;
+  --color-gold-line: #e8cf91;
+  --color-gold-bg: #fffaf0;
 
   --font-site: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -123,6 +125,8 @@
   --text-dialog-note: 13px;
   --text-nav-count: 10.5px;
   --text-turn-answer: 13.5px;
+  --text-kpi-value: 20px;
+  --text-kpi-strategy: 16px;
   --line-height-bubble: 1.5;
   --line-height-context: 1.35;
   --line-height-note: 1.4;
@@ -204,6 +208,7 @@
   --radius-box: 8px;
   --radius-callout: 9px;
   --radius-table: 10px;
+  --radius-kpi: 10px;
   --radius-dialog: 12px;
   --radius-battery: 2px;
   --radius-battery-fill: 1px;

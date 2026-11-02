@@ -1,0 +1,52 @@
+.container {
+  container-type: inline-size;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3-5);
+}
+
+.kpi {
+  min-width: 0;
+  padding: var(--space-3-5) var(--space-4);
+  border: var(--space-hairline) solid var(--color-line);
+  border-radius: var(--radius-kpi);
+  background: var(--color-card);
+}
+
+.label,
+.subtitle {
+  display: block;
+  color: var(--color-muted);
+  font-size: var(--text-small);
+}
+
+.value {
+  display: block;
+  font: 700 var(--text-kpi-value) var(--font-site);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.good {
+  color: var(--color-green);
+}
+
+.bad {
+  color: var(--color-red);
+}
+
+.plain {
+  color: inherit;
+}
+
+.strategy {
+  font-size: var(--text-kpi-strategy);
+}
+
+@container (max-width: 620px) {
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -8,6 +8,8 @@ public enum TurnStatus {
     INCOMPLETE,
     UNGROUNDED,
     DONT_KNOW,
+    MISSED,
+    GENERATION_ERROR,
     WRONG,
     GROUNDED
 }

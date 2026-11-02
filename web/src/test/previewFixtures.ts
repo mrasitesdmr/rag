@@ -15,6 +15,7 @@ export function contextChunk(n: number, overrides: Partial<ContextChunk> = {}): 
     vectorRank: n,
     distance: 0.3124,
     rerankScore: 5.359,
+    containsAnswer: false,
     ...overrides,
   }
 }

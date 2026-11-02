@@ -152,4 +152,69 @@ class ChunkControllerTest {
         assertThat(result).hasStatus(404).hasContentType("application/problem+json");
         assertThat(result).bodyJson().extractingPath("$.errorCode").isEqualTo("CHUNK_NOT_FOUND");
     }
+
+    @Test
+    void givenInvalidTexts_whenFindChunkMatches_thenValidationFailed() {
+        // Act
+        var empty = mvc.post().uri("/api/workspaces/42/chunk-matches").contentType("application/json")
+                .content("{\"texts\":[]}").exchange();
+        var blank = mvc.post().uri("/api/workspaces/42/chunk-matches").contentType("application/json")
+                .content("{\"texts\":[\"ok\",\"  \"]}").exchange();
+
+        // Assert
+        assertThat(empty).hasStatus(400);
+        assertThat(empty).bodyJson().extractingPath("$.errorCode").isEqualTo("VALIDATION_FAILED");
+        assertThat(empty).bodyJson().extractingPath("$.violations[0].field").isEqualTo("texts");
+        assertThat(empty).bodyJson().extractingPath("$.violations[0].message").isEqualTo("size must be between 1 and 500");
+        assertThat(blank).hasStatus(400);
+        assertThat(blank).bodyJson().extractingPath("$.violations[0].field").isEqualTo("texts[1]");
+        assertThat(blank).bodyJson().extractingPath("$.violations[0].message").isEqualTo("must not be blank");
+    }
+
+    @Test
+    void givenMoreThan500Texts_whenFindChunkMatches_thenValidationFailed() {
+        // Arrange
+        String texts = String.join(",", java.util.Collections.nCopies(501, "\"a\""));
+
+        // Act
+        var result = mvc.post().uri("/api/workspaces/42/chunk-matches").contentType("application/json")
+                .content("{\"texts\":[" + texts + "]}").exchange();
+
+        // Assert
+        assertThat(result).hasStatus(400);
+        assertThat(result).bodyJson().extractingPath("$.violations[0].field").isEqualTo("texts");
+    }
+
+    @Test
+    void givenUnknownWorkspace_whenFindChunkMatches_thenReturns404WorkspaceNotFound() {
+        // Arrange
+        given(chunkService.findChunkMatches(7, List.of("metin")))
+                .willThrow(new NotFoundException("WORKSPACE_NOT_FOUND", "Workspace not found"));
+
+        // Act
+        var result = mvc.post().uri("/api/workspaces/7/chunk-matches").contentType("application/json")
+                .content("{\"texts\":[\"metin\"]}").exchange();
+
+        // Assert
+        assertThat(result).hasStatus(404);
+        assertThat(result).bodyJson().extractingPath("$.errorCode").isEqualTo("WORKSPACE_NOT_FOUND");
+    }
+
+    @Test
+    void givenValidTexts_whenFindChunkMatches_thenReturnsMatchesBody() {
+        // Arrange
+        given(chunkService.findChunkMatches(42, List.of("metin"))).willReturn(new com.rasitbank.retrieval.chunk.domain.dto.ChunkMatchesResponse(
+                List.of(new com.rasitbank.retrieval.chunk.domain.dto.ChunkTextMatchResponse("metin", List.of(
+                        new com.rasitbank.retrieval.chunk.domain.dto.MatchedChunkResponse(151, 10001, "Rehber", "2026.10", 19))))));
+
+        // Act
+        var result = mvc.post().uri("/api/workspaces/42/chunk-matches").contentType("application/json")
+                .content("{\"texts\":[\"metin\"]}").exchange();
+
+        // Assert
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.matches[0].chunks[0].chunkId").isEqualTo(151);
+        assertThat(result).bodyJson().extractingPath("$.matches[0].chunks[0].pageNumber").isEqualTo(19);
+        assertThat(result).bodyJson().extractingPath("$.matches[0].text").isEqualTo("metin");
+    }
 }

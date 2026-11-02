@@ -183,4 +183,51 @@ class RetrievalClientTest {
         // Assert
         assertRetrievalUnavailable(thrown);
     }
+
+    @Test
+    void givenTwoTexts_whenFindChunkMatches_thenPostsTextsToWorkspace42AndReadsChunks() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://retrieval");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://retrieval/api/workspaces/42/chunk-matches"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("{\"texts\":[\"a cümlesi\",\"b cümlesi\"]}", true))
+                .andRespond(withSuccess("{\"matches\":[{\"text\":\"a cümlesi\",\"chunks\":[{\"chunkId\":151,"
+                        + "\"sourceId\":10001,\"sourceName\":\"Rehber\",\"version\":\"2026.10\",\"pageNumber\":19}]},"
+                        + "{\"text\":\"b cümlesi\",\"chunks\":[]}]}", MediaType.APPLICATION_JSON));
+        RetrievalClient client = new RetrievalClient(builder.build(), TestProperties.defaults());
+
+        ChunkMatchesResponse response = client.findChunkMatches(List.of("a cümlesi", "b cümlesi"));
+
+        assertThat(response.matches()).hasSize(2);
+        assertThat(response.matches().get(0).chunks()).containsExactly(
+                new MatchedChunk(151, 10001, "Rehber", "2026.10", 19));
+        assertThat(response.matches().get(1).chunks()).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void givenFewerMatchesThanTexts_whenFindChunkMatches_thenRetrievalUnavailable() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://retrieval");
+        MockRestServiceServer.bindTo(builder).build()
+                .expect(requestTo("http://retrieval/api/workspaces/42/chunk-matches"))
+                .andRespond(withSuccess("{\"matches\":[{\"text\":\"a\",\"chunks\":[]}]}", MediaType.APPLICATION_JSON));
+        RetrievalClient client = new RetrievalClient(builder.build(), TestProperties.defaults());
+
+        assertThatThrownBy(() -> client.findChunkMatches(List.of("a", "b")))
+                .satisfies(RetrievalClientTest::assertRetrievalUnavailable);
+    }
+
+    @ParameterizedTest(name = "[{index}] HTTP {0}")
+    @CsvSource({"503", "404", "500", "400"})
+    void givenErrorStatus_whenFindChunkMatches_thenRetrievalUnavailable(int status) {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://retrieval");
+        MockRestServiceServer.bindTo(builder).build()
+                .expect(requestTo("http://retrieval/api/workspaces/42/chunk-matches"))
+                .andRespond(withStatus(HttpStatus.valueOf(status)).contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                        .body("{\"errorCode\":\"WORKSPACE_NOT_FOUND\"}"));
+        RetrievalClient client = new RetrievalClient(builder.build(), TestProperties.defaults());
+
+        assertThatThrownBy(() -> client.findChunkMatches(List.of("a")))
+                .satisfies(RetrievalClientTest::assertRetrievalUnavailable);
+    }
 }

@@ -6,6 +6,8 @@ export const TURN_STATUS_LABELS: Record<TurnStatus, string> = {
   INCOMPLETE: 'TAMAMLANMADI',
   UNGROUNDED: 'DAYANAKSIZ',
   DONT_KNOW: 'BİLMİYOR',
+  MISSED: 'KAÇIRDI',
+  GENERATION_ERROR: 'ÜRETİM HATASI',
   WRONG: 'HATALI',
   GROUNDED: 'DAYANAKLI',
 }
@@ -15,6 +17,8 @@ const TURN_STATUS_TONES: Record<TurnStatus, StatusTone> = {
   INCOMPLETE: 'neutral',
   UNGROUNDED: 'bad',
   DONT_KNOW: 'ok',
+  MISSED: 'bad',
+  GENERATION_ERROR: 'bad',
   WRONG: 'bad',
   GROUNDED: 'ok',
 }

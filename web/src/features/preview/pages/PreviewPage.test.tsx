@@ -803,4 +803,28 @@ describe('PreviewPage', () => {
     expect(screen.queryByText(QUESTION)).not.toBeInTheDocument()
     expect(log.conversationBodies).toHaveLength(1)
   })
+  it('givenAnswerChunkInSources_whenAnswerDone_thenCardMarksChunkAndShowsLegend', async () => {
+    const chunks = [1, 2, 3, 4, 5].map((n) => contextChunk(n, { containsAnswer: n === 2 }))
+    servePreview([token('Kartını hemen kapat [1].'), sources({ contextChunks: chunks }), done()])
+    renderAppAt('/onizleme')
+
+    await ask(QUESTION)
+
+    const card = (await screen.findByRole('heading', { name: 'Son cevapta modele giden parçalar' })).closest('section') as HTMLElement
+    const buttons = within(card).getAllByRole('button').filter((button) => /^\[\d\]/.test(button.textContent ?? ''))
+    expect(buttons).toHaveLength(5)
+    expect(buttons.map((button) => /gold/.test(button.className))).toEqual([false, true, false, false, false])
+    expect(within(card).getByText('✓ atıf yapılan · sarı: cevabın geçtiği parça')).toBeInTheDocument()
+  })
+
+  it('givenNoAnswerChunkInSources_whenAnswerDone_thenLegendHasNoYellowNote', async () => {
+    servePreview(lostCardAnswer())
+    renderAppAt('/onizleme')
+
+    await ask(QUESTION)
+
+    const card = (await screen.findByRole('heading', { name: 'Son cevapta modele giden parçalar' })).closest('section') as HTMLElement
+    expect(within(card).getByText('✓ atıf yapılan')).toBeInTheDocument()
+    expect(card).not.toHaveTextContent('sarı')
+  })
 })

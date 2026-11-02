@@ -3,11 +3,18 @@ import styles from './Callout.module.css'
 
 type CalloutTone = 'info' | 'warning'
 
-type CalloutProps = { tone?: CalloutTone; children: ReactNode }
+type CalloutProps = { tone?: CalloutTone; hasIcon?: boolean; children: ReactNode }
 
-export function Callout({ tone = 'info', children }: CalloutProps) {
+export function Callout({ tone = 'info', hasIcon = true, children }: CalloutProps) {
   if (tone === 'warning') {
     return <div className={`${styles.callout} ${styles.warning}`}>{children}</div>
+  }
+  if (!hasIcon) {
+    return (
+      <div className={styles.callout}>
+        <span>{children}</span>
+      </div>
+    )
   }
   return (
     <div className={styles.callout}>

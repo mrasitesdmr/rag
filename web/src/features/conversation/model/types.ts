@@ -3,7 +3,16 @@ import type { GenerationMode } from '../../../shared/liveConfig/types.ts'
 export const CHANNELS = ['PREVIEW'] as const
 export type Channel = (typeof CHANNELS)[number]
 
-export const TURN_STATUSES = ['IN_PROGRESS', 'INCOMPLETE', 'UNGROUNDED', 'DONT_KNOW', 'WRONG', 'GROUNDED'] as const
+export const TURN_STATUSES = [
+  'IN_PROGRESS',
+  'INCOMPLETE',
+  'UNGROUNDED',
+  'DONT_KNOW',
+  'MISSED',
+  'GENERATION_ERROR',
+  'WRONG',
+  'GROUNDED',
+] as const
 export type TurnStatus = (typeof TURN_STATUSES)[number]
 
 export const RETRIEVAL_STRATEGIES = ['TOP_K', 'RERANK', 'RERANK_FALLBACK', 'NONE'] as const
@@ -55,6 +64,7 @@ export type TurnChunkResponse = {
   vectorRank: number
   distance: number
   rerankScore: number | null
+  containsAnswer: boolean
 }
 
 export type TurnResponse = {

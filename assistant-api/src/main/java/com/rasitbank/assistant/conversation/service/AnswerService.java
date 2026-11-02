@@ -4,6 +4,7 @@ import com.rasitbank.assistant.config.AssistantProperties;
 import com.rasitbank.assistant.conversation.domain.dto.SendMessageRequest;
 import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
+import com.rasitbank.assistant.evaluation.service.GoldenAnswerLocator;
 import com.rasitbank.assistant.exception.ConflictException;
 import com.rasitbank.assistant.exception.ServiceUnavailableException;
 import com.rasitbank.assistant.generation.HistoryTurn;
@@ -17,6 +18,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +29,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 /**
  * Müşterinin sorusunu yapılandırılan üretim moduna göre cevaplar: akış açılmadan önce konuşmayı ve süren turu
  * denetler, geçmişi okur; RAG'de takip sorusunu arama sorgusuna çevirip retrieval'ı yapar, Sadece LLM'de bu adımları
- * atlar; sonra cevabı SSE akışı olarak başlatır. Model çağrıları sırasında transaction açık tutmaz.
+ * atlar; soru golden set'teyse cevabın geçtiği parçaları bulur; sonra cevabı SSE akışı olarak başlatır. Model
+ * çağrıları sırasında transaction açık tutmaz.
  */
 @Service
 public class AnswerService {
@@ -41,6 +44,7 @@ public class AnswerService {
     private final PromptBuilder promptBuilder;
     private final AnswerStreamer answerStreamer;
     private final TurnService turnService;
+    private final GoldenAnswerLocator goldenAnswerLocator;
     private final AssistantProperties properties;
     private final String chatModelName;
     private final Clock clock;
@@ -48,7 +52,7 @@ public class AnswerService {
     public AnswerService(ConversationService conversationService, ActiveTurnRegistry activeTurnRegistry,
             QueryRewriter queryRewriter, ContextRetriever contextRetriever, PromptBuilder promptBuilder,
             AnswerStreamer answerStreamer,
-            TurnService turnService, AssistantProperties properties,
+            TurnService turnService, GoldenAnswerLocator goldenAnswerLocator, AssistantProperties properties,
             @Value("${spring.ai.ollama.chat.model}") String chatModelName, Clock clock) {
         this.conversationService = conversationService;
         this.activeTurnRegistry = activeTurnRegistry;
@@ -57,6 +61,7 @@ public class AnswerService {
         this.promptBuilder = promptBuilder;
         this.answerStreamer = answerStreamer;
         this.turnService = turnService;
+        this.goldenAnswerLocator = goldenAnswerLocator;
         this.properties = properties;
         this.chatModelName = chatModelName;
         this.clock = clock;
@@ -93,7 +98,8 @@ public class AnswerService {
         TurnDraft draft = new TurnDraft(conversationId, GenerationMode.LLM_ONLY, question, null,
                 QueryRewriteStatus.DISABLED, null, history.size(), chatModelName, receivedAt, startNanos, null);
         SseEmitter emitter = new SseEmitter(properties.generation().streamTimeout().toMillis());
-        answerStreamer.streamModelAnswer(draft, promptBuilder.buildLlmOnlyPrompt(question, history), emitter);
+        answerStreamer.streamModelAnswer(draft, promptBuilder.buildLlmOnlyPrompt(question, history), emitter,
+                Set.of());
         return emitter;
     }
 
@@ -109,10 +115,17 @@ public class AnswerService {
         if (context.contextChunks().isEmpty()) {
             answerStreamer.streamFixedAnswer(draft, properties.generation().notFoundAnswer(), emitter);
         } else {
+            Set<Long> answerChunkIds = locateAnswerChunks(question);
             answerStreamer.streamModelAnswer(draft,
-                    promptBuilder.buildPrompt(question, history, context.contextChunks()), emitter);
+                    promptBuilder.buildPrompt(question, history, context.contextChunks()), emitter, answerChunkIds);
         }
         return emitter;
+    }
+
+    private Set<Long> locateAnswerChunks(String question) {
+        return goldenAnswerLocator.locateAnswerChunks(List.of(question)).values().stream()
+                .findFirst()
+                .orElse(Set.of());
     }
 
     private RetrievedContext retrieveContext(long conversationId, String question, QueryRewriteResult rewrite,

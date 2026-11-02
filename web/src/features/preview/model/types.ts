@@ -31,6 +31,7 @@ export type ContextChunk = {
   vectorRank: number
   distance: number
   rerankScore: number | null
+  containsAnswer: boolean
 }
 
 export type TokenEvent = { text: string }
@@ -121,3 +122,5 @@ export type HandoffResponse = {
   queue: string
   createdAt: string
 }
+
+export type PreviewNavigationState = { question: string }

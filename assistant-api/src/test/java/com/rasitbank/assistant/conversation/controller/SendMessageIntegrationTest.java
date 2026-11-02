@@ -71,6 +71,9 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private com.rasitbank.assistant.evaluation.service.GoldenSetService goldenSetService;
+
     @MockitoBean
     private ChatModel chatModel;
 
@@ -79,6 +82,11 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
 
     @MockitoBean
     private RerankClient rerankClient;
+
+    @org.junit.jupiter.api.AfterEach
+    void removeGoldenSet() {
+        jdbc.execute("truncate golden_sets restart identity cascade");
+    }
 
     record SseEvent(String name, JsonNode data) {
     }
@@ -184,6 +192,72 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
         assertThat(done.has("hostLabel")).isTrue();
         assertThat(jdbc.queryForObject("select answer from conversation_turns where id = ?", String.class, turnId))
                 .isEqualTo("Kartını kapat [1].");
+    }
+
+    private void loadGoldenSetWithLostCardQuestion() {
+        jdbc.execute("truncate golden_sets restart identity cascade");
+        goldenSetService.replaceGoldenSet(new com.rasitbank.assistant.evaluation.domain.dto.ReplaceGoldenSetRequest(
+                "rehber-golden-v1", List.of(new com.rasitbank.assistant.evaluation.domain.dto.GoldenQuestionRequest(
+                        "Kartlar", QUESTION, 19, "Kartınızı kaybettiyseniz hemen bildirin."))));
+    }
+
+    @Test
+    void givenGoldenQuestion_whenSendMessage_thenSourcesMarksAnswerChunk() {
+        // Arrange: prompt sırası vector 7,2,15,1,3 (chunkId 107,102,115,101,103); cevap cümlesi 102'de
+        stubHappyPath();
+        loadGoldenSetWithLostCardQuestion();
+        given(retrievalClient.findChunkMatches(anyList())).willReturn(
+                new com.rasitbank.assistant.retrieval.client.ChunkMatchesResponse(List.of(
+                        new com.rasitbank.assistant.retrieval.client.ChunkTextMatch("t", List.of(
+                                new com.rasitbank.assistant.retrieval.client.MatchedChunk(102, 10001, "R", "2026.10", 18))))));
+        long conversationId = createConversation();
+
+        // Act
+        List<SseEvent> events = parseEvents(sendMessage(conversationId, "KARTIMI kaybettim ne yapmalıyım").body());
+
+        // Assert
+        assertThat(events).extracting(SseEvent::name).containsExactly("token", "token", "sources", "done");
+        JsonNode chunks = events.get(2).data().get("contextChunks");
+        assertThat(chunks.get(0).get("containsAnswer").asBoolean()).isFalse();
+        assertThat(chunks.get(1).get("chunkId").asLong()).isEqualTo(102L);
+        assertThat(chunks.get(1).get("containsAnswer").asBoolean()).isTrue();
+        assertThat(chunks.get(2).get("containsAnswer").asBoolean()).isFalse();
+        assertThat(chunks.get(3).get("containsAnswer").asBoolean()).isFalse();
+        assertThat(chunks.get(4).get("containsAnswer").asBoolean()).isFalse();
+    }
+
+    @Test
+    void givenAnswerLookupFails_whenSendMessage_thenStreamsWithoutMarks() {
+        // Arrange
+        stubHappyPath();
+        loadGoldenSetWithLostCardQuestion();
+        given(retrievalClient.findChunkMatches(anyList()))
+                .willThrow(new ServiceUnavailableException("RETRIEVAL_UNAVAILABLE", "down"));
+        long conversationId = createConversation();
+
+        // Act
+        List<SseEvent> events = parseEvents(sendMessage(conversationId, QUESTION).body());
+
+        // Assert
+        assertThat(events).extracting(SseEvent::name).containsExactly("token", "token", "sources", "done");
+        events.get(2).data().get("contextChunks")
+                .forEach(chunk -> assertThat(chunk.get("containsAnswer").asBoolean()).isFalse());
+    }
+
+    @Test
+    void givenQuestionNotInGoldenSet_whenSendMessage_thenAllFalseAndNoLookup() {
+        // Arrange
+        stubHappyPath();
+        loadGoldenSetWithLostCardQuestion();
+        long conversationId = createConversation();
+
+        // Act
+        List<SseEvent> events = parseEvents(sendMessage(conversationId, "Başka bir soru sorayım?").body());
+
+        // Assert
+        events.get(2).data().get("contextChunks")
+                .forEach(chunk -> assertThat(chunk.get("containsAnswer").asBoolean()).isFalse());
+        verify(retrievalClient, never()).findChunkMatches(anyList());
     }
 
     @Test

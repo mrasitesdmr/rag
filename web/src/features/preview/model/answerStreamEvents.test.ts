@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { doneEvent, llmOnlySourcesEvent, sourcesEvent } from '../../../test/previewFixtures.ts'
+import { contextChunk, doneEvent, llmOnlySourcesEvent, sourcesEvent } from '../../../test/previewFixtures.ts'
 import { toAnswerStreamEvent } from './answerStreamEvents.ts'
 
 describe('toAnswerStreamEvent', () => {
@@ -18,6 +18,14 @@ describe('toAnswerStreamEvent', () => {
     ['sources without topK', { event: 'sources', data: JSON.stringify({ ...sourcesEvent(), topK: undefined }) }],
     ['done without retrievalLatencyMs', { event: 'done', data: JSON.stringify({ ...doneEvent(), retrievalLatencyMs: undefined }) }],
     ['sources with unknown strategy', { event: 'sources', data: JSON.stringify({ ...sourcesEvent(), retrievalStrategy: 'MAGIC' }) }],
+    [
+      'sources chunk without containsAnswer',
+      { event: 'sources', data: JSON.stringify(sourcesEvent({ contextChunks: [{ ...contextChunk(1), containsAnswer: undefined } as never] })) },
+    ],
+    [
+      'sources chunk with string containsAnswer',
+      { event: 'sources', data: JSON.stringify(sourcesEvent({ contextChunks: [{ ...contextChunk(1), containsAnswer: 'true' } as never] })) },
+    ],
     ['sources with non-array chunks', { event: 'sources', data: JSON.stringify({ ...sourcesEvent(), contextChunks: 'x' }) }],
     [
       'sources chunk missing rerankScore',

@@ -165,12 +165,30 @@ describe('ConversationDetailPage', () => {
     ['INCOMPLETE', 'TAMAMLANMADI'],
     ['UNGROUNDED', 'DAYANAKSIZ'],
     ['DONT_KNOW', 'BİLMİYOR'],
+    ['MISSED', 'KAÇIRDI'],
+    ['GENERATION_ERROR', 'ÜRETİM HATASI'],
     ['WRONG', 'HATALI'],
     ['GROUNDED', 'DAYANAKLI'],
   ] as const)('givenTurnStatus_whenRendered_thenChipShowsLabel %s', async (status, label) => {
     await renderDetail(conversationDetail({ turns: [turn({ status })] }))
 
     expect(within(cardOf(FIRST)).getByText(label)).toBeInTheDocument()
+  })
+
+  it('givenChunkContainsAnswer_whenRendered_thenOnlyThatRowShowsAnswerHereLabel', async () => {
+    const chunks = [1, 2, 3, 4, 5].map((n) => turnChunk(n, { containsAnswer: n === 2 }))
+    await renderDetail(
+      conversationDetail({ turns: [turn({ status: 'GENERATION_ERROR', contextChunks: chunks })] }),
+    )
+
+    const rows = within(cardOf(FIRST)).getAllByRole('row').slice(1)
+    expect(rows.map((row) => within(row).queryByText('cevap burada') !== null)).toEqual([
+      false,
+      true,
+      false,
+      false,
+      false,
+    ])
   })
 
   it('givenFailedTurn_whenRendered_thenIncompleteChipReasonAndPartialAnswer', async () => {

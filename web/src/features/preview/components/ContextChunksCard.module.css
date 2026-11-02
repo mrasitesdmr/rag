@@ -22,6 +22,12 @@
   border-color: var(--color-brand);
 }
 
+.gold,
+.gold:hover {
+  border-color: var(--color-gold-line);
+  background: var(--color-gold-bg);
+}
+
 .number {
   color: var(--color-brand-dark);
   font-weight: 700;

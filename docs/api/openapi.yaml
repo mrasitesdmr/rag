@@ -25,6 +25,12 @@
 #   TASK-014: Konuşmalar ekranı: konuşma listesi (GET /api/assistant/conversations, sayfalı, en yeni üstte) ve konuşma detayı
 #   (GET /api/assistant/conversations/{conversationId}: turlar, modele giden parçalar, tur durumu, aktarma kaydı, akışı süren tur).
 #   Tur durumu (`TurnStatus`) okunurken kayıtlı alanlardan hesaplanır; saklanmaz.
+#   TASK-016: Değerlendirme. assistant-api: golden set (GET/PUT /api/assistant/golden-set; ürün ekibi dosyayı tek istekle yükler,
+#   ekranı yok, kendiliğinden yüklenmez), ölçüm çalıştırması (POST /api/assistant/evals 202 + Location, GET /api/assistant/evals
+#   sayfalı, GET /api/assistant/evals/{evalRunId}, ekranın tek okuması GET /api/assistant/evals/overview). Doğru parça golden set'te
+#   "cevabın geçtiği cümle" (`answerText`) ile işaretlidir; parça kimliği saklanmaz. Cümleyi içeren parçaları retrieval-api bulur
+#   (POST /api/workspaces/{workspaceId}/chunk-matches; çağıran assistant-api). Soru golden set'teyse (normalize tam metin) tur
+#   parçalarında `containsAnswer` dolar ve "bulamadım" turu `MISSED` / `GENERATION_ERROR` olur (TurnStatus; SSE `ContextChunk` de).
 # Bilgi bankasına hiçbir belge kendiliğinden girmez: retrieval-api açılışta kaynak, sürüm, parça ya da iş oluşturmaz (TASK-027).
 #   Belgeler sadece POST .../sources ile girer. Yeni sürüm yükleme ucu yoktur (kapsam dışı).
 # Ortak davranış (TASK-002): iki serviste de tanımsız bir path'e gelen her istek 404 + application/problem+json + errorCode NOT_FOUND döner
@@ -45,6 +51,8 @@ tags:
     description: The assistant's effective server configuration shown on Önizleme (assistant-api)
   - name: Suggestions
     description: Suggested questions of the Önizleme screen (chips, question list, autocomplete) maintained by the product team (assistant-api)
+  - name: Evaluation
+    description: Golden set and retrieval evaluation runs (recall@5, MRR) of the Değerlendirme screen (assistant-api)
   - name: Workspaces
     description: The single workspace and its embedding, chunking and index settings (retrieval-api)
   - name: Sources
@@ -546,6 +554,232 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/assistant/golden-set:
+    get:
+      tags: [Evaluation]
+      operationId: getGoldenSet
+      summary: Get the summary of the current golden set
+      description: |
+        assistant-api (TASK-016). For checking an upload (curl); the web reads the same summary from `getEvalOverview`.
+      responses:
+        '200':
+          description: The current golden set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoldenSetSummaryResponse'
+        '404':
+          description: '`GOLDEN_SET_NOT_LOADED`: no golden set has been uploaded yet'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [Evaluation]
+      operationId: replaceGoldenSet
+      summary: Replace the golden set with the given one
+      description: |
+        assistant-api (TASK-016). Used by the product team (`curl -X PUT ... --data-binary @docs/rehber/golden/rehber-golden-v1.json`);
+        the web never calls it and there is no screen for it. Nothing is loaded automatically: until the first successful
+        call there is no golden set. The request is the complete new set: the stored set and all its questions are
+        removed and the given ones stored in the given order, in one transaction. Concurrent calls are serialized; the
+        result is exactly one of the sent sets. A request that is rejected changes nothing. There is no way to clear the set.
+
+        A running evaluation is not affected: it measures the questions copied when it started.
+
+        Texts (`version`, `category`, `text`, `answerText`) are stripped of leading and trailing whitespace before they
+        are stored. "Normalized" means the same as for suggestion texts: Turkish lower case (`İ` → `i`, `I` → `ı`), every
+        character that is not a letter, digit or whitespace replaced by a space, whitespace runs collapsed, stripped.
+
+        Validation (all problems are reported together in `violations`):
+        - `version`: not blank (`must not be blank`), at most 40 characters before stripping (`size must be at most 40 characters`).
+        - `questions`: required (`must not be null`), 1-500 elements (`size must be between 1 and 500`), no null element
+          (`questions[i]`, `must not be null`).
+        - `questions[i].category`: not blank, at most 40 characters before stripping.
+        - `questions[i].text`: not blank, at most 200 characters before stripping, unique among the set's questions after
+          normalization (`must be unique`; reported on the later duplicate).
+        - `questions[i].pageNumber`: required (`must not be null`), at least 1 (`must be greater than or equal to 1`).
+        - `questions[i].answerText`: not blank; 20-300 characters after stripping (`size must be between 20 and 300 characters`).
+
+        Check order: 400 → 409 `GOLDEN_SET_VERSION_CONFLICT` → 200.
+        `GOLDEN_SET_VERSION_CONFLICT`: a golden set with the same `version` (after stripping, case-sensitive) is stored
+        and its content differs. Content = the questions in order with their stripped `category`, `text`, `pageNumber`
+        and `answerText`. The same version with the same content is accepted (200; `loadedAt` is renewed).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplaceGoldenSetRequest'
+      responses:
+        '200':
+          description: The set was replaced; the body is the stored summary (same as a following `getGoldenSet`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoldenSetSummaryResponse'
+        '400':
+          description: |
+            `VALIDATION_FAILED`: see the rules above; `violations[].field` is the property path, e.g. `questions[3].answerText`.
+            `BAD_REQUEST`: body missing or not valid JSON, or a value has the wrong JSON type (framework)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: '`GOLDEN_SET_VERSION_CONFLICT`: the stored set has the same version and a different content'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '415':
+          description: '`UNSUPPORTED_MEDIA_TYPE`: the request body is not `application/json` (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/assistant/evals:
+    post:
+      tags: [Evaluation]
+      operationId: startEvalRun
+      summary: Start an evaluation run of the golden set with the configured retrieval strategy
+      description: |
+        assistant-api (TASK-016). No request body (a body, if sent, is ignored). The run uses the effective configuration
+        (`assistant.retrieval.strategy`, `candidates`, `top-k`; TASK-011) and measures retrieval only: the chat model is
+        never called.
+
+        Check order:
+        1. 409 `EVAL_NOT_AVAILABLE_IN_LLM_ONLY`: `assistant.generation.mode` is `llm`.
+        2. 409 `GOLDEN_SET_NOT_LOADED`: no golden set was uploaded.
+        3. 409 `EVAL_RUN_IN_PROGRESS`: another run is `RUNNING` (also when two requests race: exactly one is accepted).
+        4. The `answerText` of every golden question is looked up with retrieval-api `findChunkMatches` (one call).
+           503 `RETRIEVAL_UNAVAILABLE`: that call failed (connection, timeout, non-2xx, unreadable body).
+        5. 409 `GOLDEN_SET_NOT_IN_KNOWLEDGE_BASE`: no question's `answerText` is in any chunk of the current knowledge base.
+        6. 202: the run is stored as `RUNNING` with a copy of the golden questions; questions whose `answerText` is in no
+           chunk are "unmatched" (`unmatchedCount`, ölçülemedi) and are not measured. The run continues in the background.
+
+        Background run, for each measured question in golden set order: search retrieval-api with the question text
+        (stripped; no query rewrite) and `topK` = `candidates` (20); `TOP_K`: the prompt is the first `topK` (5) hits in
+        vector order; `RERANK`: the candidates are reranked like an answer (TASK-008) and the first `topK` by rerank score
+        are the prompt; if the reranker fails for a question, that question uses the first `topK` in vector order
+        (`rerankFallbackCount` + 1, the run continues). For the question:
+        - `vectorRank` = 1-based rank of the first hit that is an answer chunk (contains the `answerText`) in vector
+          order, null if none of the `candidates` hits is;
+        - `promptPosition` = 1-based position of the first answer chunk in the prompt, null if none went into the prompt.
+        `processedCount` grows by one per question. If a search fails (retrieval-api or its embedding model unavailable)
+        the run ends `FAILED` with `errorCode` `RETRIEVAL_UNAVAILABLE` and no metrics; any other error → `FAILED` +
+        `INTERNAL_ERROR`. If assistant-api stops while a run is `RUNNING`, the run is set to `FAILED` +
+        `EVAL_RUN_INTERRUPTED` at the next start-up.
+
+        Metrics over the measured questions (n = `measuredCount`): `hitCount` = questions with a `promptPosition`;
+        `recallAtK` = `hitCount` / n; `mrr` = sum of 1 / `promptPosition` (0 when null) / n; `missedCount` = n − `hitCount`.
+      responses:
+        '202':
+          description: The run was accepted and is running
+          headers:
+            Location:
+              description: URL of the run, `/api/assistant/evals/{evalRunId}`
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalRunResponse'
+        '409':
+          description: '`EVAL_NOT_AVAILABLE_IN_LLM_ONLY`, `GOLDEN_SET_NOT_LOADED`, `EVAL_RUN_IN_PROGRESS`, `GOLDEN_SET_NOT_IN_KNOWLEDGE_BASE` (see the check order)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          description: '`RETRIEVAL_UNAVAILABLE`: retrieval-api could not be read while the answer texts were looked up'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+    get:
+      tags: [Evaluation]
+      operationId: listEvalRuns
+      summary: List evaluation runs, newest first (paginated)
+      description: |
+        assistant-api (TASK-016). The "Çalıştırmalar" table. All runs (`RUNNING`, `DONE`, `FAILED`), ordered by
+        `startedAt` descending, then `evalRunId` descending.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: One page of runs (possibly empty)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalRunResponsePage'
+        '400':
+          description: '`VALIDATION_FAILED`: `page` < 0 or `size` not in 1-100 (`violations[].field` `page` / `size`); `BAD_REQUEST`: not an integer (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/assistant/evals/overview:
+    get:
+      tags: [Evaluation]
+      operationId: getEvalOverview
+      summary: Everything the Değerlendirme screen shows except the runs table
+      description: |
+        assistant-api (TASK-016). The web reads it on open and polls it while `runningRun` is not null. Read from the
+        database only (no call to retrieval-api).
+      responses:
+        '200':
+          description: The overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalOverviewResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/assistant/evals/{evalRunId}:
+    get:
+      tags: [Evaluation]
+      operationId: getEvalRun
+      summary: Get one evaluation run (the URL in `Location`)
+      description: assistant-api (TASK-016). Same body as `EvalOverviewResponse.lastDoneRun`, for any run.
+      parameters:
+        - name: evalRunId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+            example: 12
+      responses:
+        '200':
+          description: The run
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalRunDetailResponse'
+        '400':
+          description: '`BAD_REQUEST`: `evalRunId` is not an integer (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`EVAL_RUN_NOT_FOUND`: no run with this id'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/workspaces/{workspaceId}:
     get:
       tags: [Workspaces]
@@ -654,6 +888,67 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/workspaces/{workspaceId}/chunk-matches:
+    post:
+      tags: [Chunks]
+      operationId: findChunkMatches
+      summary: For each given text, return the current chunks whose content contains it
+      description: |
+        retrieval-api (TASK-016). Called by assistant-api to find the chunks that contain a golden question's
+        `answerText` (evaluation start, Konuşmalar, Önizleme). No embedding, no model call; nothing is stored.
+
+        Only the current version of every source is searched (same rule as `searchChunks`: the version of its latest
+        DONE job); a source without a current version is not searched.
+
+        Matching: the text is stripped, lower-cased with Turkish rules and whitespace runs are collapsed to one space
+        (the same normalization as the `query` of `listChunks`); the chunk `content` (not the heading) gets the same
+        normalization in SQL (`translate(content, 'Iİ', 'ıi')`, `lower`, `regexp_replace('\s+', ' ')`). A chunk matches
+        when its normalized content contains the normalized text (`strpos > 0`). Punctuation and digits are compared as
+        they are: "1.650 TL" does not match "1650 TL". Line breaks inside the chunk count as spaces.
+
+        `matches` has one element per element of `texts`, in the same order (duplicates allowed). Each element's
+        `chunks` are ordered by `chunkId` ascending; empty when no chunk contains the text or no source has a current
+        version.
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FindChunkMatchesRequest'
+      responses:
+        '200':
+          description: One match list per text
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChunkMatchesResponse'
+        '400':
+          description: |
+            `VALIDATION_FAILED` (all violations together):
+            - `texts`: missing — `must not be null`; empty or more than 500 elements — `size must be between 1 and 500`
+            - `texts[i]`: null, empty or only whitespace — `must not be blank`; longer than 1000 characters — `size must be at most 1000 characters`
+
+            `BAD_REQUEST`: body missing or not valid JSON, or `workspaceId` not an integer (framework)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: '`WORKSPACE_NOT_FOUND`: no workspace with this id (only 42 exists)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '415':
+          description: '`UNSUPPORTED_MEDIA_TYPE`: the request body is not `application/json` (framework)'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/workspaces/{workspaceId}/sources:
     get:
       tags: [Sources]
@@ -1230,18 +1525,30 @@ components:
     TurnStatus:
       type: string
       description: |
-        Status of a turn on the Konuşmalar screen (TASK-014). Computed when read from the stored turn; never stored.
+        Status of a turn on the Konuşmalar screen (TASK-014, TASK-016). Computed when read from the stored turn and the
+        current golden set; never stored.
+
+        "Answer chunks" of a turn (TASK-016): the turn's question (stripped, as stored) is normalized like the suggestion
+        texts (Turkish lower case, every character that is not a letter, digit or whitespace → space, whitespace runs → one
+        space, stripped) and compared with the normalized `text` of the current golden set's questions. On an exact match,
+        the chunks that contain that golden question's `answerText` in the current knowledge base
+        (`findChunkMatches`) are the turn's answer chunks. No match, no golden set, no matching chunk, or retrieval-api not
+        readable → the turn has no answer chunks (it is not an error; the response is still 200).
+
         Rules, first match wins:
         1. `IN_PROGRESS` (işleniyor): the answer is being produced right now. Only in `ConversationSummaryResponse.lastTurnStatus`;
            a `TurnResponse` never has it (the in-progress turn is `ConversationDetailResponse.inProgressTurn`).
         2. `INCOMPLETE` (TAMAMLANMADI): the turn record has an `errorCode` (`RETRIEVAL_UNAVAILABLE`, `CHAT_MODEL_UNAVAILABLE`,
            `STREAM_CANCELLED`, `INTERNAL_ERROR`).
         3. `UNGROUNDED` (DAYANAKSIZ): `generationMode` `LLM_ONLY` (no chunk went to the model).
-        4. `DONT_KNOW` (BİLMİYOR): `RAG` and the answer is the fixed "not found" sentence (`notFoundAnswer` true).
+        4. `RAG`, the answer is the fixed "not found" sentence (`notFoundAnswer` true):
+           - `GENERATION_ERROR` (ÜRETİM HATASI): the turn has answer chunks and at least one of them went into the prompt;
+           - `MISSED` (KAÇIRDI): the turn has answer chunks and none of them went into the prompt;
+           - `DONT_KNOW` (BİLMİYOR): the turn has no answer chunks.
         5. `WRONG` (HATALI): `RAG`, not "not found", and the customer's feedback is "Hayır" (`helpful` false).
         6. `GROUNDED` (DAYANAKLI): `RAG`, at least one valid citation (`cited` not empty).
         7. `UNGROUNDED` (DAYANAKSIZ): `RAG` answer without any valid citation.
-      enum: [IN_PROGRESS, INCOMPLETE, UNGROUNDED, DONT_KNOW, WRONG, GROUNDED]
+      enum: [IN_PROGRESS, INCOMPLETE, UNGROUNDED, DONT_KNOW, MISSED, GENERATION_ERROR, WRONG, GROUNDED]
     RetrievalStrategy:
       type: string
       description: |
@@ -1439,7 +1746,7 @@ components:
     TurnChunkResponse:
       type: object
       description: A chunk that went into the prompt of a turn (one row of the turn's chunk table)
-      required: [n, chunkId, sourceId, version, chunkNo, pageNumber, heading, vectorRank, distance, rerankScore]
+      required: [n, chunkId, sourceId, version, chunkNo, pageNumber, heading, vectorRank, distance, rerankScore, containsAnswer]
       properties:
         n:
           type: integer
@@ -1485,6 +1792,13 @@ components:
           format: double
           description: Reranker score; only for `RERANK` turns, null otherwise
           example: 5.36
+        containsAnswer:
+          type: boolean
+          description: |
+            The chunk is one of the turn's answer chunks (see `TurnStatus`: the question is in the current golden set and
+            this chunk contains its `answerText`). Shown as the "cevap burada" label (TASK-016). False when the turn has
+            no answer chunks.
+          example: true
     GenerationMode:
       type: string
       description: |
@@ -1733,6 +2047,277 @@ components:
           items:
             type: string
           example: [Yenisi kaç günde gelir?]
+    ReplaceGoldenSetRequest:
+      type: object
+      description: |
+        Body of `replaceGoldenSet`; the complete new golden set. This is also the format of the golden set file
+        (`docs/rehber/golden/<version>.json`). Unknown fields are ignored.
+      required: [version, questions]
+      properties:
+        version:
+          type: string
+          maxLength: 40
+          description: Version label of the set; a new content needs a new label
+          example: rehber-golden-v1
+        questions:
+          type: array
+          minItems: 1
+          maxItems: 500
+          description: Questions in order (the order of the Kaçanlar table)
+          items:
+            $ref: '#/components/schemas/GoldenQuestionRequest'
+      example:
+        version: rehber-golden-v1
+        questions:
+          - category: Kartlar
+            text: Kartımı kaybettim, ne yapmalıyım?
+            pageNumber: 19
+            answerText: Kartınızı kaybettiyseniz ya da kartınız çalındıysa vakit kaybetmeden bildirin.
+    GoldenQuestionRequest:
+      type: object
+      required: [category, text, pageNumber, answerText]
+      properties:
+        category:
+          type: string
+          maxLength: 40
+          description: The guide chapter the answer is in (e.g. "Kartlar")
+          example: Kartlar
+        text:
+          type: string
+          maxLength: 200
+          description: The question as a customer would ask it
+          example: Kartımı kaybettim, ne yapmalıyım?
+        pageNumber:
+          type: integer
+          format: int32
+          minimum: 1
+          description: PDF page where `answerText` is; for people checking the set, not used for matching
+          example: 19
+        answerText:
+          type: string
+          minLength: 20
+          maxLength: 300
+          description: |
+            A sentence (or table row) copied verbatim from the document where the answer is. A chunk whose content
+            contains it (see `findChunkMatches`) is a correct chunk for this question.
+          example: Kartınızı kaybettiyseniz ya da kartınız çalındıysa vakit kaybetmeden bildirin.
+    GoldenSetSummaryResponse:
+      type: object
+      required: [version, questionCount, loadedAt]
+      properties:
+        version:
+          type: string
+          example: rehber-golden-v1
+        questionCount:
+          type: integer
+          format: int32
+          example: 100
+        loadedAt:
+          type: string
+          format: date-time
+          description: When the set was last uploaded
+    EvalRunStatus:
+      type: string
+      description: '`RUNNING` (being measured), `DONE` (metrics available), `FAILED` (`errorCode` says why; no metrics)'
+      enum: [RUNNING, DONE, FAILED]
+    EvalRunErrorCode:
+      type: string
+      description: |
+        Why a run is `FAILED`: `RETRIEVAL_UNAVAILABLE` (a search failed: retrieval-api or its embedding model
+        unavailable), `EVAL_RUN_INTERRUPTED` (assistant-api stopped during the run), `INTERNAL_ERROR` (unexpected)
+      enum: [RETRIEVAL_UNAVAILABLE, EVAL_RUN_INTERRUPTED, INTERNAL_ERROR]
+    EvalRunResponse:
+      type: object
+      description: One evaluation run (a row of the "Çalıştırmalar" table; also the progress of a running run)
+      required: [evalRunId, status, goldenSetVersion, retrievalStrategy, candidates, topK, sourceVersions, questionCount,
+        measuredCount, unmatchedCount, processedCount, hitCount, missedCount, recallAtK, mrr, rerankFallbackCount,
+        errorCode, startedAt, finishedAt, durationMs]
+      properties:
+        evalRunId:
+          type: integer
+          format: int64
+          description: Shown as `ev_<evalRunId>`
+          example: 12
+        status:
+          $ref: '#/components/schemas/EvalRunStatus'
+        goldenSetVersion:
+          type: string
+          description: Version of the golden set copied at start
+          example: rehber-golden-v1
+        retrievalStrategy:
+          type: string
+          description: Configured strategy at start (`TOP_K` → "top-5", `RERANK` → "rerank 20→5")
+          enum: [TOP_K, RERANK]
+        candidates:
+          type: integer
+          format: int32
+          description: Hits requested per question (`assistant.retrieval.candidates`); also the "20+" limit of Vector #
+          example: 20
+        topK:
+          type: integer
+          format: int32
+          description: Chunks in the prompt per question (`assistant.retrieval.top-k`)
+          example: 5
+        sourceVersions:
+          type: string
+          description: |
+            Distinct version labels of the chunks that contain the measured questions' `answerText` at start, sorted
+            ascending, joined with ", " ("rehber" on the screen)
+          example: '2026.10'
+        questionCount:
+          type: integer
+          format: int32
+          description: Questions in the golden set copy
+          example: 100
+        measuredCount:
+          type: integer
+          format: int32
+          description: Questions whose `answerText` is in at least one chunk (the n of the metrics; ≥ 1)
+          example: 100
+        unmatchedCount:
+          type: integer
+          format: int32
+          description: '`questionCount` − `measuredCount` ("k soru ölçülemedi")'
+          example: 0
+        processedCount:
+          type: integer
+          format: int32
+          description: Measured questions searched so far (0..`measuredCount`); the progress "Ölçülüyor · 37/100"
+          example: 37
+        hitCount:
+          type: [integer, 'null']
+          format: int32
+          description: Measured questions with an answer chunk in the prompt; null unless `DONE`
+          example: 95
+        missedCount:
+          type: [integer, 'null']
+          format: int32
+          description: '`measuredCount` − `hitCount` ("Kaçan"); null unless `DONE`'
+          example: 5
+        recallAtK:
+          type: [number, 'null']
+          format: double
+          description: '`hitCount` / `measuredCount`; null unless `DONE`'
+          example: 0.95
+        mrr:
+          type: [number, 'null']
+          format: double
+          description: Mean of 1 / `promptPosition` (0 when not in the prompt) over the measured questions; null unless `DONE`
+          example: 0.871
+        rerankFallbackCount:
+          type: integer
+          format: int32
+          description: Questions measured in vector order because the reranker failed (always 0 for `TOP_K`); shown as "reranker DOWN"
+          example: 0
+        errorCode:
+          oneOf:
+            - $ref: '#/components/schemas/EvalRunErrorCode'
+            - type: 'null'
+          description: Set only when `FAILED`
+        startedAt:
+          type: string
+          format: date-time
+          description: When the run was accepted ("Saat")
+        finishedAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the run became `DONE` or `FAILED`; null while `RUNNING`
+        durationMs:
+          type: [integer, 'null']
+          format: int64
+          description: '`finishedAt` − `startedAt` in milliseconds; null while `RUNNING`'
+          example: 84210
+    EvalRunResponsePage:
+      type: object
+      description: '`PageResponse<EvalRunResponse>`'
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalRunResponse'
+        page:
+          type: integer
+          format: int32
+          example: 0
+        size:
+          type: integer
+          format: int32
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          example: 2
+        totalPages:
+          type: integer
+          format: int32
+          example: 1
+    EvalQuestionResultResponse:
+      type: object
+      description: One row of the "Kaçanlar ve sırası değişenler" table
+      required: [position, category, text, vectorRank, promptPosition]
+      properties:
+        position:
+          type: integer
+          format: int32
+          description: 1-based position of the question in the golden set copy
+          example: 7
+        category:
+          type: string
+          example: Kartlar
+        text:
+          type: string
+          example: Kartımı kaybettim, ne yapmalıyım?
+        vectorRank:
+          type: [integer, 'null']
+          format: int32
+          description: '"Vector #": rank of the first answer chunk in vector order (1..`candidates`); null → "20+"'
+          example: 9
+        promptPosition:
+          type: [integer, 'null']
+          format: int32
+          description: '"Prompt''taki yeri": position of the first answer chunk in the prompt (1..`topK`); null → "yok"'
+          example: 2
+    EvalRunDetailResponse:
+      description: A run with its "Kaçanlar ve sırası değişenler" rows
+      allOf:
+        - $ref: '#/components/schemas/EvalRunResponse'
+        - type: object
+          required: [missedAndMovedQuestions]
+          properties:
+            missedAndMovedQuestions:
+              type: array
+              maxItems: 24
+              description: |
+                Only when `DONE` (empty otherwise): the measured questions whose `promptPosition` is null or differs from
+                `vectorRank`, in golden set order (`position`), at most the first 24. Unmatched questions never appear.
+              items:
+                $ref: '#/components/schemas/EvalQuestionResultResponse'
+    EvalOverviewResponse:
+      type: object
+      description: Body of `getEvalOverview`
+      required: [goldenSet, runningRun, lastFinishedRun, lastDoneRun]
+      properties:
+        goldenSet:
+          oneOf:
+            - $ref: '#/components/schemas/GoldenSetSummaryResponse'
+            - type: 'null'
+          description: The current golden set; null when none was uploaded ("Golden set yüklenmemiş.")
+        runningRun:
+          oneOf:
+            - $ref: '#/components/schemas/EvalRunResponse'
+            - type: 'null'
+          description: The `RUNNING` run (at most one); null when none
+        lastFinishedRun:
+          oneOf:
+            - $ref: '#/components/schemas/EvalRunResponse'
+            - type: 'null'
+          description: The most recent `DONE` or `FAILED` run (by `startedAt`, then id); the web shows the failure note when it is `FAILED`
+        lastDoneRun:
+          oneOf:
+            - $ref: '#/components/schemas/EvalRunDetailResponse'
+            - type: 'null'
+          description: The most recent `DONE` run with its Kaçanlar rows (the boxes and the table); null → "Henüz ölçüm yok."
     ProblemDetail:
       type: object
       description: RFC 9457 Problem Details with the project's `errorCode` extension
@@ -2264,3 +2849,62 @@ components:
           maximum: 2
           description: Cosine distance between the query embedding and the chunk embedding (pgvector `<=>`); smaller is nearer
           example: 0.3124
+    FindChunkMatchesRequest:
+      type: object
+      description: Body of `findChunkMatches`. Unknown fields are ignored.
+      required: [texts]
+      properties:
+        texts:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            type: string
+            maxLength: 1000
+          example: [Kartınızı kaybettiyseniz ya da kartınız çalındıysa vakit kaybetmeden bildirin.]
+    ChunkMatchesResponse:
+      type: object
+      description: Result of `findChunkMatches`
+      required: [matches]
+      properties:
+        matches:
+          type: array
+          description: One element per requested text, in request order
+          items:
+            $ref: '#/components/schemas/ChunkTextMatchResponse'
+    ChunkTextMatchResponse:
+      type: object
+      required: [text, chunks]
+      properties:
+        text:
+          type: string
+          description: The requested text, as sent
+          example: Kartınızı kaybettiyseniz ya da kartınız çalındıysa vakit kaybetmeden bildirin.
+        chunks:
+          type: array
+          description: Current chunks whose content contains the text, by `chunkId` ascending; empty when none
+          items:
+            $ref: '#/components/schemas/MatchedChunkResponse'
+    MatchedChunkResponse:
+      type: object
+      required: [chunkId, sourceId, sourceName, version, pageNumber]
+      properties:
+        chunkId:
+          type: integer
+          format: int64
+          example: 151
+        sourceId:
+          type: integer
+          format: int64
+          example: 10001
+        sourceName:
+          type: string
+          example: Raşit Bankası Ürün ve Hizmet Rehberi
+        version:
+          type: string
+          description: Version label of the chunk's source version
+          example: '2026.10'
+        pageNumber:
+          type: integer
+          format: int32
+          example: 19

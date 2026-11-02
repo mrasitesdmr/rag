@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useEffectEvent, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router'
 import { ApiError, errorCodeOf } from '../../../shared/api/ApiError.ts'
 import { ChunkDialog } from '../../../shared/chunk/ChunkDialog.tsx'
 import { ErrorAlert } from '../../../shared/components/ErrorAlert.tsx'
@@ -17,6 +18,7 @@ import { SuggestionChips } from '../components/SuggestionChips.tsx'
 import { useAnswerStream } from '../hooks/useAnswerStream.ts'
 import { useHandoffRequests } from '../hooks/useHandoffRequests.ts'
 import { useTurnFeedback } from '../hooks/useTurnFeedback.ts'
+import { previewNavigationStateOf } from '../model/previewNavigation.ts'
 import { createSuggestionMatcher } from '../model/suggestionMatcher.ts'
 import { autocompleteItems, followUpsFor, listQuestionTexts, suggestionChips } from '../model/suggestions.ts'
 import type { PreviewTurn, SuggestionItem } from '../model/types.ts'
@@ -39,6 +41,23 @@ export function PreviewPage() {
   )
   const turns = answerStream.turns
   const hasTurns = turns.length > 0
+  const location = useLocation()
+  const navigate = useNavigate()
+  const navigationQuestion = previewNavigationStateOf(location.state)?.question ?? null
+
+  const askNavigationQuestion = useEffectEvent((question: string) => {
+    answerStream.askInNewConversation(question)
+    void navigate(location.pathname, { replace: true, state: null })
+  })
+
+  useEffect(() => {
+    if (navigationQuestion === null) {
+      return
+    }
+    // Deferred so StrictMode's mount-unmount-mount clears the first timer and the question is sent once.
+    const timeoutId = setTimeout(() => askNavigationQuestion(navigationQuestion), 0)
+    return () => clearTimeout(timeoutId)
+  }, [navigationQuestion, location.key])
   const lastTurn = turns.at(-1)
 
   function autocompleteItemsFor(input: string): SuggestionItem[] {

@@ -1,5 +1,6 @@
 package com.rasitbank.assistant.conversation.service;
 
+import com.rasitbank.assistant.evaluation.service.GoldenAnswerLocator;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -57,12 +58,13 @@ class AnswerServiceTest {
     private final ContextRetriever contextRetriever = mock(ContextRetriever.class);
     private final AnswerStreamer answerStreamer = mock(AnswerStreamer.class);
     private final TurnService turnService = mock(TurnService.class);
+    private final GoldenAnswerLocator goldenAnswerLocator = mock(GoldenAnswerLocator.class);
     private final PromptBuilder promptBuilder = new PromptBuilder(new ClassPathResource("prompts/rag-system.st"),
             new ClassPathResource("prompts/rag-user.st"), new ClassPathResource("prompts/llm-only-system.st"), TestProperties.defaults());
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-01T10:00:00Z"), ZoneOffset.UTC);
 
     private final AnswerService service = new AnswerService(conversationService, registry, queryRewriter, contextRetriever,
-            promptBuilder, answerStreamer, turnService, TestProperties.defaults(), "qwen3.5:9b", clock);
+            promptBuilder, answerStreamer, turnService, goldenAnswerLocator, TestProperties.defaults(), "qwen3.5:9b", clock);
 
     @BeforeEach
     void stubFirstTurnRewrite() {
@@ -86,7 +88,7 @@ class AnswerServiceTest {
         ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
         verify(answerStreamer).streamFixedAnswer(draft.capture(), org.mockito.ArgumentMatchers.eq(
                 "Bu konuda rehberimizde bilgi bulamadım."), org.mockito.ArgumentMatchers.same(emitter));
-        verify(answerStreamer, never()).streamModelAnswer(any(), any(), any());
+        verify(answerStreamer, never()).streamModelAnswer(any(), any(), any(), any());
         assertThat(draft.getValue().conversationId()).isEqualTo(CONVERSATION_ID);
         assertThat(draft.getValue().chatModel()).isEqualTo("qwen3.5:9b");
     }
@@ -177,7 +179,7 @@ class AnswerServiceTest {
 
         ArgumentCaptor<Prompt> prompt = ArgumentCaptor.captor();
         ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
-        verify(answerStreamer).streamModelAnswer(draft.capture(), prompt.capture(), any(SseEmitter.class));
+        verify(answerStreamer).streamModelAnswer(draft.capture(), prompt.capture(), any(SseEmitter.class), any());
         Message user = prompt.getValue().getInstructions().get(1);
         assertThat(user.getText()).startsWith("<parcalar>\n[1] H107\nC107\n\n[2] H102\nC102\n\n[3] H115\nC115\n\n"
                 + "[4] H101\nC101\n\n[5] H103\nC103\n</parcalar>");
@@ -202,7 +204,7 @@ class AnswerServiceTest {
     void givenStreamerThrowsBeforeStreaming_whenSendMessage_thenConversationReleased() {
         given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
         given(contextRetriever.retrieveContext(anyString())).willReturn(ContextFixtures.topKContext());
-        doThrow(new IllegalStateException("boom")).when(answerStreamer).streamModelAnswer(any(), any(), any());
+        doThrow(new IllegalStateException("boom")).when(answerStreamer).streamModelAnswer(any(), any(), any(), any());
 
         assertThatThrownBy(() -> service.sendMessage(CONVERSATION_ID, request("Soru")))
                 .isInstanceOf(IllegalStateException.class);
@@ -224,7 +226,7 @@ class AnswerServiceTest {
 
         ArgumentCaptor<Prompt> prompt = ArgumentCaptor.captor();
         ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
-        verify(answerStreamer).streamModelAnswer(draft.capture(), prompt.capture(), any(SseEmitter.class));
+        verify(answerStreamer).streamModelAnswer(draft.capture(), prompt.capture(), any(SseEmitter.class), any());
         List<Message> messages = prompt.getValue().getInstructions();
         assertThat(messages).hasSize(4);
         assertThat(messages.get(0)).isInstanceOf(SystemMessage.class);
@@ -253,7 +255,7 @@ class AnswerServiceTest {
         service.sendMessage(CONVERSATION_ID, request("Yenisi kaç günde gelir?"));
 
         ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
-        verify(answerStreamer, times(1)).streamModelAnswer(draft.capture(), any(), any(SseEmitter.class));
+        verify(answerStreamer, times(1)).streamModelAnswer(draft.capture(), any(), any(SseEmitter.class), any());
         assertThat(draft.getValue().queryRewriteStatus()).isEqualTo(QueryRewriteStatus.FAILED);
         assertThat(draft.getValue().searchQuery()).isEqualTo("Yenisi kaç günde gelir?");
     }
@@ -294,7 +296,7 @@ class AnswerServiceTest {
 
     private AnswerService llmOnlyService() {
         return new AnswerService(conversationService, registry, queryRewriter, contextRetriever, promptBuilder,
-                answerStreamer, turnService, TestProperties.withMode("llm", "rerank"), "qwen3.5:9b", clock);
+                answerStreamer, turnService, goldenAnswerLocator, TestProperties.withMode("llm", "rerank"), "qwen3.5:9b", clock);
     }
 
     @Test
@@ -311,7 +313,7 @@ class AnswerServiceTest {
         ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
         ArgumentCaptor<Prompt> prompt = ArgumentCaptor.captor();
         verify(answerStreamer, times(1)).streamModelAnswer(draft.capture(), prompt.capture(),
-                org.mockito.ArgumentMatchers.same(emitter));
+                org.mockito.ArgumentMatchers.same(emitter), any());
         verify(answerStreamer, never()).streamFixedAnswer(any(), any(), any());
         assertThat(draft.getValue().generationMode()).isEqualTo(GenerationMode.LLM_ONLY);
         assertThat(draft.getValue().searchQuery()).isNull();
@@ -331,7 +333,7 @@ class AnswerServiceTest {
         llmOnlyService().sendMessage(CONVERSATION_ID, request("Soru"));
 
         // Assert
-        verify(answerStreamer).streamModelAnswer(any(), any(), any(SseEmitter.class));
+        verify(answerStreamer).streamModelAnswer(any(), any(), any(SseEmitter.class), any());
         verify(answerStreamer, never()).streamFixedAnswer(any(), any(), any());
     }
 
@@ -348,7 +350,7 @@ class AnswerServiceTest {
         // Assert
         ArgumentCaptor<Prompt> prompt = ArgumentCaptor.captor();
         ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
-        verify(answerStreamer).streamModelAnswer(draft.capture(), prompt.capture(), any(SseEmitter.class));
+        verify(answerStreamer).streamModelAnswer(draft.capture(), prompt.capture(), any(SseEmitter.class), any());
         List<Message> messages = prompt.getValue().getInstructions();
         assertThat(messages).hasSize(4);
         assertThat(messages.get(0)).isInstanceOf(SystemMessage.class);
@@ -390,7 +392,50 @@ class AnswerServiceTest {
 
         // Assert
         ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
-        verify(answerStreamer).streamModelAnswer(draft.capture(), any(), any(SseEmitter.class));
+        verify(answerStreamer).streamModelAnswer(draft.capture(), any(), any(SseEmitter.class), any());
         assertThat(draft.getValue().generationMode()).isEqualTo(GenerationMode.RAG);
+    }
+
+    @Test
+    void givenRagWithContext_whenSendMessage_thenLocatorGetsStrippedQuestionAndIdsReachStreamer() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        given(contextRetriever.retrieveContext("Kartımı kaybettim")).willReturn(ContextFixtures.topKContext());
+        given(goldenAnswerLocator.locateAnswerChunks(java.util.List.of("Kartımı kaybettim")))
+                .willReturn(java.util.Map.of("kartımı kaybettim", java.util.Set.of(102L)));
+
+        // Act
+        service.sendMessage(CONVERSATION_ID, request("  Kartımı kaybettim  "));
+
+        // Assert
+        verify(answerStreamer).streamModelAnswer(any(), any(), any(SseEmitter.class),
+                org.mockito.ArgumentMatchers.eq(java.util.Set.of(102L)));
+    }
+
+    @Test
+    void givenEmptyContext_whenSendMessage_thenLocatorNotCalled() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        given(contextRetriever.retrieveContext(anyString())).willReturn(ContextFixtures.emptyContext(RetrievalStrategy.RERANK));
+
+        // Act
+        service.sendMessage(CONVERSATION_ID, request("Soru"));
+
+        // Assert
+        verifyNoInteractions(goldenAnswerLocator);
+    }
+
+    @Test
+    void givenLlmOnlyMode_whenSendMessage_thenLocatorNotCalledAndNoAnswerChunks() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+
+        // Act
+        llmOnlyService().sendMessage(CONVERSATION_ID, request("Soru"));
+
+        // Assert
+        verifyNoInteractions(goldenAnswerLocator);
+        verify(answerStreamer).streamModelAnswer(any(), any(), any(SseEmitter.class),
+                org.mockito.ArgumentMatchers.eq(java.util.Set.of()));
     }
 }

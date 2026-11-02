@@ -16,8 +16,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
- * retrieval-api'nin vektör arama, çalışma alanı ve kaynak listesi uçlarını çağırır; her hatayı RETRIEVAL_UNAVAILABLE
- * olarak bildirir.
+ * retrieval-api'nin vektör arama, metin eşleştirme, çalışma alanı ve kaynak listesi uçlarını çağırır; her hatayı
+ * RETRIEVAL_UNAVAILABLE olarak bildirir.
  */
 @Component
 public class RetrievalClient {
@@ -25,6 +25,7 @@ public class RetrievalClient {
     private static final Logger log = LoggerFactory.getLogger(RetrievalClient.class);
 
     private static final String SEARCH_PATH = "/api/workspaces/{workspaceId}/search";
+    private static final String CHUNK_MATCHES_PATH = "/api/workspaces/{workspaceId}/chunk-matches";
     private static final String WORKSPACE_PATH = "/api/workspaces/{workspaceId}";
     private static final String SOURCES_PATH = "/api/workspaces/{workspaceId}/sources?page={page}&size={size}";
 
@@ -53,6 +54,24 @@ public class RetrievalClient {
         log.info("Retrieval search finished topK={} hits={} durationMs={}", topK, hits.size(),
                 Duration.ofNanos(System.nanoTime() - startNanos).toMillis());
         return hits;
+    }
+
+    public ChunkMatchesResponse findChunkMatches(List<String> texts) {
+        long startNanos = System.nanoTime();
+        ChunkMatchesResponse response = call(() -> restClient.post()
+                .uri(CHUNK_MATCHES_PATH, workspaceId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(new FindChunkMatchesRequest(texts))
+                .retrieve()
+                .body(ChunkMatchesResponse.class));
+        if (response == null || response.matches() == null || response.matches().size() != texts.size()) {
+            log.warn("Retrieval unavailable status={} errorCode={} reason={}", 200, null, "UnexpectedBody");
+            throw unavailable("retrieval-api returned no chunk match per text");
+        }
+        log.info("Retrieval chunk matches finished texts={} durationMs={}", texts.size(),
+                Duration.ofNanos(System.nanoTime() - startNanos).toMillis());
+        return response;
     }
 
     public WorkspaceResponse getWorkspace() {

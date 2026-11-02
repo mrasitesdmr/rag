@@ -17,8 +17,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * Soruya göre prompt'a girecek parçaları seçer: yapılandırılan stratejiye göre vector sırasının ilkleri ya da
- * reranker puanına göre en iyileri; reranker başarısız olursa vector sırasına döner. Rerank sonucunu reranker durum
- * takipçisine bildirir.
+ * reranker puanına göre en iyileri; reranker başarısız olursa vector sırasına döner. Ölçüm için stratejiden bağımsız
+ * olarak bütün adayları da getirir. Rerank sonucunu reranker durum takipçisine bildirir.
  */
 @Service
 public class ContextRetriever {
@@ -45,10 +45,17 @@ public class ContextRetriever {
 
     public RetrievedContext retrieveContext(String query) {
         RetrievalStrategy strategy = settings.configuredStrategy();
+        int searchLimit = strategy == RetrievalStrategy.TOP_K ? settings.topK() : settings.candidates();
+        return retrieve(query, strategy, searchLimit);
+    }
+
+    public RetrievedContext retrieveCandidatesAndContext(String query) {
+        return retrieve(query, settings.configuredStrategy(), settings.candidates());
+    }
+
+    private RetrievedContext retrieve(String query, RetrievalStrategy strategy, int searchLimit) {
         int topK = settings.topK();
         int candidates = settings.candidates();
-        int searchLimit = strategy == RetrievalStrategy.TOP_K ? topK : candidates;
-
         long searchStart = System.nanoTime();
         List<SearchHit> hits = retrievalClient.search(query, searchLimit);
         long retrievalLatencyMs = elapsedMs(searchStart);

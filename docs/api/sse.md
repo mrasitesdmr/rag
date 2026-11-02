@@ -6,7 +6,8 @@
 > Durum: TASK-008 (ilk akış). TASK-010: `sources` olayına `searchQuery` ve `queryRewriteStatus`, `done` olayına
 > `queryRewriteLatencyMs` eklendi (takip sorusunu yeniden yazma). TASK-011: üretim modu Sadece LLM (`LLM_ONLY`):
 > `sources` olayına `generationMode`, `RetrievalStrategy`'ye `NONE`; `sources.candidates`, `sources.topK`,
-> `sources.searchQuery` ve `done.retrievalLatencyMs` Sadece LLM'de `null` olabilir.
+> `sources.searchQuery` ve `done.retrievalLatencyMs` Sadece LLM'de `null` olabilir. TASK-016: `ContextChunk`'a
+> `containsAnswer` eklendi (golden set'teki sorunun cevabının geçtiği parça; Önizleme'de sarı işaret).
 
 ## Endpoint
 
@@ -125,10 +126,11 @@ Modele giden parçalar ve cevaptaki alıntılar. Bir kez, son `token`'dan sonra.
 | `vectorRank` | integer | retrieval-api sonucundaki sıra (1'den başlar; mesafe artan) |
 | `distance` | number | Cosine mesafesi (retrieval-api `distance`) |
 | `rerankScore` | number \| null | Reranker'ın ham puanı (logit; 0-1 arası değildir, eksi olabilir). Sadece `RERANK`'te dolu; `TOP_K` ve `RERANK_FALLBACK`'te `null` |
+| `containsAnswer` | boolean | TASK-016: müşterinin yazdığı soru (kırpılmış) normalize edilince güncel golden set'teki bir sorunun normalize metnine eşitse ve bu parça o sorunun `answerText`'ini içeriyorsa `true` (eşleşme kuralı `openapi.yaml` `TurnStatus` ve `findChunkMatches`). Soru golden set'te yoksa, golden set yüklenmemişse ya da retrieval-api'nin `findChunkMatches` çağrısı başarısızsa bütün parçalarda `false`; bu çağrının hatası cevabı etkilemez. Hesap retrieval'dan sonra, akış açılmadan yapılır |
 
 ```
 event: sources
-data: {"generationMode":"RAG","retrievalStrategy":"RERANK","candidates":20,"topK":5,"searchQuery":"Kartımı kaybettim, ne yapmalıyım?","queryRewriteStatus":"NO_HISTORY","contextChunks":[{"n":1,"chunkId":151,"chunkNo":31,"pageNumber":19,"heading":"2.16 Kayıp ya da çalıntı bildirimi","sourceId":10001,"sourceName":"Raşit Bankası Ürün ve Hizmet Rehberi","version":"2026.10","vectorRank":1,"distance":0.3124,"rerankScore":5.36}],"citations":[1]}
+data: {"generationMode":"RAG","retrievalStrategy":"RERANK","candidates":20,"topK":5,"searchQuery":"Kartımı kaybettim, ne yapmalıyım?","queryRewriteStatus":"NO_HISTORY","contextChunks":[{"n":1,"chunkId":151,"chunkNo":31,"pageNumber":19,"heading":"2.16 Kayıp ya da çalıntı bildirimi","sourceId":10001,"sourceName":"Raşit Bankası Ürün ve Hizmet Rehberi","version":"2026.10","vectorRank":1,"distance":0.3124,"rerankScore":5.36,"containsAnswer":true}],"citations":[1]}
 ```
 
 ### `done` — `DoneEvent`

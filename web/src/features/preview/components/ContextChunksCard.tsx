@@ -10,6 +10,8 @@ import card from './sideCard.module.css'
 const QUESTION_SHORT_LENGTH = 60
 const RERANK_SCORE_DIGITS = 2
 const DISTANCE_DIGITS = 3
+const CITED_LEGEND = '✓ atıf yapılan'
+const ANSWER_CHUNK_LEGEND = 'sarı: cevabın geçtiği parça'
 
 type ContextChunksCardProps = {
   question: string
@@ -28,7 +30,12 @@ export function ContextChunksCard({ question, sources, done, onChunkOpen }: Cont
       <div className={card.sub}>{subtitleText(question, sources)}</div>
       <div className={styles.list}>
         {sources.contextChunks.map((chunk) => (
-          <button key={chunk.n} type="button" className={styles.chunk} onClick={() => onChunkOpen(chunk.chunkId)}>
+          <button
+            key={chunk.n}
+            type="button"
+            className={chunk.containsAnswer ? `${styles.chunk} ${styles.gold}` : styles.chunk}
+            onClick={() => onChunkOpen(chunk.chunkId)}
+          >
             <span className={styles.number}>
               {`[${chunk.n}]`}
               {sources.citations.includes(chunk.n) ? <span className={styles.check}> ✓</span> : null}
@@ -38,10 +45,16 @@ export function ContextChunksCard({ question, sources, done, onChunkOpen }: Cont
           </button>
         ))}
       </div>
-      <div className={card.sub}>✓ atıf yapılan</div>
+      <div className={card.sub}>{legendText(sources)}</div>
       <LatencyBars done={done} />
     </section>
   )
+}
+
+function legendText(sources: SourcesEvent): string {
+  return sources.contextChunks.some((chunk) => chunk.containsAnswer)
+    ? `${CITED_LEGEND} · ${ANSWER_CHUNK_LEGEND}`
+    : CITED_LEGEND
 }
 
 function subtitleText(question: string, sources: SourcesEvent): string {

@@ -8,11 +8,12 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Kayıtlı bir turu Konuşmalar detayına taşır: soru, arama sorgusu, cevap, hesaplanan durum, üretim ayarları, token
- * sayıları, süre, geri bildirim ve prompt'a giren parçalar.
+ * sayıları, süre, geri bildirim ve prompt'a giren parçalar (cevabın geçtiği parça işaretiyle).
  */
 public record TurnResponse(long turnId, int turnNo, TurnStatus status, String question, @Nullable String searchQuery,
         @Nullable String answer, GenerationMode generationMode, RetrievalStrategy retrievalStrategy,
@@ -25,10 +26,10 @@ public record TurnResponse(long turnId, int turnNo, TurnStatus status, String qu
         contextChunks = List.copyOf(contextChunks);
     }
 
-    public static TurnResponse from(Turn turn, TurnStatus status) {
+    public static TurnResponse from(Turn turn, TurnStatus status, Set<Long> answerChunkIds) {
         List<TurnChunkResponse> contextChunks = turn.getChunks().stream()
                 .filter(chunk -> chunk.getPromptPosition() != null)
-                .map(TurnChunkResponse::from)
+                .map(chunk -> TurnChunkResponse.from(chunk, answerChunkIds.contains(chunk.getChunkId())))
                 .sorted(Comparator.comparingInt(TurnChunkResponse::n))
                 .toList();
         return new TurnResponse(Objects.requireNonNull(turn.getId()), turn.getTurnNo(), status, turn.getQuestion(),

@@ -37,6 +37,7 @@ export function turnChunk(n: number, overrides: Partial<TurnChunkResponse> = {})
     vectorRank: vectorRanks[n - 1] ?? n,
     distance: n === 1 ? 0.3124 : 0.35,
     rerankScore: n === 1 ? 5.36 : 1.2,
+    containsAnswer: false,
     ...overrides,
   }
 }

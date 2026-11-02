@@ -232,4 +232,52 @@ class ContextRetrieverTest {
         // Assert
         assertThat(tracker.currentStatus()).isEqualTo(RerankerStatus.NOT_USED);
     }
+
+    @Test
+    void givenTopKStrategy_whenRetrieveCandidatesAndContext_thenSearchesTwentyAndKeepsFirstFive() {
+        // Arrange
+        given(retrievalClient.search("soru", 20)).willReturn(SearchHitFixtures.hits(20));
+
+        // Act
+        RetrievedContext context = retriever(TestProperties.withStrategy("top5")).retrieveCandidatesAndContext("soru");
+
+        // Assert
+        assertThat(context.strategy()).isEqualTo(RetrievalStrategy.TOP_K);
+        assertThat(vectorRanks(context.candidateChunks())).isEqualTo(java.util.stream.IntStream.rangeClosed(1, 20)
+                .boxed().toList());
+        assertThat(vectorRanks(context.contextChunks())).containsExactly(1, 2, 3, 4, 5);
+        verifyNoInteractions(rerankClient);
+    }
+
+    @Test
+    void givenRerankStrategy_whenRetrieveCandidatesAndContext_thenSamePromptAsRetrieveContext() {
+        // Arrange
+        given(retrievalClient.search("soru", 20)).willReturn(SearchHitFixtures.hits(20));
+        given(rerankClient.rerankChunks(eq("soru"), anyList()))
+                .willReturn(scores(20, 1.0, 7, 9.1, 2, 8.0, 15, 7.5, 1, 6.0, 3, 5.0));
+
+        // Act
+        RetrievedContext context = retriever(TestProperties.defaults()).retrieveCandidatesAndContext("soru");
+
+        // Assert
+        assertThat(context.strategy()).isEqualTo(RetrievalStrategy.RERANK);
+        assertThat(vectorRanks(context.contextChunks())).containsExactly(7, 2, 15, 1, 3);
+        assertThat(context.candidateChunks()).hasSize(20);
+    }
+
+    @Test
+    void givenRerankerDown_whenRetrieveCandidatesAndContext_thenFallbackWithTwentyCandidatesAndFirstFive() {
+        // Arrange
+        given(retrievalClient.search("soru", 20)).willReturn(SearchHitFixtures.hits(20));
+        given(rerankClient.rerankChunks(eq("soru"), anyList()))
+                .willThrow(new ServiceUnavailableException("RERANKER_UNAVAILABLE", "down"));
+
+        // Act
+        RetrievedContext context = retriever(TestProperties.defaults()).retrieveCandidatesAndContext("soru");
+
+        // Assert
+        assertThat(context.strategy()).isEqualTo(RetrievalStrategy.RERANK_FALLBACK);
+        assertThat(context.candidateChunks()).hasSize(20);
+        assertThat(vectorRanks(context.contextChunks())).containsExactly(1, 2, 3, 4, 5);
+    }
 }
