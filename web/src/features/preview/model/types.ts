@@ -14,6 +14,9 @@ export type SendMessageRequest = { text: string }
 export const RETRIEVAL_STRATEGIES = ['TOP_K', 'RERANK', 'RERANK_FALLBACK'] as const
 export type RetrievalStrategy = (typeof RETRIEVAL_STRATEGIES)[number]
 
+export const QUERY_REWRITE_STATUSES = ['DISABLED', 'NO_HISTORY', 'REWRITTEN', 'FAILED', 'EMPTY'] as const
+export type QueryRewriteStatus = (typeof QUERY_REWRITE_STATUSES)[number]
+
 export type ContextChunk = {
   n: number
   chunkId: number
@@ -34,6 +37,8 @@ export type SourcesEvent = {
   retrievalStrategy: RetrievalStrategy
   candidates: number
   topK: number
+  searchQuery: string
+  queryRewriteStatus: QueryRewriteStatus
   contextChunks: ContextChunk[]
   citations: number[]
 }
@@ -44,6 +49,7 @@ export type DoneEvent = {
   chatModel: string
   promptTokens: number | null
   completionTokens: number | null
+  queryRewriteLatencyMs: number | null
   retrievalLatencyMs: number
   rerankLatencyMs: number | null
   generationLatencyMs: number | null

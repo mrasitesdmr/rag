@@ -142,6 +142,7 @@ Compose'da ayarlıdır. retrieval-api değişkenlerini TASK-005'ten beri okur; a
 | retrieval-api | `EMBEDDING_MODEL` | `bge-m3` | `bge-m3` | TASK-005 (okunuyor) |
 | retrieval-api | `EMBEDDING_DIMENSIONS` | `1024` | `1024` | TASK-005 (okunuyor) |
 | assistant-api | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | `http://localhost:11434` | TASK-008 (okunuyor) |
+| assistant-api | `QUERY_REWRITE_ENABLED` | `true` (`false`: takip sorusu yeniden yazılmaz) | `true` | TASK-010 (okunuyor) |
 | assistant-api | `CHAT_MODEL` | `qwen3.5:9b` | `qwen3.5:9b` | TASK-008 (okunuyor) |
 | assistant-api | `RERANKER_URL` | `http://host.docker.internal:8081` | `http://localhost:8081` | TASK-008 (okunuyor) |
 | assistant-api | `RERANKER_MODEL` | `bge-reranker-v2-m3` | `bge-reranker-v2-m3` | TASK-008 (okunuyor) |

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
 import com.rasitbank.assistant.config.AssistantProperties;
 import com.rasitbank.assistant.conversation.domain.entity.RetrievalStrategy;
 import com.rasitbank.assistant.conversation.domain.event.ContextChunk;
@@ -58,7 +59,7 @@ class AnswerStreamerTest {
 
     private static TurnDraft draft(RetrievedContext context) {
         return new TurnDraft(7L, "Kartımı kaybettim, ne yapmalıyım?", "Kartımı kaybettim, ne yapmalıyım?",
-                "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"), System.nanoTime(), context);
+                QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"), System.nanoTime(), context);
     }
 
     private TurnOutcome recordedOutcome() {
@@ -277,7 +278,7 @@ class AnswerStreamerTest {
         given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.text("a"),
                 ChatResponses.text("b"), ChatResponses.text("c")).delayElements(Duration.ofMillis(100)));
         given(turnService.recordTurn(any(), any())).willReturn(1L);
-        TurnDraft slowDraft = new TurnDraft(7L, "q", "q", "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"),
+        TurnDraft slowDraft = new TurnDraft(7L, "q", "q", QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"),
                 System.nanoTime() - Duration.ofSeconds(2).toNanos(), ContextFixtures.topKContext());
 
         streamer(TestProperties.defaults()).streamModelAnswer(slowDraft, PROMPT, emitter);

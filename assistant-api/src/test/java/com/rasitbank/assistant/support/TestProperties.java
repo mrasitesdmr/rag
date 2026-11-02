@@ -30,13 +30,27 @@ public final class TestProperties {
         return create("rerank", 20, 5, Duration.ofSeconds(60), Duration.ofSeconds(30), hostLabel);
     }
 
+    public static AssistantProperties withQueryRewrite(boolean enabled, Duration timeout, int maxLength) {
+        return new AssistantProperties(42, null,
+                new AssistantProperties.RetrievalApi("http://localhost:8080", Duration.ofSeconds(2),
+                        Duration.ofSeconds(15)),
+                new AssistantProperties.Retrieval("rerank", 20, 5),
+                new AssistantProperties.Reranker("http://localhost:8081", "bge-reranker-v2-m3",
+                        Duration.ofSeconds(1), Duration.ofSeconds(5)),
+                generation(Duration.ofSeconds(60), Duration.ofSeconds(30)),
+                new AssistantProperties.QueryRewrite(enabled, timeout, maxLength),
+                new AssistantProperties.History(3));
+    }
+
     public static AssistantProperties withReranker(String baseUrl, Duration readTimeout) {
         return new AssistantProperties(42, null,
                 new AssistantProperties.RetrievalApi("http://localhost:8080", Duration.ofSeconds(2),
                         Duration.ofSeconds(15)),
                 new AssistantProperties.Retrieval("rerank", 20, 5),
                 new AssistantProperties.Reranker(baseUrl, "bge-reranker-v2-m3", Duration.ofSeconds(1), readTimeout),
-                generation(Duration.ofSeconds(60), Duration.ofSeconds(30)));
+                generation(Duration.ofSeconds(60), Duration.ofSeconds(30)),
+                new AssistantProperties.QueryRewrite(true, Duration.ofSeconds(20), 1000),
+                new AssistantProperties.History(3));
     }
 
     public static AssistantProperties withRetrievalApi(String baseUrl) {
@@ -45,7 +59,9 @@ public final class TestProperties {
                 new AssistantProperties.Retrieval("rerank", 20, 5),
                 new AssistantProperties.Reranker("http://localhost:8081", "bge-reranker-v2-m3",
                         Duration.ofSeconds(1), Duration.ofSeconds(5)),
-                generation(Duration.ofSeconds(60), Duration.ofSeconds(30)));
+                generation(Duration.ofSeconds(60), Duration.ofSeconds(30)),
+                new AssistantProperties.QueryRewrite(true, Duration.ofSeconds(20), 1000),
+                new AssistantProperties.History(3));
     }
 
     private static AssistantProperties create(String strategy, int candidates, int topK, Duration firstToken,
@@ -56,7 +72,9 @@ public final class TestProperties {
                 new AssistantProperties.Retrieval(strategy, candidates, topK),
                 new AssistantProperties.Reranker("http://localhost:8081", "bge-reranker-v2-m3",
                         Duration.ofSeconds(1), Duration.ofSeconds(5)),
-                generation(firstToken, tokenIdle));
+                generation(firstToken, tokenIdle),
+                new AssistantProperties.QueryRewrite(true, Duration.ofSeconds(20), 1000),
+                new AssistantProperties.History(3));
     }
 
     private static AssistantProperties.Generation generation(Duration firstToken, Duration tokenIdle) {

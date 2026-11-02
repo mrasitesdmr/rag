@@ -3,7 +3,8 @@
 > AMAÇ: assistant-api'nin cevap akışının tek doğru kaynağı. Planner yazar; backend-coder olayları bu adlarla ve bu
 > alanlarla gönderir, frontend-coder bu şekilde ayrıştırır, qa uyumu kontrol eder. Endpoint'in kendisi ve akış
 > öncesi hatalar `docs/api/openapi.yaml`'dadır (`sendMessage`).
-> Durum: TASK-008 (ilk akış).
+> Durum: TASK-008 (ilk akış). TASK-010: `sources` olayına `searchQuery` ve `queryRewriteStatus`, `done` olayına
+> `queryRewriteLatencyMs` eklendi (takip sorusunu yeniden yazma).
 
 ## Endpoint
 
@@ -16,7 +17,8 @@ Accept: text/event-stream, application/problem+json
 ```
 
 - Başarılı yanıt: `200`, `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`.
-- Akış, retrieval (ve rerank) adımı bittikten sonra açılır. Akış açılmadan oluşan hatalar (400 `VALIDATION_FAILED`,
+- Akış, sorgu yeniden yazma (TASK-010) ve retrieval (ve rerank) adımları bittikten sonra açılır. Yeniden yazma hiçbir
+  zaman hata döndürmez: başarısız olursa arama müşterinin yazdığı soruyla yapılır ve sonuç `sources.queryRewriteStatus`'ta görünür. Akış açılmadan oluşan hatalar (400 `VALIDATION_FAILED`,
   404 `CONVERSATION_NOT_FOUND`, 409 `TURN_IN_PROGRESS`, 503 `RETRIEVAL_UNAVAILABLE`, …) normal HTTP status +
   `application/problem+json` döner; hiç olay gönderilmez (`openapi.yaml`).
 - `Accept` başlığında `application/problem+json` da bulunmalıdır; yoksa sunucu hata gövdesini yazamaz.
@@ -84,6 +86,8 @@ Modele giden parçalar ve cevaptaki alıntılar. Bir kez, son `token`'dan sonra.
 | `retrievalStrategy` | `RetrievalStrategy` | Bu turda gerçekten uygulanan strateji (aşağıda) |
 | `candidates` | integer | Yapılandırmadaki aday sayısı (`assistant.retrieval.candidates`, varsayılan 20). Ekrandaki "rerank 20→5" metninin ilk sayısı |
 | `topK` | integer | Yapılandırmadaki prompt'a girecek parça sayısı (`assistant.retrieval.top-k`, varsayılan 5). "top-5" ve "20→5" metninin sayısı |
+| `searchQuery` | string | retrieval-api'ye (ve reranker'a) giden arama sorgusu. `queryRewriteStatus` `REWRITTEN` ise modelin yazdığı bağımsız sorgu; diğer bütün durumlarda müşterinin yazdığı soru (baştaki/sondaki boşluk silinmiş). Ekranda `· arama: "…"` (TASK-010) |
+| `queryRewriteStatus` | `QueryRewriteStatus` | Bu turda sorgu yeniden yazmanın sonucu (aşağıda) |
 | `contextChunks` | `ContextChunk[]` | Prompt'a giren parçalar, prompt'taki sırayla (`n` = 1, 2, …). En fazla `topK`; bilgi bankasında daha az parça varsa daha az; boş bilgi bankasında `[]` |
 | `citations` | integer[] | Cevapta geçen geçerli alıntı numaraları, cevaptaki ilk geçiş sırasıyla, tekrarsız. Sadece 1 ile `contextChunks.length` arasındaki `[n]`'ler; aralık dışı (`[0]`, `[6]`) yok sayılır |
 
@@ -91,6 +95,13 @@ Modele giden parçalar ve cevaptaki alıntılar. Bir kez, son `token`'dan sonra.
 - `TOP_K`: yapılandırma `top5`; vector sırasının ilk `topK` parçası, reranker çağrılmadı. Ekran: "top-5".
 - `RERANK`: yapılandırma `rerank`; `candidates` aday puanlandı, puanı en yüksek `topK` parça (eşitlikte vector sırası önce). Ekran: "rerank 20→5".
 - `RERANK_FALLBACK`: yapılandırma `rerank` ama reranker zaman aşımına uğradı ya da hata döndü; vector sırasının ilk `topK` parçası. Ekran: "reranker DOWN · vector sırası".
+
+`QueryRewriteStatus` (TASK-010):
+- `DISABLED`: `assistant.query-rewrite.enabled=false`; dil modeli yeniden yazma için çağrılmadı. `searchQuery` = soru.
+- `NO_HISTORY`: konuşmada cevabı tamamlanmış (hata kodu olmayan) önceki tur yok; konuşmanın ilk turu her zaman böyledir. Model çağrılmadı. `searchQuery` = soru.
+- `REWRITTEN`: model geçmişle birlikte bağımsız bir sorgu yazdı; arama onunla yapıldı. `searchQuery` = modelin sorgusu (model soruyu aynen tekrar ettiyse soruyla aynı olabilir).
+- `FAILED`: model hata verdi, bağlanılamadı, `assistant.query-rewrite.timeout` içinde bitirmedi ya da sorgu `assistant.query-rewrite.max-length`'ten (1000) uzundu. `searchQuery` = soru.
+- `EMPTY`: model boş (ya da sadece boşluk / etiket) döndü. `searchQuery` = soru.
 
 `ContextChunk`:
 
@@ -110,7 +121,7 @@ Modele giden parçalar ve cevaptaki alıntılar. Bir kez, son `token`'dan sonra.
 
 ```
 event: sources
-data: {"retrievalStrategy":"RERANK","candidates":20,"topK":5,"contextChunks":[{"n":1,"chunkId":151,"chunkNo":31,"pageNumber":19,"heading":"2.16 Kayıp ya da çalıntı bildirimi","sourceId":10001,"sourceName":"Raşit Bankası Ürün ve Hizmet Rehberi","version":"2026.10","vectorRank":1,"distance":0.3124,"rerankScore":5.36}],"citations":[1]}
+data: {"retrievalStrategy":"RERANK","candidates":20,"topK":5,"searchQuery":"Kartımı kaybettim, ne yapmalıyım?","queryRewriteStatus":"NO_HISTORY","contextChunks":[{"n":1,"chunkId":151,"chunkNo":31,"pageNumber":19,"heading":"2.16 Kayıp ya da çalıntı bildirimi","sourceId":10001,"sourceName":"Raşit Bankası Ürün ve Hizmet Rehberi","version":"2026.10","vectorRank":1,"distance":0.3124,"rerankScore":5.36}],"citations":[1]}
 ```
 
 ### `done` — `DoneEvent`
@@ -122,19 +133,20 @@ Tur kaydedildi; akış başarıyla bitti. Son olay.
 | `notFoundAnswer` | boolean | Cevap sabit "Bu konuda rehberimizde bilgi bulamadım." cümlesini içeriyorsa `true` ("cevap yok" turu). `true` ise web "Rehber · s. N" düğmelerini göstermez |
 | `chatModel` | string | Cevabı üreten dil modeli (yapılandırmadaki ad, ör. `qwen3.5:9b`) |
 | `promptTokens` | integer \| null | Dil modelinin saydığı prompt token'ı; model çağrılmadıysa ya da sayı gelmediyse `null` |
-| `completionTokens` | integer \| null | Dil modelinin saydığı cevap token'ı; aynı kural |
+| `completionTokens` | integer \| null | Dil modelinin saydığı cevap token'ı; aynı kural (yeniden yazma çağrısının token'ları dahil değildir) |
+| `queryRewriteLatencyMs` | integer \| null | Sorgu yeniden yazma çağrısı (istek → son token ya da hata/zaman aşımı). `REWRITTEN`, `FAILED` ve `EMPTY`'de dolu; `DISABLED` ve `NO_HISTORY`'de `null` (TASK-010). Ekranda "yeniden yazma" süre satırı |
 | `retrievalLatencyMs` | integer | retrieval-api araması (istek gönderildi → yanıt okundu) |
 | `rerankLatencyMs` | integer \| null | Reranker çağrısı; `RERANK_FALLBACK`'te başarısız denemenin süresi; `TOP_K`'da `null` |
 | `generationLatencyMs` | integer \| null | Dil modeli çağrısı (istek → son token); model çağrılmadıysa `null` |
 | `timeToFirstTokenMs` | integer \| null | Dil modeli çağrısından ilk token'a kadar; model çağrılmadıysa `null` |
-| `latencyMs` | integer | Toplam: isteğin assistant-api'ye gelişi → cevabın son token'ı (kayıt hariç) |
+| `latencyMs` | integer | Toplam: isteğin assistant-api'ye gelişi → cevabın son token'ı (kayıt hariç; yeniden yazma dahil) |
 | `hostLabel` | string \| null | Modellerin çalıştığı makinenin etiketi (`assistant.host-label`, ör. "Apple M5 · 16 GB"); ayar boşsa `null`. Onay kartı soru 3'e bağlıdır |
 
 Süreler milisaniyedir, tam sayıya yuvarlanır.
 
 ```
 event: done
-data: {"turnId":12,"notFoundAnswer":false,"chatModel":"qwen3.5:9b","promptTokens":2154,"completionTokens":61,"retrievalLatencyMs":84,"rerankLatencyMs":712,"generationLatencyMs":3920,"timeToFirstTokenMs":1840,"latencyMs":4731,"hostLabel":"Apple M5 · 16 GB"}
+data: {"turnId":12,"notFoundAnswer":false,"chatModel":"qwen3.5:9b","promptTokens":2154,"completionTokens":61,"queryRewriteLatencyMs":null,"retrievalLatencyMs":84,"rerankLatencyMs":712,"generationLatencyMs":3920,"timeToFirstTokenMs":1840,"latencyMs":4731,"hostLabel":"Apple M5 · 16 GB"}
 ```
 
 ### `error` — `StreamErrorEvent`
@@ -164,10 +176,21 @@ event: token
 data: {"text":"geçici olarak kapat [1]."}
 
 event: sources
-data: {"retrievalStrategy":"RERANK","candidates":20,"topK":5,"contextChunks":[…5 parça…],"citations":[1]}
+data: {"retrievalStrategy":"RERANK","candidates":20,"topK":5,"searchQuery":"Kartımı kaybettim, ne yapmalıyım?","queryRewriteStatus":"NO_HISTORY","contextChunks":[…5 parça…],"citations":[1]}
 
 event: done
-data: {"turnId":12,"notFoundAnswer":false,"chatModel":"qwen3.5:9b","promptTokens":2154,"completionTokens":61,"retrievalLatencyMs":84,"rerankLatencyMs":712,"generationLatencyMs":3920,"timeToFirstTokenMs":1840,"latencyMs":4731,"hostLabel":null}
+data: {"turnId":12,"notFoundAnswer":false,"chatModel":"qwen3.5:9b","promptTokens":2154,"completionTokens":61,"queryRewriteLatencyMs":null,"retrievalLatencyMs":84,"rerankLatencyMs":712,"generationLatencyMs":3920,"timeToFirstTokenMs":1840,"latencyMs":4731,"hostLabel":null}
+
+```
+
+Aynı konuşmanın ikinci sorusu ("Yenisi kaç günde gelir?"), yeniden yazma açık (TASK-010):
+
+```
+event: sources
+data: {"retrievalStrategy":"RERANK","candidates":20,"topK":5,"searchQuery":"Kaybolan kartın yenisi kaç günde gelir?","queryRewriteStatus":"REWRITTEN","contextChunks":[…5 parça…],"citations":[1]}
+
+event: done
+data: {"turnId":13,"notFoundAnswer":false,"chatModel":"qwen3.5:9b","promptTokens":2410,"completionTokens":38,"queryRewriteLatencyMs":812,"retrievalLatencyMs":79,"rerankLatencyMs":690,"generationLatencyMs":2950,"timeToFirstTokenMs":1610,"latencyMs":4561,"hostLabel":null}
 
 ```
 
@@ -178,6 +201,7 @@ data: {"turnId":12,"notFoundAnswer":false,"chatModel":"qwen3.5:9b","promptTokens
 | Token olayı | `token` | `TokenEvent` | `TokenEvent` |
 | Kaynaklar olayı | `sources` | `SourcesEvent` | `SourcesEvent` |
 | Modele giden parça | `contextChunks[]` | `ContextChunk` | `ContextChunk` |
+| Yeniden yazmanın sonucu | `queryRewriteStatus` | `QueryRewriteStatus` (enum) | `QueryRewriteStatus` (`QUERY_REWRITE_STATUSES`) |
 | Bitti olayı | `done` | `DoneEvent` | `DoneEvent` |
 | Akış içi hata | `error` | `StreamErrorEvent` | `StreamErrorEvent` |
 | Olayların birleşimi | — | — | `AnswerStreamEvent` (ayrık birleşim, `type` alanı olay adı) |

@@ -362,4 +362,69 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
         assertThat((String) turn.get("answer")).startsWith("Kartını ");
         assertThat(turnCount(conversationId)).isEqualTo(1);
     }
+
+    @Test
+    void givenTwoQuestions_whenSecondSent_thenSourcesHaveStandaloneQueryAndDoneHasRewriteLatency() {
+        stubHappyPath();
+        long conversationId = createConversation();
+        List<SseEvent> first = parseEvents(sendMessage(conversationId, QUESTION).body());
+        given(chatModel.stream(any(Prompt.class))).willReturn(
+                Flux.just(ChatResponses.text("Kaybolan kartın yenisi kaç günde gelir?")),
+                Flux.just(ChatResponses.text("3 iş günü [1].")));
+
+        List<SseEvent> second = parseEvents(sendMessage(conversationId, "Yenisi kaç günde gelir?").body());
+
+        JsonNode firstSources = first.get(first.size() - 2).data();
+        JsonNode firstDone = first.get(first.size() - 1).data();
+        assertThat(firstSources.get("queryRewriteStatus").asString()).isEqualTo("NO_HISTORY");
+        assertThat(firstSources.get("searchQuery").asString()).isEqualTo(QUESTION);
+        assertThat(firstDone.get("queryRewriteLatencyMs").isNull()).isTrue();
+        JsonNode sources = second.get(second.size() - 2).data();
+        JsonNode done = second.get(second.size() - 1).data();
+        assertThat(sources.get("queryRewriteStatus").asString()).isEqualTo("REWRITTEN");
+        assertThat(sources.get("searchQuery").asString()).isEqualTo("Kaybolan kartın yenisi kaç günde gelir?");
+        assertThat(done.get("queryRewriteLatencyMs").asLong()).isGreaterThanOrEqualTo(0L);
+        verify(retrievalClient).search(eq("Kaybolan kartın yenisi kaç günde gelir?"), eq(20));
+        verify(rerankClient).rerankChunks(eq("Kaybolan kartın yenisi kaç günde gelir?"), anyList());
+        var turn = jdbc.queryForMap("select * from conversation_turns where conversation_id = ? and turn_no = 2",
+                conversationId);
+        assertThat(turn.get("question")).isEqualTo("Yenisi kaç günde gelir?");
+        assertThat(turn.get("search_query")).isEqualTo("Kaybolan kartın yenisi kaç günde gelir?");
+        assertThat(turn.get("query_rewrite_status")).isEqualTo("REWRITTEN");
+        assertThat(turn.get("history_turns")).isEqualTo(1);
+    }
+
+    @Test
+    void givenRewriteModelFailsOnFollowUp_whenSent_thenStreamContinuesWithOriginalQuestion() {
+        stubHappyPath();
+        long conversationId = createConversation();
+        sendMessage(conversationId, QUESTION);
+        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.error(new IllegalStateException("refused")),
+                Flux.just(ChatResponses.text("3 iş günü [1].")));
+
+        List<SseEvent> events = parseEvents(sendMessage(conversationId, "Yenisi kaç günde gelir?").body());
+
+        assertThat(events).extracting(SseEvent::name).containsExactly("token", "sources", "done");
+        JsonNode sources = events.get(1).data();
+        assertThat(sources.get("queryRewriteStatus").asString()).isEqualTo("FAILED");
+        assertThat(sources.get("searchQuery").asString()).isEqualTo("Yenisi kaç günde gelir?");
+        assertThat(events.get(2).data().get("queryRewriteLatencyMs").asLong()).isGreaterThanOrEqualTo(0L);
+        verify(retrievalClient).search(eq("Yenisi kaç günde gelir?"), eq(20));
+    }
+
+    @Test
+    void givenRewrittenTurn_whenLogsCaptured_thenLengthsButNoQueryText(CapturedOutput output) {
+        stubHappyPath();
+        long conversationId = createConversation();
+        sendMessage(conversationId, QUESTION);
+        given(chatModel.stream(any(Prompt.class))).willReturn(
+                Flux.just(ChatResponses.text("Kaybolan kartın yenisi kaç günde gelir?")),
+                Flux.just(ChatResponses.text("3 iş günü [1].")));
+
+        sendMessage(conversationId, "Yenisi kaç günde gelir?");
+
+        assertThat(output.getAll()).contains("Query rewrite conversationId=" + conversationId)
+                .contains("status=REWRITTEN").contains("queryLength=39").contains("questionLength=23")
+                .doesNotContain("Kaybolan kartın").doesNotContain("Yenisi kaç günde");
+    }
 }

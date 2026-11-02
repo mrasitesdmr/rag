@@ -4,13 +4,18 @@ import com.rasitbank.assistant.config.AssistantProperties;
 import com.rasitbank.assistant.conversation.domain.dto.SendMessageRequest;
 import com.rasitbank.assistant.exception.ConflictException;
 import com.rasitbank.assistant.exception.ServiceUnavailableException;
+import com.rasitbank.assistant.generation.HistoryTurn;
 import com.rasitbank.assistant.generation.PromptBuilder;
 import com.rasitbank.assistant.retrieval.service.ContextRetriever;
+import com.rasitbank.assistant.retrieval.service.QueryRewriteResult;
+import com.rasitbank.assistant.retrieval.service.QueryRewriter;
 import com.rasitbank.assistant.retrieval.service.RetrievedContext;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,8 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * Müşterinin sorusunu RAG hattından geçirir: akış açılmadan önce konuşmayı, süren turu ve retrieval'ı denetler,
- * sonra cevabı SSE akışı olarak başlatır. Model çağrısı sırasında transaction açık tutmaz.
+ * Müşterinin sorusunu RAG hattından geçirir: akış açılmadan önce konuşmayı ve süren turu denetler, geçmişi okur,
+ * takip sorusunu arama sorgusuna çevirir ve retrieval'ı yapar, sonra cevabı SSE akışı olarak başlatır. Model
+ * çağrıları sırasında transaction açık tutmaz.
  */
 @Service
 public class AnswerService {
@@ -28,6 +34,7 @@ public class AnswerService {
 
     private final ConversationService conversationService;
     private final ActiveTurnRegistry activeTurnRegistry;
+    private final QueryRewriter queryRewriter;
     private final ContextRetriever contextRetriever;
     private final PromptBuilder promptBuilder;
     private final AnswerStreamer answerStreamer;
@@ -37,11 +44,13 @@ public class AnswerService {
     private final Clock clock;
 
     public AnswerService(ConversationService conversationService, ActiveTurnRegistry activeTurnRegistry,
-            ContextRetriever contextRetriever, PromptBuilder promptBuilder, AnswerStreamer answerStreamer,
+            QueryRewriter queryRewriter, ContextRetriever contextRetriever, PromptBuilder promptBuilder,
+            AnswerStreamer answerStreamer,
             TurnService turnService, AssistantProperties properties,
             @Value("${spring.ai.ollama.chat.model}") String chatModelName, Clock clock) {
         this.conversationService = conversationService;
         this.activeTurnRegistry = activeTurnRegistry;
+        this.queryRewriter = queryRewriter;
         this.contextRetriever = contextRetriever;
         this.promptBuilder = promptBuilder;
         this.answerStreamer = answerStreamer;
@@ -62,15 +71,19 @@ public class AnswerService {
         }
         boolean streamStarted = false;
         try {
-            RetrievedContext context = retrieveContext(conversationId, question, receivedAt, startNanos);
-            TurnDraft draft = new TurnDraft(conversationId, question, question, chatModelName, receivedAt, startNanos,
+            List<HistoryTurn> history = conversationService.getHistory(conversationId);
+            QueryRewriteResult rewrite = queryRewriter.rewriteQuery(question, history);
+            logQueryRewrite(conversationId, question, history, rewrite);
+            RetrievedContext context = retrieveContext(conversationId, question, rewrite, history.size(), receivedAt,
+                    startNanos);
+            TurnDraft draft = draft(conversationId, question, rewrite, history.size(), receivedAt, startNanos,
                     context);
             SseEmitter emitter = new SseEmitter(properties.generation().streamTimeout().toMillis());
             if (context.contextChunks().isEmpty()) {
                 answerStreamer.streamFixedAnswer(draft, properties.generation().notFoundAnswer(), emitter);
             } else {
-                answerStreamer.streamModelAnswer(draft, promptBuilder.buildPrompt(question, context.contextChunks()),
-                        emitter);
+                answerStreamer.streamModelAnswer(draft,
+                        promptBuilder.buildPrompt(question, history, context.contextChunks()), emitter);
             }
             streamStarted = true;
             return emitter;
@@ -81,13 +94,12 @@ public class AnswerService {
         }
     }
 
-    private RetrievedContext retrieveContext(long conversationId, String question, Instant receivedAt,
-            long startNanos) {
+    private RetrievedContext retrieveContext(long conversationId, String question, QueryRewriteResult rewrite,
+            int historyTurns, Instant receivedAt, long startNanos) {
         try {
-            return contextRetriever.retrieveContext(question);
+            return contextRetriever.retrieveContext(rewrite.searchQuery());
         } catch (ServiceUnavailableException exception) {
-            TurnDraft draft = new TurnDraft(conversationId, question, question, chatModelName, receivedAt, startNanos,
-                    null);
+            TurnDraft draft = draft(conversationId, question, rewrite, historyTurns, receivedAt, startNanos, null);
             long latencyMs = Duration.ofNanos(System.nanoTime() - startNanos).toMillis();
             try {
                 turnService.recordTurn(draft, TurnOutcome.failed(null, exception.getErrorCode(), null, null, latencyMs));
@@ -97,5 +109,18 @@ public class AnswerService {
             }
             throw exception;
         }
+    }
+
+    private TurnDraft draft(long conversationId, String question, QueryRewriteResult rewrite, int historyTurns,
+            Instant receivedAt, long startNanos, @Nullable RetrievedContext context) {
+        return new TurnDraft(conversationId, question, rewrite.searchQuery(), rewrite.status(), rewrite.latencyMs(),
+                historyTurns, chatModelName, receivedAt, startNanos, context);
+    }
+
+    private static void logQueryRewrite(long conversationId, String question, List<HistoryTurn> history,
+            QueryRewriteResult rewrite) {
+        log.info("Query rewrite conversationId={} status={} historyTurns={} questionLength={} queryLength={} "
+                        + "durationMs={}", conversationId, rewrite.status(), history.size(), question.length(),
+                rewrite.searchQuery().length(), rewrite.latencyMs());
     }
 }

@@ -49,4 +49,14 @@ class CitationParserTest {
     void givenNumberEqualToContextSize_whenParseCitations_thenIncluded() {
         assertThat(parser.parseCitations("a [5]", 5)).containsExactly(5);
     }
+
+    @Test
+    void givenAnswerWithCitations_whenRemoveCitations_thenPlainText() {
+        assertThat(parser.removeCitations("Kartını kapat [1]. Bak [2][3].")).isEqualTo("Kartını kapat. Bak.");
+    }
+
+    @Test
+    void givenAnswerWithoutCitations_whenRemoveCitations_thenUnchanged() {
+        assertThat(parser.removeCitations("Kartını kapat.")).isEqualTo("Kartını kapat.");
+    }
 }

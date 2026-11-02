@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { doneEvent, sourcesEvent } from '../../../test/previewFixtures.ts'
 import { canSendMessage, normalizeMessage } from './messageRules.ts'
 import { latencyRows } from './latencyRows.ts'
-import { strategyLabel } from './strategyLabels.ts'
+import { queryRewriteLabel, strategyLabel } from './strategyLabels.ts'
 
 describe('strategyLabel', () => {
   it.each([
@@ -18,7 +18,65 @@ describe('strategyLabel', () => {
   })
 })
 
+describe('queryRewriteLabel', () => {
+  it.each([
+    ['NO_HISTORY', null],
+    ['DISABLED', null],
+    ['FAILED', 'yeniden yazma başarısız'],
+    ['EMPTY', 'yeniden yazma başarısız'],
+    ['REWRITTEN', 'arama: "Kaybolan kartın yenisi kaç günde gelir?"'],
+  ] as const)('givenStatus_whenQueryRewriteLabel_thenLabelOnlyForRewrittenAndFailures %s', (queryRewriteStatus, expected) => {
+    const sources = sourcesEvent({
+      queryRewriteStatus,
+      searchQuery: 'Kaybolan kartın yenisi kaç günde gelir?',
+    })
+
+    expect(queryRewriteLabel(sources)).toBe(expected)
+  })
+
+  it('givenSearchQueryOf45Characters_whenQueryRewriteLabel_thenShortenedTo39PlusEllipsis', () => {
+    const searchQuery = 'a'.repeat(45)
+
+    const label = queryRewriteLabel(sourcesEvent({ queryRewriteStatus: 'REWRITTEN', searchQuery }))
+
+    expect(label).toBe(`arama: "${'a'.repeat(39)}…"`)
+  })
+
+  it('givenSearchQueryOfExactly40Characters_whenQueryRewriteLabel_thenNotShortened', () => {
+    const searchQuery = 'b'.repeat(40)
+
+    expect(queryRewriteLabel(sourcesEvent({ queryRewriteStatus: 'REWRITTEN', searchQuery }))).toBe(
+      `arama: "${searchQuery}"`,
+    )
+  })
+})
+
 describe('latencyRows', () => {
+  it('givenRewriteLatency_whenLatencyRows_thenRewriteRowFirst', () => {
+    const rows = latencyRows(doneEvent({ queryRewriteLatencyMs: 812 }))
+
+    expect(rows).toEqual([
+      { label: 'yeniden yazma', ms: 812, isModel: false },
+      { label: 'retrieval-api araması', ms: 84, isModel: false },
+      { label: 'rerank', ms: 712, isModel: false },
+      { label: 'qwen3.5 cevabı', ms: 3920, isModel: true },
+    ])
+  })
+
+  it('givenNullRewriteLatency_whenLatencyRows_thenNoRewriteRow', () => {
+    const rows = latencyRows(doneEvent({ queryRewriteLatencyMs: null }))
+
+    expect(rows.map((row) => row.label)).not.toContain('yeniden yazma')
+  })
+
+  it('givenZeroRewriteLatency_whenLatencyRows_thenRewriteRowStillShown', () => {
+    expect(latencyRows(doneEvent({ queryRewriteLatencyMs: 0 }))[0]).toEqual({
+      label: 'yeniden yazma',
+      ms: 0,
+      isModel: false,
+    })
+  })
+
   it('givenRerankDone_whenLatencyRows_thenThreeRowsWithModelNameWithoutTag', () => {
     expect(latencyRows(doneEvent())).toEqual([
       { label: 'retrieval-api araması', ms: 84, isModel: false },

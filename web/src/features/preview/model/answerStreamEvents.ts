@@ -1,9 +1,10 @@
 import type { ServerSentEvent } from '../../../shared/api/eventStream.ts'
-import { RETRIEVAL_STRATEGIES } from './types.ts'
+import { QUERY_REWRITE_STATUSES, RETRIEVAL_STRATEGIES } from './types.ts'
 import type {
   AnswerStreamEvent,
   ContextChunk,
   DoneEvent,
+  QueryRewriteStatus,
   RetrievalStrategy,
   SourcesEvent,
   StreamErrorEvent,
@@ -64,6 +65,10 @@ function isRetrievalStrategy(value: unknown): value is RetrievalStrategy {
   return typeof value === 'string' && (RETRIEVAL_STRATEGIES as readonly string[]).includes(value)
 }
 
+function isQueryRewriteStatus(value: unknown): value is QueryRewriteStatus {
+  return typeof value === 'string' && (QUERY_REWRITE_STATUSES as readonly string[]).includes(value)
+}
+
 function isTokenEvent(data: JsonObject): data is TokenEvent {
   return typeof data.text === 'string'
 }
@@ -90,6 +95,8 @@ function isSourcesEvent(data: JsonObject): data is SourcesEvent {
     isRetrievalStrategy(data.retrievalStrategy) &&
     isInteger(data.candidates) &&
     isInteger(data.topK) &&
+    typeof data.searchQuery === 'string' &&
+    isQueryRewriteStatus(data.queryRewriteStatus) &&
     Array.isArray(data.contextChunks) &&
     data.contextChunks.every(isContextChunk) &&
     Array.isArray(data.citations) &&
@@ -104,6 +111,7 @@ function isDoneEvent(data: JsonObject): data is DoneEvent {
     typeof data.chatModel === 'string' &&
     isNullableInteger(data.promptTokens) &&
     isNullableInteger(data.completionTokens) &&
+    isNullableInteger(data.queryRewriteLatencyMs) &&
     isInteger(data.retrievalLatencyMs) &&
     isNullableInteger(data.rerankLatencyMs) &&
     isNullableInteger(data.generationLatencyMs) &&

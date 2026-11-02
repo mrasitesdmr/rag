@@ -3,6 +3,7 @@ package com.rasitbank.assistant.conversation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
+import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
 import com.rasitbank.assistant.conversation.domain.dto.CreateConversationRequest;
 import com.rasitbank.assistant.conversation.domain.entity.Channel;
 import com.rasitbank.assistant.retrieval.service.RetrievedContext;
@@ -39,7 +40,7 @@ class TurnServiceIntegrationTest extends PostgresIntegrationTest {
 
     private static TurnDraft draft(long conversationId, RetrievedContext context) {
         return new TurnDraft(conversationId, "Kartımı kaybettim, ne yapmalıyım?",
-                "Kartımı kaybettim, ne yapmalıyım?", "qwen3.5:9b", RECEIVED_AT, System.nanoTime(), context);
+                "Kartımı kaybettim, ne yapmalıyım?", QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", RECEIVED_AT, System.nanoTime(), context);
     }
 
     private static TurnOutcome successOutcome() {
@@ -166,5 +167,34 @@ class TurnServiceIntegrationTest extends PostgresIntegrationTest {
         assertThat(turn.get("not_found_answer")).isEqualTo(true);
         assertThat(turn.get("cited_text")).isEqualTo("{}");
         assertThat(turn.get("prompt_tokens")).isNull();
+    }
+
+    @Test
+    void givenRewrittenDraft_whenRecordTurn_thenStoresSearchQueryStatusLatencyAndHistoryTurns() {
+        long conversationId = newConversation();
+        TurnDraft rewritten = new TurnDraft(conversationId, "Yenisi kaç günde gelir?",
+                "Kaybolan kartın yenisi kaç günde gelir?", QueryRewriteStatus.REWRITTEN, 812L, 1, "qwen3.5:9b",
+                RECEIVED_AT, System.nanoTime(), ContextFixtures.topKContext());
+
+        long turnId = turnService.recordTurn(rewritten, successOutcome());
+
+        Map<String, Object> turn = jdbc.queryForMap("select * from conversation_turns where id = ?", turnId);
+        assertThat(turn.get("question")).isEqualTo("Yenisi kaç günde gelir?");
+        assertThat(turn.get("search_query")).isEqualTo("Kaybolan kartın yenisi kaç günde gelir?");
+        assertThat(turn.get("query_rewrite_status")).isEqualTo("REWRITTEN");
+        assertThat(turn.get("query_rewrite_latency_ms")).isEqualTo(812);
+        assertThat(turn.get("history_turns")).isEqualTo(1);
+    }
+
+    @Test
+    void givenNoHistoryDraft_whenRecordTurn_thenStatusNoHistoryAndNullLatency() {
+        long conversationId = newConversation();
+
+        long turnId = turnService.recordTurn(draft(conversationId, ContextFixtures.topKContext()), successOutcome());
+
+        Map<String, Object> turn = jdbc.queryForMap("select * from conversation_turns where id = ?", turnId);
+        assertThat(turn.get("query_rewrite_status")).isEqualTo("NO_HISTORY");
+        assertThat(turn.get("query_rewrite_latency_ms")).isNull();
+        assertThat(turn.get("history_turns")).isEqualTo(0);
     }
 }

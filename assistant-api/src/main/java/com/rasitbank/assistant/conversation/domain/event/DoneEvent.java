@@ -11,6 +11,7 @@ public record DoneEvent(
         String chatModel,
         @Nullable Integer promptTokens,
         @Nullable Integer completionTokens,
+        @Nullable Long queryRewriteLatencyMs,
         long retrievalLatencyMs,
         @Nullable Long rerankLatencyMs,
         @Nullable Long generationLatencyMs,

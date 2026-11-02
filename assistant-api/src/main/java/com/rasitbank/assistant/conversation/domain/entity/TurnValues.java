@@ -5,12 +5,15 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Akış bitince kaydedilecek turun bütün değerlerini (soru, strateji, cevap, token sayıları, süreler, hata kodu)
- * tek yerde toplar.
+ * Akış bitince kaydedilecek turun bütün değerlerini (soru, arama sorgusu, strateji, cevap, token sayıları, süreler,
+ * hata kodu) tek yerde toplar.
  */
 public record TurnValues(
         String question,
         String searchQuery,
+        QueryRewriteStatus queryRewriteStatus,
+        @Nullable Integer queryRewriteLatencyMs,
+        int historyTurns,
         GenerationMode generationMode,
         RetrievalStrategy retrievalStrategy,
         int candidates,

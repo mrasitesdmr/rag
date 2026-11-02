@@ -457,6 +457,67 @@ describe('PreviewPage', () => {
     expect(await screen.findByText(expected)).toBeInTheDocument()
   })
 
+  it('givenRewrittenSecondTurn_whenDone_thenSubtitleShowsSearchQuery', async () => {
+    servePreview([
+      token('Teslim süresi 3 iş günü [1].'),
+      sources({ searchQuery: 'Kaybolan kartın yenisi kaç günde gelir?', queryRewriteStatus: 'REWRITTEN' }),
+      done({ queryRewriteLatencyMs: 812 }),
+    ])
+    renderAppAt('/onizleme')
+
+    await ask('Yenisi kaç günde gelir?')
+
+    expect(
+      await screen.findByText(
+        '"Yenisi kaç günde gelir?" · rerank 20→5 · arama: "Kaybolan kartın yenisi kaç günde gelir?"',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('givenRewriteFailed_whenDone_thenSubtitleShowsFailureLabelWithoutSearchQuery', async () => {
+    servePreview([
+      token('Cevap [1].'),
+      sources({ searchQuery: 'Yenisi kaç günde gelir?', queryRewriteStatus: 'FAILED' }),
+      done({ queryRewriteLatencyMs: 40 }),
+    ])
+    renderAppAt('/onizleme')
+
+    await ask('Yenisi kaç günde gelir?')
+
+    expect(
+      await screen.findByText('"Yenisi kaç günde gelir?" · rerank 20→5 · yeniden yazma başarısız'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/arama:/)).not.toBeInTheDocument()
+  })
+
+  it('givenNoHistoryTurn_whenDone_thenSubtitleHasNoSearchOrFailureLabel', async () => {
+    servePreview(lostCardAnswer())
+    renderAppAt('/onizleme')
+
+    await ask(QUESTION)
+
+    expect(await screen.findByText(`"${QUESTION}" · rerank 20→5`)).toBeInTheDocument()
+  })
+
+  it('givenRewrittenDone_whenRendered_thenRewriteLatencyRowBeforeRetrievalRow', async () => {
+    servePreview([
+      token('Cevap [1].'),
+      sources({ searchQuery: 'Kaybolan kartın yenisi kaç günde gelir?', queryRewriteStatus: 'REWRITTEN' }),
+      done({ queryRewriteLatencyMs: 812 }),
+    ])
+    renderAppAt('/onizleme')
+
+    await ask('Yenisi kaç günde gelir?')
+
+    const heading = await screen.findByRole('heading', { level: 3, name: /^Süre/ })
+    const rows = heading.nextElementSibling
+    expect(rows).toHaveTextContent('yeniden yazma')
+    expect(rows).toHaveTextContent('812 ms')
+    expect(rows?.textContent?.indexOf('yeniden yazma')).toBeLessThan(
+      rows?.textContent?.indexOf('retrieval-api araması') ?? -1,
+    )
+  })
+
   it('givenRerankDone_whenRendered_thenLatencyRowsAndHostLabel', async () => {
     servePreview(lostCardAnswer())
     renderAppAt('/onizleme')

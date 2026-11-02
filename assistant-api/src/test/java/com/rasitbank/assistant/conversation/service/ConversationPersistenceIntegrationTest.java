@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
+import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
 import com.rasitbank.assistant.conversation.domain.dto.ConversationResponse;
 import com.rasitbank.assistant.conversation.domain.dto.CreateConversationRequest;
 import com.rasitbank.assistant.conversation.domain.entity.Channel;
@@ -66,7 +67,8 @@ class ConversationPersistenceIntegrationTest extends PostgresIntegrationTest {
     void givenRecordedTurn_whenReadBack_thenEveryColumnAndCandidateMapsToEntity() {
         long conversationId = conversationService.createConversation(new CreateConversationRequest(Channel.PREVIEW))
                 .conversationId();
-        TurnDraft draft = new TurnDraft(conversationId, "Kartımı kaybettim", "Kartımı kaybettim", "qwen3.5:9b",
+        TurnDraft draft = new TurnDraft(conversationId, "Kartımı kaybettim", "Kartımı kaybettim",
+                QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b",
                 Instant.parse("2026-11-01T10:00:00Z"), System.nanoTime(),
                 ContextFixtures.rerankContext(7, 2, 15, 1, 3));
         long turnId = turnService.recordTurn(draft,

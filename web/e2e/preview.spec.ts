@@ -84,3 +84,17 @@ test('givenGuideIngested_whenOffTopicQuestionAsked_thenNotFoundSentenceAndNoSour
   await expect(messages.getByText(NOT_FOUND_SENTENCE)).toBeVisible()
   await expect(messages.getByRole('button', { name: /· s\. \d+$/ })).toHaveCount(0)
 })
+
+test('givenLostCardAnswered_whenFollowUpAsked_thenSideCardShowsSearchQueryAndRewriteRow', async ({ page }) => {
+  test.setTimeout(300_000)
+
+  await askQuestion(page, 'Kartımı kaybettim, ne yapmalıyım?')
+  await waitUntilAnswerDone(page)
+  await page.getByRole('textbox', { name: 'Soru' }).fill('Yenisi kaç günde gelir?')
+  await page.getByRole('button', { name: 'Gönder' }).click()
+
+  await expect(page.getByRole('textbox', { name: 'Soru' })).toBeEnabled({ timeout: ANSWER_TIMEOUT_MS })
+  const card = page.getByRole('region', { name: 'Son cevapta modele giden parçalar' })
+  await expect(card.getByText(/· arama: "/)).toBeVisible({ timeout: ANSWER_TIMEOUT_MS })
+  await expect(page.getByText('yeniden yazma', { exact: true })).toBeVisible()
+})

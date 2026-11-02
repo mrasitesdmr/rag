@@ -32,6 +32,7 @@ services:
       RERANKER_MODEL: bge-reranker-v2-m3
       RETRIEVAL_API_URL: http://retrieval-api:8080
       RETRIEVAL_STRATEGY: ${RETRIEVAL_STRATEGY:-rerank}
+      QUERY_REWRITE_ENABLED: ${QUERY_REWRITE_ENABLED:-true}
       ASSISTANT_HOST_LABEL: ${ASSISTANT_HOST_LABEL:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"

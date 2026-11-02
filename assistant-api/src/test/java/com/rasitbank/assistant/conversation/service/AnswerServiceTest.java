@@ -20,7 +20,16 @@ import com.rasitbank.assistant.exception.ConflictException;
 import com.rasitbank.assistant.exception.NotFoundException;
 import com.rasitbank.assistant.exception.ServiceUnavailableException;
 import com.rasitbank.assistant.generation.PromptBuilder;
+import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
+import com.rasitbank.assistant.generation.HistoryTurn;
 import com.rasitbank.assistant.retrieval.service.ContextRetriever;
+import com.rasitbank.assistant.retrieval.service.QueryRewriteResult;
+import com.rasitbank.assistant.retrieval.service.QueryRewriter;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import com.rasitbank.assistant.support.ContextFixtures;
 import com.rasitbank.assistant.support.TestProperties;
 import java.time.Clock;
@@ -43,6 +52,7 @@ class AnswerServiceTest {
 
     private final ConversationService conversationService = mock(ConversationService.class);
     private final ActiveTurnRegistry registry = new ActiveTurnRegistry();
+    private final QueryRewriter queryRewriter = mock(QueryRewriter.class);
     private final ContextRetriever contextRetriever = mock(ContextRetriever.class);
     private final AnswerStreamer answerStreamer = mock(AnswerStreamer.class);
     private final TurnService turnService = mock(TurnService.class);
@@ -50,8 +60,14 @@ class AnswerServiceTest {
             new ClassPathResource("prompts/rag-user.st"), TestProperties.defaults());
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-01T10:00:00Z"), ZoneOffset.UTC);
 
-    private final AnswerService service = new AnswerService(conversationService, registry, contextRetriever,
+    private final AnswerService service = new AnswerService(conversationService, registry, queryRewriter, contextRetriever,
             promptBuilder, answerStreamer, turnService, TestProperties.defaults(), "qwen3.5:9b", clock);
+
+    @BeforeEach
+    void stubFirstTurnRewrite() {
+        given(queryRewriter.rewriteQuery(anyString(), any())).willAnswer(invocation -> new QueryRewriteResult(
+                QueryRewriteStatus.NO_HISTORY, invocation.getArgument(0), null));
+    }
 
     private static SendMessageRequest request(String text) {
         return new SendMessageRequest(text);
@@ -177,5 +193,87 @@ class AnswerServiceTest {
                 .isInstanceOf(IllegalStateException.class);
 
         assertThat(registry.tryStart(CONVERSATION_ID)).isTrue();
+    }
+
+    @Test
+    void givenFollowUp_whenSendMessage_thenSearchesWithStandaloneAndPromptsCustomerQuestion() {
+        List<HistoryTurn> history = List.of(new HistoryTurn("Kartımı kaybettim, ne yapmalıyım?", "Kartını hemen kapat."));
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        given(conversationService.getHistory(CONVERSATION_ID)).willReturn(history);
+        given(queryRewriter.rewriteQuery("Yenisi kaç günde gelir?", history)).willReturn(new QueryRewriteResult(
+                QueryRewriteStatus.REWRITTEN, "Kaybolan kartın yenisi kaç günde gelir?", 812L));
+        given(contextRetriever.retrieveContext("Kaybolan kartın yenisi kaç günde gelir?"))
+                .willReturn(ContextFixtures.rerankContext(7, 2, 15, 1, 3));
+
+        service.sendMessage(CONVERSATION_ID, request("Yenisi kaç günde gelir?"));
+
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.captor();
+        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
+        verify(answerStreamer).streamModelAnswer(draft.capture(), prompt.capture(), any(SseEmitter.class));
+        List<Message> messages = prompt.getValue().getInstructions();
+        assertThat(messages).hasSize(4);
+        assertThat(messages.get(0)).isInstanceOf(SystemMessage.class);
+        assertThat(messages.get(1)).isInstanceOf(UserMessage.class);
+        assertThat(messages.get(1).getText()).isEqualTo("Kartımı kaybettim, ne yapmalıyım?");
+        assertThat(messages.get(2)).isInstanceOf(AssistantMessage.class);
+        assertThat(messages.get(3)).isInstanceOf(UserMessage.class);
+        assertThat(messages.get(3).getText()).endsWith("Soru: Yenisi kaç günde gelir?")
+                .doesNotContain("Kaybolan kartın yenisi");
+        assertThat(draft.getValue().question()).isEqualTo("Yenisi kaç günde gelir?");
+        assertThat(draft.getValue().searchQuery()).isEqualTo("Kaybolan kartın yenisi kaç günde gelir?");
+        assertThat(draft.getValue().queryRewriteStatus()).isEqualTo(QueryRewriteStatus.REWRITTEN);
+        assertThat(draft.getValue().queryRewriteLatencyMs()).isEqualTo(812L);
+        assertThat(draft.getValue().historyTurns()).isEqualTo(1);
+    }
+
+    @Test
+    void givenRewriteFailed_whenSendMessage_thenSearchesWithQuestionAndStreams() {
+        List<HistoryTurn> history = List.of(new HistoryTurn("Kartımı kaybettim", "Kapat."));
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        given(conversationService.getHistory(CONVERSATION_ID)).willReturn(history);
+        given(queryRewriter.rewriteQuery("Yenisi kaç günde gelir?", history)).willReturn(
+                new QueryRewriteResult(QueryRewriteStatus.FAILED, "Yenisi kaç günde gelir?", 40L));
+        given(contextRetriever.retrieveContext("Yenisi kaç günde gelir?")).willReturn(ContextFixtures.topKContext());
+
+        service.sendMessage(CONVERSATION_ID, request("Yenisi kaç günde gelir?"));
+
+        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
+        verify(answerStreamer, times(1)).streamModelAnswer(draft.capture(), any(), any(SseEmitter.class));
+        assertThat(draft.getValue().queryRewriteStatus()).isEqualTo(QueryRewriteStatus.FAILED);
+        assertThat(draft.getValue().searchQuery()).isEqualTo("Yenisi kaç günde gelir?");
+    }
+
+    @Test
+    void givenTurnInProgress_whenSendMessage_thenNoHistoryReadAndNoRewrite() {
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        registry.tryStart(CONVERSATION_ID);
+
+        assertThatThrownBy(() -> service.sendMessage(CONVERSATION_ID, request("Soru")))
+                .isInstanceOfSatisfying(ConflictException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo("TURN_IN_PROGRESS"));
+
+        verifyNoInteractions(queryRewriter);
+        verify(conversationService, never()).getHistory(anyLong());
+    }
+
+    @Test
+    void givenRetrievalUnavailableAfterRewrite_whenSendMessage_thenTurnKeepsSearchQueryAndStatus() {
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        given(conversationService.getHistory(CONVERSATION_ID))
+                .willReturn(List.of(new HistoryTurn("Kartımı kaybettim", "Kapat.")));
+        given(queryRewriter.rewriteQuery(anyString(), any())).willReturn(new QueryRewriteResult(
+                QueryRewriteStatus.REWRITTEN, "Kaybolan kartın yenisi kaç günde gelir?", 812L));
+        given(contextRetriever.retrieveContext(anyString()))
+                .willThrow(new ServiceUnavailableException("RETRIEVAL_UNAVAILABLE", "down"));
+
+        assertThatThrownBy(() -> service.sendMessage(CONVERSATION_ID, request("Yenisi kaç günde gelir?")))
+                .isInstanceOf(ServiceUnavailableException.class);
+
+        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
+        verify(turnService).recordTurn(draft.capture(), any());
+        assertThat(draft.getValue().searchQuery()).isEqualTo("Kaybolan kartın yenisi kaç günde gelir?");
+        assertThat(draft.getValue().queryRewriteStatus()).isEqualTo(QueryRewriteStatus.REWRITTEN);
+        assertThat(draft.getValue().queryRewriteLatencyMs()).isEqualTo(812L);
+        assertThat(draft.getValue().historyTurns()).isEqualTo(1);
     }
 }

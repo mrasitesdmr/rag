@@ -2,10 +2,13 @@ package com.rasitbank.assistant.generation;
 
 import com.rasitbank.assistant.config.AssistantProperties;
 import com.rasitbank.assistant.retrieval.service.RetrievedChunk;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -15,8 +18,8 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 
 /**
- * Dil modeline giden prompt'u kurar: sabit sistem talimatı ve numaralı parçalarla müşterinin sorusunu taşıyan
- * kullanıcı mesajı. Parçalar ve soru talimata değil kullanıcı mesajına girer.
+ * Dil modeline giden prompt'u kurar: sabit sistem talimatı, konuşma geçmişi ve numaralı parçalarla müşterinin
+ * sorusunu taşıyan kullanıcı mesajı. Geçmiş, parçalar ve soru talimata değil mesajlara girer.
  */
 @Component
 public class PromptBuilder {
@@ -33,12 +36,19 @@ public class PromptBuilder {
         this.userTemplate = PromptTemplate.builder().resource(userTemplate).build();
     }
 
-    public Prompt buildPrompt(String question, List<RetrievedChunk> contextChunks) {
+    public Prompt buildPrompt(String question, List<HistoryTurn> history, List<RetrievedChunk> contextChunks) {
         String chunks = IntStream.range(0, contextChunks.size())
                 .mapToObj(i -> chunkBlock(i + 1, contextChunks.get(i)))
                 .collect(Collectors.joining("\n\n"));
         String userText = userTemplate.render(Map.of("chunks", chunks, "question", question));
-        return new Prompt(List.of(new SystemMessage(systemText), new UserMessage(userText)));
+        List<Message> messages = new ArrayList<>(2 + history.size() * 2);
+        messages.add(new SystemMessage(systemText));
+        for (HistoryTurn turn : history) {
+            messages.add(new UserMessage(turn.question()));
+            messages.add(new AssistantMessage(turn.answer()));
+        }
+        messages.add(new UserMessage(userText));
+        return new Prompt(messages);
     }
 
     private static String chunkBlock(int n, RetrievedChunk chunk) {

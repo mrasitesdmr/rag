@@ -28,7 +28,11 @@ class AssistantPropertiesTest {
             "assistant.generation.not-found-answer=yok",
             "assistant.generation.first-token-timeout=60s",
             "assistant.generation.token-idle-timeout=30s",
-            "assistant.generation.stream-timeout=300s"
+            "assistant.generation.stream-timeout=300s",
+            "assistant.query-rewrite.enabled=true",
+            "assistant.query-rewrite.timeout=20s",
+            "assistant.query-rewrite.max-length=1000",
+            "assistant.history.max-turns=3"
     };
 
     @Configuration
@@ -86,5 +90,43 @@ class AssistantPropertiesTest {
                 assertThat(context.getBean(AssistantProperties.class).hostLabel()).isNull());
         runner("assistant.host-label= Apple M5 · 16 GB ").run(context ->
                 assertThat(context.getBean(AssistantProperties.class).hostLabel()).isEqualTo("Apple M5 · 16 GB"));
+    }
+
+    @Test
+    void givenDefaults_whenBound_thenRewriteOnTwentySecondsThreeTurns() {
+        runner().run(context -> {
+            AssistantProperties properties = context.getBean(AssistantProperties.class);
+
+            assertThat(properties.queryRewrite().enabled()).isTrue();
+            assertThat(properties.queryRewrite().timeout()).isEqualTo(java.time.Duration.ofSeconds(20));
+            assertThat(properties.queryRewrite().maxLength()).isEqualTo(1000);
+            assertThat(properties.history().maxTurns()).isEqualTo(3);
+        });
+    }
+
+    @Test
+    void givenEnabledFalse_whenBound_thenDisabled() {
+        runner("assistant.query-rewrite.enabled=false").run(context ->
+                assertThat(context.getBean(AssistantProperties.class).queryRewrite().enabled()).isFalse());
+    }
+
+    @Test
+    void givenMaxTurnsOutOfRange_whenBound_thenContextFails() {
+        runner("assistant.history.max-turns=0").run(context -> assertThat(context).hasFailed());
+        runner("assistant.history.max-turns=11").run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void givenMaxLengthOutOfRange_whenBound_thenContextFails() {
+        runner("assistant.query-rewrite.max-length=0").run(context -> assertThat(context).hasFailed());
+        runner("assistant.query-rewrite.max-length=1001").run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void givenRewriteSectionMissing_whenBound_thenContextFails() {
+        new ApplicationContextRunner().withUserConfiguration(Config.class)
+                .withPropertyValues(java.util.Arrays.stream(BASE)
+                        .filter(entry -> !entry.startsWith("assistant.query-rewrite.")).toArray(String[]::new))
+                .run(context -> assertThat(context).hasFailed());
     }
 }

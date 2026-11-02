@@ -15,7 +15,7 @@ import org.springframework.validation.annotation.Validated;
 
 /**
  * Asistanın sunucu ayarlarını taşır: çalışma alanı, retrieval-api ve reranker adresleri, retrieval stratejisi,
- * zaman aşımları ve sabit "bulamadım" cümlesi.
+ * sorgu yeniden yazma, konuşma geçmişi sınırı, zaman aşımları ve sabit "bulamadım" cümlesi.
  */
 @Validated
 @ConfigurationProperties("assistant")
@@ -25,7 +25,9 @@ public record AssistantProperties(
         @Valid @NotNull RetrievalApi retrievalApi,
         @Valid @NotNull Retrieval retrieval,
         @Valid @NotNull Reranker reranker,
-        @Valid @NotNull Generation generation) {
+        @Valid @NotNull Generation generation,
+        @Valid @NotNull QueryRewrite queryRewrite,
+        @Valid @NotNull History history) {
 
     public AssistantProperties {
         hostLabel = hostLabel == null || hostLabel.isBlank() ? null : hostLabel.strip();
@@ -61,5 +63,11 @@ public record AssistantProperties(
             @NotNull Duration firstTokenTimeout,
             @NotNull Duration tokenIdleTimeout,
             @NotNull Duration streamTimeout) {
+    }
+
+    public record QueryRewrite(boolean enabled, @NotNull Duration timeout, @Min(1) @Max(1000) int maxLength) {
+    }
+
+    public record History(@Min(1) @Max(10) int maxTurns) {
     }
 }

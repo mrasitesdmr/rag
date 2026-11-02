@@ -54,6 +54,9 @@ public class TurnService {
         TurnValues values = new TurnValues(
                 draft.question(),
                 draft.searchQuery(),
+                draft.queryRewriteStatus(),
+                toIntMs(draft.queryRewriteLatencyMs()),
+                draft.historyTurns(),
                 GenerationMode.RAG,
                 context != null ? context.strategy() : retrievalSettings.configuredStrategy(),
                 context != null ? context.candidates() : retrievalSettings.candidates(),

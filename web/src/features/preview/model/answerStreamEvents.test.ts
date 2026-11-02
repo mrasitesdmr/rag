@@ -23,6 +23,12 @@ describe('toAnswerStreamEvent', () => {
         }),
       },
     ],
+    ['sources without searchQuery', { event: 'sources', data: JSON.stringify({ ...sourcesEvent(), searchQuery: undefined }) }],
+    ['sources with numeric searchQuery', { event: 'sources', data: JSON.stringify({ ...sourcesEvent(), searchQuery: 5 }) }],
+    ['sources without queryRewriteStatus', { event: 'sources', data: JSON.stringify({ ...sourcesEvent(), queryRewriteStatus: undefined }) }],
+    ['sources with unknown queryRewriteStatus', { event: 'sources', data: JSON.stringify({ ...sourcesEvent(), queryRewriteStatus: 'FOO' }) }],
+    ['done without queryRewriteLatencyMs', { event: 'done', data: JSON.stringify({ ...doneEvent(), queryRewriteLatencyMs: undefined }) }],
+    ['done with string queryRewriteLatencyMs', { event: 'done', data: JSON.stringify({ ...doneEvent(), queryRewriteLatencyMs: '812' }) }],
     ['done without hostLabel', { event: 'done', data: JSON.stringify({ ...doneEvent(), hostLabel: undefined }) }],
     ['done with string latency', { event: 'done', data: JSON.stringify({ ...doneEvent(), latencyMs: '4730' }) }],
   ])('givenUnknownOrMalformedEvent_whenToAnswerStreamEvent_thenNull %s', (_label, event) => {
@@ -61,6 +67,23 @@ describe('toAnswerStreamEvent', () => {
     expect(toAnswerStreamEvent({ event: 'done', data: JSON.stringify(nullable) })).toEqual({
       type: 'done',
       data: nullable,
+    })
+  })
+
+  it('givenRewrittenSourcesAndDoneWithLatency_whenToAnswerStreamEvent_thenTypedWithNewFields', () => {
+    const rewrittenSources = sourcesEvent({
+      searchQuery: 'Kaybolan kartın yenisi kaç günde gelir?',
+      queryRewriteStatus: 'REWRITTEN',
+    })
+    const rewrittenDone = doneEvent({ queryRewriteLatencyMs: 812 })
+
+    expect(toAnswerStreamEvent({ event: 'sources', data: JSON.stringify(rewrittenSources) })).toEqual({
+      type: 'sources',
+      data: rewrittenSources,
+    })
+    expect(toAnswerStreamEvent({ event: 'done', data: JSON.stringify(rewrittenDone) })).toEqual({
+      type: 'done',
+      data: rewrittenDone,
     })
   })
 })

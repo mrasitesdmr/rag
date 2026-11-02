@@ -12,6 +12,8 @@
 #   (GET .../sources/{sourceId}/ingestion-jobs), parçalar (GET .../sources/{sourceId}/chunks) ve tek parça (GET .../chunks/{chunkId}).
 #   assistant-api (TASK-008): konuşma açma (POST /api/assistant/conversations) ve soru gönderme
 #   (POST /api/assistant/conversations/{conversationId}/messages; cevap SSE ile akar, olaylar docs/api/sse.md).
+#   TASK-010: sendMessage takip sorusunu retrieval'dan önce geçmişle bağımsız bir arama sorgusuna çevirir (REST şeması
+#   değişmedi; arama sorgusu ve yeniden yazma süresi SSE `sources` / `done` olaylarındadır).
 # Bilgi bankasına hiçbir belge kendiliğinden girmez: retrieval-api açılışta kaynak, sürüm, parça ya da iş oluşturmaz (TASK-027).
 #   Belgeler sadece POST .../sources ile girer. Yeni sürüm yükleme ucu yoktur (kapsam dışı).
 # Ortak davranış (TASK-002): iki serviste de tanımsız bir path'e gelen her istek 404 + application/problem+json + errorCode NOT_FOUND döner
@@ -84,21 +86,31 @@ paths:
       operationId: sendMessage
       summary: Ask a question in a conversation; the answer streams back as Server-Sent Events
       description: |
-        assistant-api. Runs the RAG pipeline for the question: retrieval-api search (`topK` = `assistant.retrieval.candidates`
-        for the `rerank` strategy, `assistant.retrieval.top-k` for `top5`), rerank (strategy `rerank` only; when the
-        reranker fails the first `top-k` hits in vector order are used and the answer streams normally), prompt with the
-        numbered chunks, answer from the chat model streamed token by token, citation parsing, turn record.
+        assistant-api. Runs the RAG pipeline for the question: query rewrite (TASK-010; see below), retrieval-api search
+        with the search query (`topK` = `assistant.retrieval.candidates` for the `rerank` strategy,
+        `assistant.retrieval.top-k` for `top5`), rerank with the search query (strategy `rerank` only; when the reranker
+        fails the first `top-k` hits in vector order are used and the answer streams normally), prompt with the
+        conversation history, the numbered chunks and the customer's own question, answer from the chat model streamed
+        token by token, citation parsing, turn record.
+
+        Query rewrite (TASK-010): when `assistant.query-rewrite.enabled` is true and the conversation has at least one
+        earlier answered turn (no `errorCode`), the chat model turns the question and the last
+        `assistant.history.max-turns` answered turns into a standalone search query. The first turn of a conversation is
+        never rewritten. A failed, timed-out, empty or too long rewrite never fails the request: the search uses the
+        question as typed and the turn records the outcome (`queryRewriteStatus` in the `sources` event).
 
         The response is `200 text/event-stream`. Events, their order and payloads are defined in `docs/api/sse.md`
-        (`token`* → `sources` → `done`; `error` ends the stream). The stream is opened only after the retrieval (and
-        rerank) step has finished, so every error listed below is returned before any event. An error after the stream
-        has opened (chat model unavailable, also before its first token) is an `error` event with the same `errorCode`
-        vocabulary, not an HTTP status.
+        (`token`* → `sources` → `done`; `error` ends the stream). The stream is opened only after the query rewrite and
+        the retrieval (and rerank) steps have finished, so every error listed below is returned before any event. An
+        error after the stream has opened (chat model unavailable, also before its first token) is an `error` event with
+        the same `errorCode` vocabulary, not an HTTP status.
 
         The client must send `Accept: text/event-stream, application/problem+json` so that error responses can be written.
 
-        Check order: 400 → 404 (`CONVERSATION_NOT_FOUND`) → 409 (`TURN_IN_PROGRESS`) → 503 (`RETRIEVAL_UNAVAILABLE`) → 200 stream.
-        A `RETRIEVAL_UNAVAILABLE` turn is recorded with that error code; 400, 404 and 409 record nothing.
+        Check order: 400 → 404 (`CONVERSATION_NOT_FOUND`) → 409 (`TURN_IN_PROGRESS`) → query rewrite (no error) →
+        503 (`RETRIEVAL_UNAVAILABLE`) → 200 stream.
+        A `RETRIEVAL_UNAVAILABLE` turn is recorded with that error code (and the search query and rewrite outcome); 400,
+        404 and 409 record nothing.
       parameters:
         - name: conversationId
           in: path

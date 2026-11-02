@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { formatDecimal } from '../../../shared/format/formatNumber.ts'
 import { shortenText } from '../../../shared/format/formatText.ts'
-import { strategyLabel } from '../model/strategyLabels.ts'
+import { queryRewriteLabel, strategyLabel } from '../model/strategyLabels.ts'
 import type { ContextChunk, DoneEvent, SourcesEvent } from '../model/types.ts'
 import styles from './ContextChunksCard.module.css'
 import { LatencyBars } from './LatencyBars.tsx'
@@ -25,7 +25,7 @@ export function ContextChunksCard({ question, sources, done, onChunkOpen }: Cont
       <h2 id={titleId} className={card.title}>
         Son cevapta modele giden parçalar
       </h2>
-      <div className={card.sub}>{`"${shortenText(question, QUESTION_SHORT_LENGTH)}" · ${strategyLabel(sources)}`}</div>
+      <div className={card.sub}>{subtitleText(question, sources)}</div>
       <div className={styles.list}>
         {sources.contextChunks.map((chunk) => (
           <button key={chunk.n} type="button" className={styles.chunk} onClick={() => onChunkOpen(chunk.chunkId)}>
@@ -42,6 +42,12 @@ export function ContextChunksCard({ question, sources, done, onChunkOpen }: Cont
       <LatencyBars done={done} />
     </section>
   )
+}
+
+function subtitleText(question: string, sources: SourcesEvent): string {
+  const subtitle = `"${shortenText(question, QUESTION_SHORT_LENGTH)}" · ${strategyLabel(sources)}`
+  const rewriteLabel = queryRewriteLabel(sources)
+  return rewriteLabel === null ? subtitle : `${subtitle} · ${rewriteLabel}`
 }
 
 function scoreText(chunk: ContextChunk, sources: SourcesEvent): string {

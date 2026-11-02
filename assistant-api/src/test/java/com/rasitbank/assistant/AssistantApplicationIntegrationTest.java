@@ -31,10 +31,11 @@ class AssistantApplicationIntegrationTest extends PostgresIntegrationTest {
     private int port;
 
     @Test
-    void givenEmptyDatabase_whenContextStarts_thenFlywayAppliesConversationsMigration() {
-        assertThat(flyway.info().applied()).hasSize(1);
+    void givenEmptyDatabase_whenContextStarts_thenFlywayAppliesConversationsAndRewriteMigrations() {
+        assertThat(flyway.info().applied()).hasSize(2);
         assertThat(flyway.info().applied()[0].getVersion().getVersion()).isEqualTo("1");
-        assertThat(flyway.info().applied()[0].getState().isApplied()).isTrue();
+        assertThat(flyway.info().applied()[1].getVersion().getVersion()).isEqualTo("2");
+        assertThat(flyway.info().applied()[1].getState().isApplied()).isTrue();
         assertThat(flyway.info().pending()).isEmpty();
     }
 

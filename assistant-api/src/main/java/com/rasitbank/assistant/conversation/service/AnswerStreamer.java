@@ -333,7 +333,8 @@ public class AnswerStreamer {
                         chunk.hit().distance(),
                         chunk.rerankScore()));
             }
-            return new SourcesEvent(context.strategy(), context.candidates(), context.topK(), chunks, citations);
+            return new SourcesEvent(context.strategy(), context.candidates(), context.topK(), draft.searchQuery(),
+                    draft.queryRewriteStatus(), chunks, citations);
         }
 
         private DoneEvent doneEvent(long turnId, TurnOutcome outcome) {
@@ -343,6 +344,7 @@ public class AnswerStreamer {
                     draft.chatModel(),
                     outcome.promptTokens(),
                     outcome.completionTokens(),
+                    draft.queryRewriteLatencyMs(),
                     context.retrievalLatencyMs(),
                     context.rerankLatencyMs(),
                     outcome.generationLatencyMs(),

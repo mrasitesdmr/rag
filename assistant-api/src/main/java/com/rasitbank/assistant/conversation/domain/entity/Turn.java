@@ -23,8 +23,8 @@ import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Konuşmanın bir turudur (bir soru ve cevabı); cevabın neye dayandığını sonradan incelemek için strateji,
- * aday parçalar, alıntılar, token sayıları, süreler ve hata kodu bu kayıtta durur.
+ * Konuşmanın bir turudur (bir soru ve cevabı); cevabın neye dayandığını sonradan incelemek için arama sorgusu,
+ * strateji, aday parçalar, alıntılar, token sayıları, süreler ve hata kodu bu kayıtta durur.
  */
 @Entity
 @Table(name = "conversation_turns")
@@ -46,6 +46,16 @@ public class Turn {
 
     @Column(name = "search_query", nullable = false)
     private String searchQuery;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "query_rewrite_status", nullable = false)
+    private QueryRewriteStatus queryRewriteStatus;
+
+    @Column(name = "query_rewrite_latency_ms")
+    private @Nullable Integer queryRewriteLatencyMs;
+
+    @Column(name = "history_turns", nullable = false)
+    private int historyTurns;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "generation_mode", nullable = false)
@@ -116,6 +126,9 @@ public class Turn {
         this.turnNo = turnNo;
         this.question = values.question();
         this.searchQuery = values.searchQuery();
+        this.queryRewriteStatus = values.queryRewriteStatus();
+        this.queryRewriteLatencyMs = values.queryRewriteLatencyMs();
+        this.historyTurns = values.historyTurns();
         this.generationMode = values.generationMode();
         this.retrievalStrategy = values.retrievalStrategy();
         this.candidates = values.candidates();
@@ -160,6 +173,18 @@ public class Turn {
 
     public String getSearchQuery() {
         return searchQuery;
+    }
+
+    public QueryRewriteStatus getQueryRewriteStatus() {
+        return queryRewriteStatus;
+    }
+
+    public @Nullable Integer getQueryRewriteLatencyMs() {
+        return queryRewriteLatencyMs;
+    }
+
+    public int getHistoryTurns() {
+        return historyTurns;
     }
 
     public GenerationMode getGenerationMode() {
