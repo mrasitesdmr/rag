@@ -1,6 +1,9 @@
 package com.rasitbank.assistant.conversation.service;
 
 import com.rasitbank.assistant.config.AssistantProperties;
+import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
+import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
+import com.rasitbank.assistant.conversation.domain.entity.RetrievalStrategy;
 import com.rasitbank.assistant.conversation.domain.event.ContextChunk;
 import com.rasitbank.assistant.conversation.domain.event.DoneEvent;
 import com.rasitbank.assistant.conversation.domain.event.SourcesEvent;
@@ -34,7 +37,8 @@ import reactor.core.scheduler.Schedulers;
 
 /**
  * Dil modelinin cevabını SSE olayları olarak akıtır (token, sources, done; hata olursa error), istemci koparsa
- * model çağrısını iptal eder ve her turu akış bitince tam bir kez kaydeder.
+ * model çağrısını iptal eder ve her turu akış bitince tam bir kez kaydeder. Sadece LLM turunda alıntı ve "bulamadım"
+ * tespiti yapılmaz, sources olayı parçasız gider.
  */
 @Component
 public class AnswerStreamer {
@@ -80,6 +84,10 @@ public class AnswerStreamer {
         turn.completeWithFixedAnswer(answer);
     }
 
+    private static boolean isRag(TurnDraft draft) {
+        return draft.generationMode() == GenerationMode.RAG;
+    }
+
     private static long elapsedMs(long startNanos, long endNanos) {
         return Duration.ofNanos(endNanos - startNanos).toMillis();
     }
@@ -99,7 +107,7 @@ public class AnswerStreamer {
     private final class StreamingTurn {
 
         private final TurnDraft draft;
-        private final RetrievedContext context;
+        private final @Nullable RetrievedContext context;
         private final SseEmitter emitter;
         private final AtomicBoolean finished = new AtomicBoolean();
         private final StringBuilder sentAnswer = new StringBuilder();
@@ -112,7 +120,9 @@ public class AnswerStreamer {
 
         private StreamingTurn(TurnDraft draft, SseEmitter emitter) {
             this.draft = draft;
-            this.context = Objects.requireNonNull(draft.context(), "A streamed turn needs a retrieved context");
+            this.context = isRag(draft)
+                    ? Objects.requireNonNull(draft.context(), "A RAG turn needs a retrieved context")
+                    : null;
             this.emitter = emitter;
         }
 
@@ -195,8 +205,8 @@ public class AnswerStreamer {
                 String answer = sentAnswer.toString();
                 outcome = new TurnOutcome(
                         answer,
-                        notFoundAnswerDetector.isNotFoundAnswer(answer),
-                        citationParser.parseCitations(answer, context.contextChunks().size()),
+                        isNotFoundAnswer(answer),
+                        citationsOf(answer),
                         promptTokens,
                         completionTokens,
                         generationMs(endNanos),
@@ -276,6 +286,17 @@ public class AnswerStreamer {
             }
         }
 
+        private boolean isNotFoundAnswer(String answer) {
+            return context != null && notFoundAnswerDetector.isNotFoundAnswer(answer);
+        }
+
+        private List<Integer> citationsOf(String answer) {
+            if (context == null) {
+                return List.of();
+            }
+            return citationParser.parseCitations(answer, context.contextChunks().size());
+        }
+
         private synchronized TurnOutcome interruptedOutcome(String errorCode) {
             long endNanos = System.nanoTime();
             String answer = sentAnswer.isEmpty() ? null : sentAnswer.toString();
@@ -316,6 +337,10 @@ public class AnswerStreamer {
         }
 
         private SourcesEvent sourcesEvent(List<Integer> citations) {
+            if (context == null) {
+                return new SourcesEvent(GenerationMode.LLM_ONLY, RetrievalStrategy.NONE, null, null, null,
+                        QueryRewriteStatus.DISABLED, List.of(), List.of());
+            }
             List<RetrievedChunk> contextChunks = context.contextChunks();
             List<ContextChunk> chunks = new ArrayList<>(contextChunks.size());
             for (int i = 0; i < contextChunks.size(); i++) {
@@ -333,8 +358,8 @@ public class AnswerStreamer {
                         chunk.hit().distance(),
                         chunk.rerankScore()));
             }
-            return new SourcesEvent(context.strategy(), context.candidates(), context.topK(), draft.searchQuery(),
-                    draft.queryRewriteStatus(), chunks, citations);
+            return new SourcesEvent(GenerationMode.RAG, context.strategy(), context.candidates(), context.topK(),
+                    draft.searchQuery(), draft.queryRewriteStatus(), chunks, citations);
         }
 
         private DoneEvent doneEvent(long turnId, TurnOutcome outcome) {
@@ -345,8 +370,8 @@ public class AnswerStreamer {
                     outcome.promptTokens(),
                     outcome.completionTokens(),
                     draft.queryRewriteLatencyMs(),
-                    context.retrievalLatencyMs(),
-                    context.rerankLatencyMs(),
+                    context == null ? null : context.retrievalLatencyMs(),
+                    context == null ? null : context.rerankLatencyMs(),
                     outcome.generationLatencyMs(),
                     outcome.timeToFirstTokenMs(),
                     outcome.latencyMs(),

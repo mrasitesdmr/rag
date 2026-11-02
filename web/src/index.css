@@ -56,6 +56,8 @@
   --color-composer-line: #ddd2d7;
   --color-context-line: #eee6ea;
   --color-context-bg: #fcfafb;
+  --color-config-warning-line: #ecd3a0;
+  --color-config-danger-line: #f0c6c1;
 
   --font-site: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -99,6 +101,7 @@
   --text-context: 12.5px;
   --text-context-small: 11.5px;
   --text-latency: 12px;
+  --text-config: 11px;
   --line-height-bubble: 1.5;
   --line-height-context: 1.35;
   --line-height-note: 1.4;
@@ -180,6 +183,7 @@
   --radius-cite: 4px;
   --radius-bubble-tail: 4px;
   --radius-context: 7px;
+  --radius-config: 6px;
   --radius-system-message: 10px;
   --radius-chip: 12px;
   --radius-bubble: 14px;

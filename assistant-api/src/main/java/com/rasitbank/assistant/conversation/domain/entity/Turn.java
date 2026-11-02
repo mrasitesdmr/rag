@@ -23,8 +23,8 @@ import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Konuşmanın bir turudur (bir soru ve cevabı); cevabın neye dayandığını sonradan incelemek için arama sorgusu,
- * strateji, aday parçalar, alıntılar, token sayıları, süreler ve hata kodu bu kayıtta durur.
+ * Konuşmanın bir turudur (bir soru ve cevabı); cevabın neye dayandığını sonradan incelemek için üretim modu, arama
+ * sorgusu, strateji, aday parçalar, alıntılar, token sayıları, süreler ve hata kodu bu kayıtta durur.
  */
 @Entity
 @Table(name = "conversation_turns")
@@ -44,8 +44,8 @@ public class Turn {
     @Column(name = "question", nullable = false)
     private String question;
 
-    @Column(name = "search_query", nullable = false)
-    private String searchQuery;
+    @Column(name = "search_query")
+    private @Nullable String searchQuery;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "query_rewrite_status", nullable = false)
@@ -65,11 +65,11 @@ public class Turn {
     @Column(name = "retrieval_strategy", nullable = false)
     private RetrievalStrategy retrievalStrategy;
 
-    @Column(name = "candidates", nullable = false)
-    private int candidates;
+    @Column(name = "candidates")
+    private @Nullable Integer candidates;
 
-    @Column(name = "top_k", nullable = false)
-    private int topK;
+    @Column(name = "top_k")
+    private @Nullable Integer topK;
 
     @Column(name = "chat_model", nullable = false)
     private String chatModel;
@@ -171,7 +171,7 @@ public class Turn {
         return question;
     }
 
-    public String getSearchQuery() {
+    public @Nullable String getSearchQuery() {
         return searchQuery;
     }
 
@@ -195,11 +195,11 @@ public class Turn {
         return retrievalStrategy;
     }
 
-    public int getCandidates() {
+    public @Nullable Integer getCandidates() {
         return candidates;
     }
 
-    public int getTopK() {
+    public @Nullable Integer getTopK() {
         return topK;
     }
 

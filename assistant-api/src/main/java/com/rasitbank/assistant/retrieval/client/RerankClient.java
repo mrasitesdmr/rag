@@ -11,12 +11,13 @@ import org.springframework.web.client.RestClientException;
 
 /**
  * Aday parçaları reranker'a (llama-server /v1/rerank) puanlatır; puanları gönderilen belge sırasıyla döner,
- * her hatayı ve eksik ya da bozuk yanıtı RERANKER_UNAVAILABLE olarak bildirir.
+ * her hatayı ve eksik ya da bozuk yanıtı RERANKER_UNAVAILABLE olarak bildirir. Sağlık ucunu (/health) da yoklar.
  */
 @Component
 public class RerankClient {
 
     private static final String RERANK_PATH = "/v1/rerank";
+    private static final String HEALTH_PATH = "/health";
 
     private final RestClient restClient;
     private final String model;
@@ -40,6 +41,18 @@ public class RerankClient {
             throw unavailable("Reranker request failed: " + exception.getClass().getSimpleName());
         }
         return alignScores(response, documents.size());
+    }
+
+    public boolean isHealthy() {
+        try {
+            restClient.get()
+                    .uri(HEALTH_PATH)
+                    .retrieve()
+                    .toBodilessEntity();
+            return true;
+        } catch (RestClientException exception) {
+            return false;
+        }
     }
 
     private static List<Double> alignScores(RerankResponse response, int documentCount) {

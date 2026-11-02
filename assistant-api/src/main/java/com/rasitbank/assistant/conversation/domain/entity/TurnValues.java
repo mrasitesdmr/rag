@@ -5,19 +5,19 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Akış bitince kaydedilecek turun bütün değerlerini (soru, arama sorgusu, strateji, cevap, token sayıları, süreler,
- * hata kodu) tek yerde toplar.
+ * Akış bitince kaydedilecek turun bütün değerlerini (soru, arama sorgusu, mod, strateji, cevap, token sayıları,
+ * süreler, hata kodu) tek yerde toplar; Sadece LLM turunda arama sorgusu ve aday/top-k boştur.
  */
 public record TurnValues(
         String question,
-        String searchQuery,
+        @Nullable String searchQuery,
         QueryRewriteStatus queryRewriteStatus,
         @Nullable Integer queryRewriteLatencyMs,
         int historyTurns,
         GenerationMode generationMode,
         RetrievalStrategy retrievalStrategy,
-        int candidates,
-        int topK,
+        @Nullable Integer candidates,
+        @Nullable Integer topK,
         String chatModel,
         @Nullable String answer,
         boolean notFoundAnswer,

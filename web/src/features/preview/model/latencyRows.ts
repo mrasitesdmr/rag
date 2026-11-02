@@ -12,7 +12,9 @@ export function latencyRows(done: DoneEvent): LatencyRow[] {
   if (done.queryRewriteLatencyMs !== null) {
     rows.push({ label: 'yeniden yazma', ms: done.queryRewriteLatencyMs, isModel: false })
   }
-  rows.push({ label: 'retrieval-api araması', ms: done.retrievalLatencyMs, isModel: false })
+  if (done.retrievalLatencyMs !== null) {
+    rows.push({ label: 'retrieval-api araması', ms: done.retrievalLatencyMs, isModel: false })
+  }
   if (done.rerankLatencyMs !== null) {
     rows.push({ label: 'rerank', ms: done.rerankLatencyMs, isModel: false })
   }

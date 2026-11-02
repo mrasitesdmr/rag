@@ -41,8 +41,11 @@ class ContextRetrieverTest {
     @Mock
     private RerankClient rerankClient;
 
+    private RerankerStatusTracker tracker;
+
     private ContextRetriever retriever(AssistantProperties properties) {
-        return new ContextRetriever(retrievalClient, rerankClient, properties);
+        tracker = new RerankerStatusTracker(properties);
+        return new ContextRetriever(retrievalClient, rerankClient, tracker, properties);
     }
 
     private static List<Double> scores(int count, double baseline, Object... rankScorePairs) {
@@ -185,5 +188,48 @@ class ContextRetrieverTest {
                 .isInstanceOfSatisfying(ServiceUnavailableException.class,
                         exception -> assertThat(exception.getErrorCode()).isEqualTo("RETRIEVAL_UNAVAILABLE"));
         verifyNoInteractions(rerankClient);
+    }
+
+    @Test
+    void givenRerankerFails_whenRetrieveContext_thenTrackerDown() {
+        // Arrange
+        given(retrievalClient.search(anyString(), anyInt())).willReturn(SearchHitFixtures.hits(20));
+        given(rerankClient.rerankChunks(anyString(), anyList()))
+                .willThrow(new ServiceUnavailableException("RERANKER_UNAVAILABLE", "down"));
+        ContextRetriever retriever = retriever(TestProperties.defaults());
+        assertThat(tracker.currentStatus()).isEqualTo(RerankerStatus.UNKNOWN);
+
+        // Act
+        retriever.retrieveContext("soru");
+
+        // Assert
+        assertThat(tracker.currentStatus()).isEqualTo(RerankerStatus.DOWN);
+    }
+
+    @Test
+    void givenRerankSucceeds_whenRetrieveContext_thenTrackerUp() {
+        // Arrange
+        given(retrievalClient.search(anyString(), anyInt())).willReturn(SearchHitFixtures.hits(3));
+        given(rerankClient.rerankChunks(anyString(), anyList())).willReturn(List.of(1.0, 3.0, 2.0));
+        ContextRetriever retriever = retriever(TestProperties.defaults());
+
+        // Act
+        retriever.retrieveContext("soru");
+
+        // Assert
+        assertThat(tracker.currentStatus()).isEqualTo(RerankerStatus.UP);
+    }
+
+    @Test
+    void givenTopKStrategy_whenRetrieveContext_thenTrackerStaysNotUsed() {
+        // Arrange
+        given(retrievalClient.search("soru", 5)).willReturn(SearchHitFixtures.hits(5));
+        ContextRetriever retriever = retriever(TestProperties.withStrategy("top5"));
+
+        // Act
+        retriever.retrieveContext("soru");
+
+        // Assert
+        assertThat(tracker.currentStatus()).isEqualTo(RerankerStatus.NOT_USED);
     }
 }

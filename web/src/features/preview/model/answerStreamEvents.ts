@@ -1,4 +1,6 @@
 import type { ServerSentEvent } from '../../../shared/api/eventStream.ts'
+import { GENERATION_MODES } from '../../../shared/liveConfig/types.ts'
+import type { GenerationMode } from '../../../shared/liveConfig/types.ts'
 import { QUERY_REWRITE_STATUSES, RETRIEVAL_STRATEGIES } from './types.ts'
 import type {
   AnswerStreamEvent,
@@ -61,6 +63,10 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === 'string'
 }
 
+function isGenerationMode(value: unknown): value is GenerationMode {
+  return typeof value === 'string' && (GENERATION_MODES as readonly string[]).includes(value)
+}
+
 function isRetrievalStrategy(value: unknown): value is RetrievalStrategy {
   return typeof value === 'string' && (RETRIEVAL_STRATEGIES as readonly string[]).includes(value)
 }
@@ -92,10 +98,11 @@ function isContextChunk(value: unknown): value is ContextChunk {
 
 function isSourcesEvent(data: JsonObject): data is SourcesEvent {
   return (
+    isGenerationMode(data.generationMode) &&
     isRetrievalStrategy(data.retrievalStrategy) &&
-    isInteger(data.candidates) &&
-    isInteger(data.topK) &&
-    typeof data.searchQuery === 'string' &&
+    isNullableInteger(data.candidates) &&
+    isNullableInteger(data.topK) &&
+    isNullableString(data.searchQuery) &&
     isQueryRewriteStatus(data.queryRewriteStatus) &&
     Array.isArray(data.contextChunks) &&
     data.contextChunks.every(isContextChunk) &&
@@ -112,7 +119,7 @@ function isDoneEvent(data: JsonObject): data is DoneEvent {
     isNullableInteger(data.promptTokens) &&
     isNullableInteger(data.completionTokens) &&
     isNullableInteger(data.queryRewriteLatencyMs) &&
-    isInteger(data.retrievalLatencyMs) &&
+    isNullableInteger(data.retrievalLatencyMs) &&
     isNullableInteger(data.rerankLatencyMs) &&
     isNullableInteger(data.generationLatencyMs) &&
     isNullableInteger(data.timeToFirstTokenMs) &&

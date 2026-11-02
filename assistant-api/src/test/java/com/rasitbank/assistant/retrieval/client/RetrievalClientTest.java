@@ -108,4 +108,79 @@ class RetrievalClientTest {
 
         assertThatThrownBy(() -> client.search("q", 5)).satisfies(RetrievalClientTest::assertRetrievalUnavailable);
     }
+
+    @Test
+    void givenWorkspace_whenGetWorkspace_thenGetsWorkspace42AndReadsEmbeddingFields() {
+        // Arrange
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://retrieval");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://retrieval/api/workspaces/42")).andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("{\"workspaceId\":42,\"name\":\"Raşit Bankası · Dijital Asistan\","
+                        + "\"embeddingModel\":\"bge-m3\",\"embeddingDimensions\":1024,\"extra\":1}",
+                        MediaType.APPLICATION_JSON));
+        RetrievalClient client = new RetrievalClient(builder.build(), TestProperties.defaults());
+
+        // Act
+        WorkspaceResponse workspace = client.getWorkspace();
+
+        // Assert
+        assertThat(workspace).isEqualTo(new WorkspaceResponse(42, "Raşit Bankası · Dijital Asistan", "bge-m3", 1024));
+        server.verify();
+    }
+
+    @Test
+    void givenSourcePage_whenListSources_thenSendsPageAndSizeAndReadsNullableChunkCount() {
+        // Arrange
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://retrieval");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://retrieval/api/workspaces/42/sources?page=1&size=100"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("{\"content\":[{\"sourceId\":10001,\"name\":\"Rehber\","
+                        + "\"version\":\"2026.10\",\"chunkCount\":61},{\"sourceId\":10002,\"name\":\"Yeni\","
+                        + "\"version\":\"v1\",\"chunkCount\":null}],\"page\":1,\"size\":100,"
+                        + "\"totalElements\":102,\"totalPages\":2}", MediaType.APPLICATION_JSON));
+        RetrievalClient client = new RetrievalClient(builder.build(), TestProperties.defaults());
+
+        // Act
+        SourcePageResponse page = client.listSources(1, 100);
+
+        // Assert
+        assertThat(page.content()).containsExactly(new SourceResponse(10001, "Rehber", "2026.10", 61),
+                new SourceResponse(10002, "Yeni", "v1", null));
+        assertThat(page.totalPages()).isEqualTo(2);
+        assertThat(page.totalElements()).isEqualTo(102);
+        server.verify();
+    }
+
+    @ParameterizedTest(name = "[{index}] HTTP {0}")
+    @CsvSource({"503", "404", "500"})
+    void givenErrorStatus_whenGetWorkspace_thenRetrievalUnavailable(int status) {
+        // Arrange
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://retrieval");
+        MockRestServiceServer.bindTo(builder).build().expect(requestTo("http://retrieval/api/workspaces/42"))
+                .andRespond(withStatus(HttpStatus.valueOf(status)));
+        RetrievalClient client = new RetrievalClient(builder.build(), TestProperties.defaults());
+
+        // Act
+        Throwable thrown = org.assertj.core.api.Assertions.catchThrowable(client::getWorkspace);
+
+        // Assert
+        assertRetrievalUnavailable(thrown);
+    }
+
+    @Test
+    void givenErrorStatus_whenListSources_thenRetrievalUnavailable() {
+        // Arrange
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://retrieval");
+        MockRestServiceServer.bindTo(builder).build()
+                .expect(requestTo("http://retrieval/api/workspaces/42/sources?page=0&size=100"))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+        RetrievalClient client = new RetrievalClient(builder.build(), TestProperties.defaults());
+
+        // Act
+        Throwable thrown = org.assertj.core.api.Assertions.catchThrowable(() -> client.listSources(0, 100));
+
+        // Assert
+        assertRetrievalUnavailable(thrown);
+    }
 }

@@ -3,6 +3,7 @@ package com.rasitbank.assistant.conversation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
+import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
 import com.rasitbank.assistant.conversation.domain.dto.CreateConversationRequest;
 import com.rasitbank.assistant.conversation.domain.entity.Channel;
@@ -39,7 +40,7 @@ class TurnServiceIntegrationTest extends PostgresIntegrationTest {
     }
 
     private static TurnDraft draft(long conversationId, RetrievedContext context) {
-        return new TurnDraft(conversationId, "Kartımı kaybettim, ne yapmalıyım?",
+        return new TurnDraft(conversationId, GenerationMode.RAG, "Kartımı kaybettim, ne yapmalıyım?",
                 "Kartımı kaybettim, ne yapmalıyım?", QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", RECEIVED_AT, System.nanoTime(), context);
     }
 
@@ -172,7 +173,7 @@ class TurnServiceIntegrationTest extends PostgresIntegrationTest {
     @Test
     void givenRewrittenDraft_whenRecordTurn_thenStoresSearchQueryStatusLatencyAndHistoryTurns() {
         long conversationId = newConversation();
-        TurnDraft rewritten = new TurnDraft(conversationId, "Yenisi kaç günde gelir?",
+        TurnDraft rewritten = new TurnDraft(conversationId, GenerationMode.RAG, "Yenisi kaç günde gelir?",
                 "Kaybolan kartın yenisi kaç günde gelir?", QueryRewriteStatus.REWRITTEN, 812L, 1, "qwen3.5:9b",
                 RECEIVED_AT, System.nanoTime(), ContextFixtures.topKContext());
 
@@ -196,5 +197,102 @@ class TurnServiceIntegrationTest extends PostgresIntegrationTest {
         assertThat(turn.get("query_rewrite_status")).isEqualTo("NO_HISTORY");
         assertThat(turn.get("query_rewrite_latency_ms")).isNull();
         assertThat(turn.get("history_turns")).isEqualTo(0);
+    }
+
+    private static TurnDraft llmOnlyDraft(long conversationId, int historyTurns) {
+        return new TurnDraft(conversationId, GenerationMode.LLM_ONLY, "Kartımı kaybettim, ne yapmalıyım?", null,
+                QueryRewriteStatus.DISABLED, null, historyTurns, "qwen3.5:9b", RECEIVED_AT, System.nanoTime(), null);
+    }
+
+    @Test
+    void givenLlmOnlyDraft_whenRecordTurn_thenNoneStrategyAndNoChunks() {
+        // Arrange
+        long conversationId = newConversation();
+        TurnOutcome outcome = new TurnOutcome("Kartını kapat [1].", false, List.of(), 63, 9, 1300L, 400L, 1400L, null);
+
+        // Act
+        long turnId = turnService.recordTurn(llmOnlyDraft(conversationId, 0), outcome);
+
+        // Assert
+        Map<String, Object> turn = jdbc.queryForMap(
+                "select *, cited::text as cited_text from conversation_turns where id = ?", turnId);
+        assertThat(turn.get("generation_mode")).isEqualTo("LLM_ONLY");
+        assertThat(turn.get("retrieval_strategy")).isEqualTo("NONE");
+        assertThat(turn.get("search_query")).isNull();
+        assertThat(turn.get("candidates")).isNull();
+        assertThat(turn.get("top_k")).isNull();
+        assertThat(turn.get("retrieval_latency_ms")).isNull();
+        assertThat(turn.get("rerank_latency_ms")).isNull();
+        assertThat(turn.get("query_rewrite_status")).isEqualTo("DISABLED");
+        assertThat(turn.get("cited_text")).isEqualTo("{}");
+        assertThat(turn.get("not_found_answer")).isEqualTo(false);
+        assertThat(turn.get("answer")).isEqualTo("Kartını kapat [1].");
+        assertThat(turn.get("prompt_tokens")).isEqualTo(63);
+        assertThat(jdbc.queryForObject("select count(*) from turn_chunks where turn_id = ?", Integer.class, turnId))
+                .isZero();
+    }
+
+    @Test
+    void givenLlmOnlyDraftWithUnexpectedContext_whenRecordTurn_thenContextIgnored() {
+        // Arrange
+        long conversationId = newConversation();
+        TurnDraft draft = new TurnDraft(conversationId, GenerationMode.LLM_ONLY, "q", "must-not-be-stored",
+                QueryRewriteStatus.DISABLED, null, 0, "qwen3.5:9b", RECEIVED_AT, System.nanoTime(),
+                ContextFixtures.topKContext());
+
+        // Act
+        long turnId = turnService.recordTurn(draft, successOutcome());
+
+        // Assert
+        Map<String, Object> turn = jdbc.queryForMap("select * from conversation_turns where id = ?", turnId);
+        assertThat(turn.get("retrieval_strategy")).isEqualTo("NONE");
+        assertThat(turn.get("search_query")).isNull();
+        assertThat(turn.get("candidates")).isNull();
+        assertThat(jdbc.queryForObject("select count(*) from turn_chunks where turn_id = ?", Integer.class, turnId))
+                .isZero();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "[{index}] {0}/{1} search={2} candidates={3} retrievalMs={4}")
+    @org.junit.jupiter.params.provider.CsvSource(value = {
+            "LLM_ONLY, RERANK, null, null, null",
+            "RAG, NONE, null, null, null",
+            "LLM_ONLY, NONE, null, 20, null",
+            "LLM_ONLY, NONE, null, null, 84",
+            "RAG, RERANK, null, 20, null",
+            "RAG, TOP_K, q, null, null"}, nullValues = "null")
+    void givenMigrations_whenInconsistentModeAndStrategy_thenCheckViolation(String mode, String strategy,
+            String searchQuery, Integer candidates, Integer retrievalLatencyMs) {
+        // Arrange
+        long conversationId = newConversation();
+
+        // Act
+        Throwable thrown = org.assertj.core.api.Assertions.catchThrowable(() -> insertTurn(conversationId, mode,
+                strategy, searchQuery, candidates, candidates == null ? null : 5, retrievalLatencyMs));
+
+        // Assert
+        assertThat(thrown).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+                .hasMessageContaining("violates check constraint");
+    }
+
+    @Test
+    void givenMigrations_whenConsistentLlmOnlyRow_thenInsertAccepted() {
+        // Arrange
+        long conversationId = newConversation();
+
+        // Act
+        insertTurn(conversationId, "LLM_ONLY", "NONE", null, null, null, null);
+
+        // Assert
+        assertThat(jdbc.queryForObject("select count(*) from conversation_turns where conversation_id = ?",
+                Integer.class, conversationId)).isEqualTo(1);
+    }
+
+    private void insertTurn(long conversationId, String mode, String strategy, String searchQuery, Integer candidates,
+            Integer topK, Integer retrievalLatencyMs) {
+        jdbc.update("insert into conversation_turns (conversation_id, turn_no, question, search_query, "
+                + "generation_mode, retrieval_strategy, candidates, top_k, chat_model, retrieval_latency_ms, "
+                + "query_rewrite_status, "
+                + "latency_ms, created_at, completed_at) values (?, 1, 'q', ?, ?, ?, ?, ?, 'm', ?, 'DISABLED', 10, now(), now())",
+                conversationId, searchQuery, mode, strategy, candidates, topK, retrievalLatencyMs);
     }
 }

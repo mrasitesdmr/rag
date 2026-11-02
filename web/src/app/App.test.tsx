@@ -83,6 +83,10 @@ describe('App shell', () => {
     expect(within(header).getByText('Raşit Bankası')).toBeVisible()
     expect(within(header).getByText('Dijital Asistan Yönetimi')).toBeVisible()
     expect(within(header).getByText('Canlı yapılandırma')).toBeVisible()
+    expect(within(header).getByText('Canlı yapılandırma')).toHaveAttribute(
+      'title',
+      'Önizleme, canlı asistanla aynı yapılandırmayı kullanır',
+    )
     expect(within(header).getByRole('link', { name: 'Önizleme' })).toHaveAttribute('href', '/onizleme')
   })
 

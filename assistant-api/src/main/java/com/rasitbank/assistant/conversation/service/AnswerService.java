@@ -2,6 +2,8 @@ package com.rasitbank.assistant.conversation.service;
 
 import com.rasitbank.assistant.config.AssistantProperties;
 import com.rasitbank.assistant.conversation.domain.dto.SendMessageRequest;
+import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
+import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
 import com.rasitbank.assistant.exception.ConflictException;
 import com.rasitbank.assistant.exception.ServiceUnavailableException;
 import com.rasitbank.assistant.generation.HistoryTurn;
@@ -23,9 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
- * Müşterinin sorusunu RAG hattından geçirir: akış açılmadan önce konuşmayı ve süren turu denetler, geçmişi okur,
- * takip sorusunu arama sorgusuna çevirir ve retrieval'ı yapar, sonra cevabı SSE akışı olarak başlatır. Model
- * çağrıları sırasında transaction açık tutmaz.
+ * Müşterinin sorusunu yapılandırılan üretim moduna göre cevaplar: akış açılmadan önce konuşmayı ve süren turu
+ * denetler, geçmişi okur; RAG'de takip sorusunu arama sorgusuna çevirip retrieval'ı yapar, Sadece LLM'de bu adımları
+ * atlar; sonra cevabı SSE akışı olarak başlatır. Model çağrıları sırasında transaction açık tutmaz.
  */
 @Service
 public class AnswerService {
@@ -72,19 +74,9 @@ public class AnswerService {
         boolean streamStarted = false;
         try {
             List<HistoryTurn> history = conversationService.getHistory(conversationId);
-            QueryRewriteResult rewrite = queryRewriter.rewriteQuery(question, history);
-            logQueryRewrite(conversationId, question, history, rewrite);
-            RetrievedContext context = retrieveContext(conversationId, question, rewrite, history.size(), receivedAt,
-                    startNanos);
-            TurnDraft draft = draft(conversationId, question, rewrite, history.size(), receivedAt, startNanos,
-                    context);
-            SseEmitter emitter = new SseEmitter(properties.generation().streamTimeout().toMillis());
-            if (context.contextChunks().isEmpty()) {
-                answerStreamer.streamFixedAnswer(draft, properties.generation().notFoundAnswer(), emitter);
-            } else {
-                answerStreamer.streamModelAnswer(draft,
-                        promptBuilder.buildPrompt(question, history, context.contextChunks()), emitter);
-            }
+            SseEmitter emitter = properties.generation().configuredMode() == GenerationMode.LLM_ONLY
+                    ? answerWithoutRetrieval(conversationId, question, history, receivedAt, startNanos)
+                    : answerWithRetrieval(conversationId, question, history, receivedAt, startNanos);
             streamStarted = true;
             return emitter;
         } finally {
@@ -92,6 +84,35 @@ public class AnswerService {
                 activeTurnRegistry.finish(conversationId);
             }
         }
+    }
+
+    private SseEmitter answerWithoutRetrieval(long conversationId, String question, List<HistoryTurn> history,
+            Instant receivedAt, long startNanos) {
+        log.info("Generation without retrieval conversationId={} mode={} historyTurns={} questionLength={}",
+                conversationId, GenerationMode.LLM_ONLY, history.size(), question.length());
+        TurnDraft draft = new TurnDraft(conversationId, GenerationMode.LLM_ONLY, question, null,
+                QueryRewriteStatus.DISABLED, null, history.size(), chatModelName, receivedAt, startNanos, null);
+        SseEmitter emitter = new SseEmitter(properties.generation().streamTimeout().toMillis());
+        answerStreamer.streamModelAnswer(draft, promptBuilder.buildLlmOnlyPrompt(question, history), emitter);
+        return emitter;
+    }
+
+    private SseEmitter answerWithRetrieval(long conversationId, String question, List<HistoryTurn> history,
+            Instant receivedAt, long startNanos) {
+        QueryRewriteResult rewrite = queryRewriter.rewriteQuery(question, history);
+        logQueryRewrite(conversationId, question, history, rewrite);
+        RetrievedContext context = retrieveContext(conversationId, question, rewrite, history.size(), receivedAt,
+                startNanos);
+        TurnDraft draft = draft(conversationId, question, rewrite, history.size(), receivedAt, startNanos,
+                context);
+        SseEmitter emitter = new SseEmitter(properties.generation().streamTimeout().toMillis());
+        if (context.contextChunks().isEmpty()) {
+            answerStreamer.streamFixedAnswer(draft, properties.generation().notFoundAnswer(), emitter);
+        } else {
+            answerStreamer.streamModelAnswer(draft,
+                    promptBuilder.buildPrompt(question, history, context.contextChunks()), emitter);
+        }
+        return emitter;
     }
 
     private RetrievedContext retrieveContext(long conversationId, String question, QueryRewriteResult rewrite,
@@ -113,7 +134,7 @@ public class AnswerService {
 
     private TurnDraft draft(long conversationId, String question, QueryRewriteResult rewrite, int historyTurns,
             Instant receivedAt, long startNanos, @Nullable RetrievedContext context) {
-        return new TurnDraft(conversationId, question, rewrite.searchQuery(), rewrite.status(), rewrite.latencyMs(),
+        return new TurnDraft(conversationId, GenerationMode.RAG, question, rewrite.searchQuery(), rewrite.status(), rewrite.latencyMs(),
                 historyTurns, chatModelName, receivedAt, startNanos, context);
     }
 

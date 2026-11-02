@@ -1,9 +1,13 @@
 import { useState } from 'react'
+import { ApiError } from '../../../shared/api/ApiError.ts'
 import { ChunkDialog } from '../../../shared/chunk/ChunkDialog.tsx'
+import { ErrorAlert } from '../../../shared/components/ErrorAlert.tsx'
 import { PageHeader } from '../../../shared/components/PageHeader.tsx'
 import hidden from '../../../shared/components/visuallyHidden.module.css'
+import { useLiveConfigQuery } from '../../../shared/liveConfig/liveConfigQueries.ts'
 import { ContextChunksCard } from '../components/ContextChunksCard.tsx'
 import { HowItWorksCard } from '../components/HowItWorksCard.tsx'
+import { LiveConfigStrip } from '../components/LiveConfigStrip.tsx'
 import { MessageComposer } from '../components/MessageComposer.tsx'
 import { MessageList } from '../components/MessageList.tsx'
 import { PhoneFrame } from '../components/PhoneFrame.tsx'
@@ -11,8 +15,11 @@ import { useAnswerStream } from '../hooks/useAnswerStream.ts'
 import type { PreviewTurn } from '../model/types.ts'
 import styles from './PreviewPage.module.css'
 
+const UNEXPECTED_ERROR = 'UNEXPECTED_ERROR'
+
 export function PreviewPage() {
   const answerStream = useAnswerStream()
+  const liveConfig = useLiveConfigQuery()
   const [openChunkId, setOpenChunkId] = useState<number | null>(null)
   const lastTurn = answerStream.turns.at(-1)
 
@@ -37,7 +44,15 @@ export function PreviewPage() {
             </PhoneFrame>
           </div>
           <div className={styles.side}>
-            {lastTurn !== undefined && lastTurn.phase === 'done' && lastTurn.sources !== null && lastTurn.done !== null ? (
+            {liveConfig.data !== undefined ? <LiveConfigStrip config={liveConfig.data} /> : null}
+            {liveConfig.data === undefined && liveConfig.isError ? (
+              <ErrorAlert errorCode={liveConfig.error instanceof ApiError ? liveConfig.error.errorCode : UNEXPECTED_ERROR} />
+            ) : null}
+            {lastTurn !== undefined &&
+            lastTurn.phase === 'done' &&
+            lastTurn.sources !== null &&
+            lastTurn.sources.generationMode === 'RAG' &&
+            lastTurn.done !== null ? (
               <ContextChunksCard
                 question={lastTurn.question}
                 sources={lastTurn.sources}
@@ -45,7 +60,7 @@ export function PreviewPage() {
                 onChunkOpen={setOpenChunkId}
               />
             ) : (
-              <HowItWorksCard />
+              <HowItWorksCard config={liveConfig.data} />
             )}
           </div>
         </div>

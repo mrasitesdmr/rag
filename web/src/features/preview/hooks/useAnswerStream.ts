@@ -1,6 +1,8 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError } from '../../../shared/api/ApiError.ts'
 import { isAbortError, STREAM_INTERRUPTED } from '../../../shared/api/eventStream.ts'
+import { liveConfigKeys } from '../../../shared/liveConfig/liveConfigQueries.ts'
 import { createConversation, sendMessage } from '../api/previewApi.ts'
 import { canSendMessage, normalizeMessage } from '../model/messageRules.ts'
 import type { AnswerStreamEvent, PreviewTurn } from '../model/types.ts'
@@ -18,6 +20,7 @@ export type AnswerStream = {
 }
 
 export function useAnswerStream(): AnswerStream {
+  const queryClient = useQueryClient()
   const [conversationId, setConversationId] = useState<number | null>(null)
   const [turns, setTurns] = useState<PreviewTurn[]>([])
   const [previousTurns, setPreviousTurns] = useState<PreviewTurn[]>([])
@@ -35,6 +38,10 @@ export function useAnswerStream(): AnswerStream {
   const updateTurn = useCallback((localId: string, update: (turn: PreviewTurn) => PreviewTurn) => {
     setTurns((current) => current.map((turn) => (turn.localId === localId ? update(turn) : turn)))
   }, [])
+
+  const refreshLiveConfig = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: liveConfigKeys.all })
+  }, [queryClient])
 
   const rememberConversation = useCallback((nextConversationId: number | null) => {
     conversationIdRef.current = nextConversationId
@@ -69,6 +76,7 @@ export function useAnswerStream(): AnswerStream {
             updateTurn(localId, (turn) => applyEvent(turn, event))
             if (event.type === 'done' || event.type === 'error') {
               isFinished = true
+              refreshLiveConfig()
               break
             }
           }
@@ -86,6 +94,9 @@ export function useAnswerStream(): AnswerStream {
           if (errorCode === CONVERSATION_NOT_FOUND) {
             rememberConversation(null)
           }
+          if (error instanceof ApiError) {
+            refreshLiveConfig()
+          }
           updateTurn(localId, (turn) => failTurn(turn, errorCode))
         } finally {
           if (controllerRef.current === controller) {
@@ -96,7 +107,7 @@ export function useAnswerStream(): AnswerStream {
 
       void streamAnswer()
     },
-    [rememberConversation, updateTurn],
+    [refreshLiveConfig, rememberConversation, updateTurn],
   )
 
   const isStreaming = turns.some((turn) => turn.phase === 'waiting' || turn.phase === 'streaming')

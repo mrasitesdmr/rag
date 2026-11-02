@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.rasitbank.assistant.conversation.domain.dto.CreateConversationRequest;
 import com.rasitbank.assistant.conversation.domain.entity.Channel;
+import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
 import com.rasitbank.assistant.generation.HistoryTurn;
 import com.rasitbank.assistant.support.ContextFixtures;
@@ -45,7 +46,7 @@ class ConversationServiceIntegrationTest extends PostgresIntegrationTest {
     }
 
     private static TurnDraft draft(long conversationId, String question) {
-        return new TurnDraft(conversationId, question, question, QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b",
+        return new TurnDraft(conversationId, GenerationMode.RAG, question, question, QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b",
                 RECEIVED_AT, System.nanoTime(), ContextFixtures.topKContext());
     }
 

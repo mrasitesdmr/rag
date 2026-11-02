@@ -98,3 +98,19 @@ test('givenLostCardAnswered_whenFollowUpAsked_thenSideCardShowsSearchQueryAndRew
   await expect(card.getByText(/· arama: "/)).toBeVisible({ timeout: ANSWER_TIMEOUT_MS })
   await expect(page.getByText('yeniden yazma', { exact: true })).toBeVisible()
 })
+
+test('givenRunningSystem_whenPreviewOpens_thenStripMatchesLiveConfig', async ({ page, request }) => {
+  const response = await request.get(`${BASE_URL}/api/assistant/live-config`)
+  expect(response.status()).toBe(200)
+  const config = (await response.json()) as { chatModel: string; generationMode: string }
+
+  await page.goto('/onizleme')
+
+  const strip = page.getByRole('group', { name: 'Canlı yapılandırma' })
+  await expect(strip).toBeVisible()
+  await expect(strip).toContainText(`Model ${config.chatModel}`)
+  await expect(strip).toContainText('Bilgi kaynakları')
+  if (config.generationMode === 'LLM_ONLY') {
+    await expect(strip).toContainText('Retrieval kapalı (Sadece LLM)')
+  }
+})

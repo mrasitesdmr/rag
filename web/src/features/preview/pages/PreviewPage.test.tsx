@@ -3,11 +3,13 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { axe } from 'vitest-axe'
 import { describe, expect, it } from 'vitest'
-import { GUIDE_NAME } from '../../../test/fixtures.ts'
+import { GUIDE_NAME, liveConfig } from '../../../test/fixtures.ts'
+import { serveLiveConfig } from '../../../test/liveConfigHandlers.ts'
 import { deferred } from '../../../test/handlers.ts'
 import {
   contextChunk,
   done,
+  llmOnlyAnswer,
   lostCardAnswer,
   sources,
   streamError,
@@ -357,16 +359,175 @@ describe('PreviewPage', () => {
     expect(log.messages.map((message) => message.conversationId)).toEqual([1, 2])
   })
 
-  it('givenNoAnswerYet_whenRendered_thenHowItWorksCard', () => {
+  it('givenNoAnswerYet_whenRendered_thenHowItWorksCard', async () => {
     renderAppAt('/onizleme')
 
     expect(screen.getByRole('heading', { name: 'Asistan nasıl cevaplıyor?' })).toBeInTheDocument()
     expect(
-      screen.getByText(
-        "Soru önce rehberde aranır (bge-m3 + pgvector), 20 aday reranker ile puanlanıp en iyi 5'i qwen3.5:9b'ye gider. Cevaptaki numaralar rehberin parçalarını gösterir.",
+      await screen.findByText(
+        'Soru önce rehberde aranır (bge-m3 + pgvector), 20 aday reranker ile puanlanıp en iyi 5 parça qwen3.5:9b modeline gider. Cevaptaki numaralar rehberin parçalarını gösterir.',
       ),
     ).toBeInTheDocument()
+    expect(
+      screen.getByText('Bir soru sor; modele hangi parçaların gittiği, sıraları ve süreler burada görünecek.'),
+    ).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Son cevapta modele giden parçalar' })).not.toBeInTheDocument()
+  })
+
+  it('givenLiveConfig_whenPageOpens_thenStripShowsConfiguredValues', async () => {
+    renderAppAt('/onizleme')
+
+    const strip = await screen.findByRole('group', { name: 'Canlı yapılandırma' })
+    expect(Array.from(strip.querySelectorAll('span')).map((span) => span.textContent)).toEqual([
+      'Model qwen3.5:9b',
+      'Embedding bge-m3',
+      'Retrieval rerank 20→5',
+      'Soru yeniden yazma açık',
+      `Bilgi kaynakları ${GUIDE_NAME} · 2026.10`,
+    ])
+  })
+
+  it('givenOtherConfiguredModelAndNumbers_whenPageOpens_thenStripAndCardFollowConfig', async () => {
+    serveLiveConfig([liveConfig({ chatModel: 'llama3:8b', candidates: 30, topK: 3 })])
+    renderAppAt('/onizleme')
+
+    const strip = await screen.findByRole('group', { name: 'Canlı yapılandırma' })
+    expect(strip).toHaveTextContent('Model llama3:8b')
+    expect(strip).toHaveTextContent('Retrieval rerank 30→3')
+    expect(
+      screen.getByText(/30 aday reranker ile puanlanıp en iyi 3 parça llama3:8b modeline gider\./),
+    ).toBeInTheDocument()
+  })
+
+  it('givenLlmOnlyConfig_whenPageOpens_thenRetrievalOffDangerAndLlmHowItWorks', async () => {
+    serveLiveConfig([liveConfig({ generationMode: 'LLM_ONLY', rerankerStatus: 'NOT_USED' })])
+    renderAppAt('/onizleme')
+
+    const strip = await screen.findByRole('group', { name: 'Canlı yapılandırma' })
+    expect(within(strip).getByText('kapalı (Sadece LLM)').closest('span')).toHaveAttribute('data-tone', 'danger')
+    expect(
+      screen.getByText(
+        'Soru önce rehberde aranır (bge-m3 + pgvector), bu modda arama kapalı; soru doğrudan modele gider.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('givenEmptyKnowledgeBase_whenPageOpens_thenWarningNoDocumentsInStrip', async () => {
+    serveLiveConfig([liveConfig({ knowledgeBase: { status: 'EMPTY', searchableSourceCount: 0, sources: [] } })])
+    renderAppAt('/onizleme')
+
+    const strip = await screen.findByRole('group', { name: 'Canlı yapılandırma' })
+    expect(within(strip).getByText('belge yok').closest('span')).toHaveAttribute('data-tone', 'warning')
+  })
+
+  it('givenRetrievalApiDown_whenPageOpens_thenStripShowsDashAndUnreachableWarning', async () => {
+    serveLiveConfig([
+      liveConfig({
+        embeddingModel: null,
+        embeddingDimensions: null,
+        knowledgeBase: { status: 'UNAVAILABLE', searchableSourceCount: null, sources: [] },
+      }),
+    ])
+    renderAppAt('/onizleme')
+
+    const strip = await screen.findByRole('group', { name: 'Canlı yapılandırma' })
+    expect(strip).toHaveTextContent('Embedding —')
+    expect(within(strip).getByText('ulaşılamıyor').closest('span')).toHaveAttribute('data-tone', 'warning')
+    expect(strip).toHaveTextContent('Model qwen3.5:9b')
+  })
+
+  it('givenLlmOnlyAnswerWithCitationText_whenDone_thenPlainTextAndHowItWorksStays', async () => {
+    serveLiveConfig([liveConfig({ generationMode: 'LLM_ONLY', rerankerStatus: 'NOT_USED' })])
+    servePreview(llmOnlyAnswer())
+    renderAppAt('/onizleme')
+    await screen.findByRole('group', { name: 'Canlı yapılandırma' })
+
+    await ask(QUESTION)
+
+    expect(await screen.findByText('Kartını kapat [1].')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Yeni konuşma' })).toBeEnabled())
+    expect(screen.queryByRole('button', { name: /Kaynak 1/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Rehber · s\./ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /· s\. / })).not.toBeInTheDocument()
+    expect(screen.queryByText('Bilgi bankasında henüz belge yok.')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Asistan nasıl cevaplıyor?' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Son cevapta modele giden parçalar' })).not.toBeInTheDocument()
+  })
+
+  it('givenLlmOnlyAnswerWithEmptyKnowledgeBase_whenDone_thenNoAddDocumentHint', async () => {
+    serveLiveConfig([
+      liveConfig({
+        generationMode: 'LLM_ONLY',
+        rerankerStatus: 'NOT_USED',
+        knowledgeBase: { status: 'EMPTY', searchableSourceCount: 0, sources: [] },
+      }),
+    ])
+    servePreview(llmOnlyAnswer())
+    renderAppAt('/onizleme')
+
+    await ask(QUESTION)
+
+    expect(await screen.findByText('Kartını kapat [1].')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Yeni konuşma' })).toBeEnabled())
+    expect(screen.queryByText(/henüz belge yok/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Belge ekle/ })).not.toBeInTheDocument()
+  })
+
+  it('givenAnswerDone_whenDone_thenLiveConfigRefetchedAndRerankerDownShown', async () => {
+    const log = serveLiveConfig([liveConfig(), liveConfig({ rerankerStatus: 'DOWN' })])
+    servePreview(lostCardAnswer())
+    renderAppAt('/onizleme')
+    const strip = await screen.findByRole('group', { name: 'Canlı yapılandırma' })
+    expect(within(strip).getByText('rerank 20→5')).toBeInTheDocument()
+    expect(log.requests).toBe(1)
+
+    await ask(QUESTION)
+
+    await waitFor(() => expect(log.requests).toBe(2))
+    expect(await screen.findByText('reranker DOWN', { selector: 'b' })).toBeInTheDocument()
+  })
+
+  it('givenStreamErrorEvent_whenStreamFinishes_thenLiveConfigRefetched', async () => {
+    const log = serveLiveConfig([liveConfig(), liveConfig({ rerankerStatus: 'DOWN' })])
+    servePreview([token('Kart'), streamError('CHAT_MODEL_UNAVAILABLE')])
+    renderAppAt('/onizleme')
+    await screen.findByRole('group', { name: 'Canlı yapılandırma' })
+
+    await ask(QUESTION)
+
+    await waitFor(() => expect(log.requests).toBe(2))
+  })
+
+  it('givenRetrievalUnavailableBeforeStream_whenQuestionSent_thenLiveConfigRefetched', async () => {
+    const log = serveLiveConfig([
+      liveConfig(),
+      liveConfig({ knowledgeBase: { status: 'UNAVAILABLE', searchableSourceCount: null, sources: [] } }),
+    ])
+    servePreview(() => problem(503, 'RETRIEVAL_UNAVAILABLE'))
+    renderAppAt('/onizleme')
+    await screen.findByRole('group', { name: 'Canlı yapılandırma' })
+
+    await ask(QUESTION)
+
+    await waitFor(() => expect(log.requests).toBe(2))
+    expect(await screen.findByText('ulaşılamıyor', { selector: 'b' })).toBeInTheDocument()
+  })
+
+  it('givenLiveConfigFails_whenPageOpens_thenAlertAndChatWorks', async () => {
+    serveLiveConfig([problem(500, 'INTERNAL_ERROR')])
+    servePreview(lostCardAnswer())
+    renderAppAt('/onizleme')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Beklenmeyen bir hata oluştu. Tekrar dene.')
+    expect(screen.queryByRole('group', { name: 'Canlı yapılandırma' })).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Bir soru sor; modele hangi parçaların gittiği, sıraları ve süreler burada görünecek.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Soru önce rehberde aranır/)).not.toBeInTheDocument()
+
+    await ask(QUESTION)
+
+    expect(await screen.findByText('hemen kapat', { exact: false })).toBeInTheDocument()
   })
 
   it('givenAnswerStillStreaming_whenRendered_thenStillHowItWorksCard', async () => {

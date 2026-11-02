@@ -31,6 +31,7 @@ export function lostCardChunks(): ContextChunk[] {
 
 export function sourcesEvent(overrides: Partial<SourcesEvent> = {}): SourcesEvent {
   return {
+    generationMode: 'RAG',
     retrievalStrategy: 'RERANK',
     candidates: 20,
     topK: 5,
@@ -78,4 +79,25 @@ export function streamError(errorCode: string): SseEvent {
 
 export function lostCardAnswer(): SseEvent[] {
   return [token('Kartını '), token('hemen kapat [1].'), sources(), done()]
+}
+
+export function llmOnlySourcesEvent(): SourcesEvent {
+  return {
+    generationMode: 'LLM_ONLY',
+    retrievalStrategy: 'NONE',
+    candidates: null,
+    topK: null,
+    searchQuery: null,
+    queryRewriteStatus: 'DISABLED',
+    contextChunks: [],
+    citations: [],
+  }
+}
+
+export function llmOnlyAnswer(): SseEvent[] {
+  return [
+    token('Kartını kapat [1].'),
+    { event: 'sources', data: llmOnlySourcesEvent() },
+    done({ retrievalLatencyMs: null, rerankLatencyMs: null }),
+  ]
 }

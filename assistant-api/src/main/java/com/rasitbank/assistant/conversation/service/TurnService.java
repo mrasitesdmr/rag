@@ -3,6 +3,7 @@ package com.rasitbank.assistant.conversation.service;
 import com.rasitbank.assistant.config.AssistantProperties;
 import com.rasitbank.assistant.conversation.domain.entity.Conversation;
 import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
+import com.rasitbank.assistant.conversation.domain.entity.RetrievalStrategy;
 import com.rasitbank.assistant.conversation.domain.entity.Turn;
 import com.rasitbank.assistant.conversation.domain.entity.TurnChunkValues;
 import com.rasitbank.assistant.conversation.domain.entity.TurnValues;
@@ -23,8 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Cevap akışı bitince turu aday parçalarıyla birlikte tek bir kısa transaction'da kaydeder; içinde dış çağrı
- * yapılmaz.
+ * Cevap akışı bitince turu aday parçalarıyla birlikte tek bir kısa transaction'da kaydeder; Sadece LLM turunu
+ * stratejisiz ve parçasız yazar. İçinde dış çağrı yapılmaz.
  */
 @Service
 public class TurnService {
@@ -50,17 +51,18 @@ public class TurnService {
     public long recordTurn(TurnDraft draft, TurnOutcome outcome) {
         Conversation conversation = conversationRepository.getReferenceById(draft.conversationId());
         int turnNo = turnRepository.findMaxTurnNo(draft.conversationId()) + 1;
-        RetrievedContext context = draft.context();
+        boolean rag = draft.generationMode() == GenerationMode.RAG;
+        RetrievedContext context = rag ? draft.context() : null;
         TurnValues values = new TurnValues(
                 draft.question(),
-                draft.searchQuery(),
+                rag ? draft.searchQuery() : null,
                 draft.queryRewriteStatus(),
                 toIntMs(draft.queryRewriteLatencyMs()),
                 draft.historyTurns(),
-                GenerationMode.RAG,
-                context != null ? context.strategy() : retrievalSettings.configuredStrategy(),
-                context != null ? context.candidates() : retrievalSettings.candidates(),
-                context != null ? context.topK() : retrievalSettings.topK(),
+                draft.generationMode(),
+                retrievalStrategy(draft, context),
+                rag ? candidates(context) : null,
+                rag ? topK(context) : null,
                 draft.chatModel(),
                 outcome.answer(),
                 outcome.notFoundAnswer(),
@@ -79,6 +81,21 @@ public class TurnService {
         long turnId = Objects.requireNonNull(turn.getId());
         logRecordedTurn(draft, outcome, turnId);
         return turnId;
+    }
+
+    private RetrievalStrategy retrievalStrategy(TurnDraft draft, @Nullable RetrievedContext context) {
+        if (draft.generationMode() == GenerationMode.LLM_ONLY) {
+            return RetrievalStrategy.NONE;
+        }
+        return context != null ? context.strategy() : retrievalSettings.configuredStrategy();
+    }
+
+    private int candidates(@Nullable RetrievedContext context) {
+        return context != null ? context.candidates() : retrievalSettings.candidates();
+    }
+
+    private int topK(@Nullable RetrievedContext context) {
+        return context != null ? context.topK() : retrievalSettings.topK();
     }
 
     private static List<TurnChunkValues> chunkValues(@Nullable RetrievedContext context) {
@@ -108,10 +125,12 @@ public class TurnService {
     private static void logRecordedTurn(TurnDraft draft, TurnOutcome outcome, long turnId) {
         int answerLength = outcome.answer() == null ? 0 : outcome.answer().length();
         if (outcome.errorCode() == null) {
-            RetrievedContext context = Objects.requireNonNull(draft.context());
-            log.info("Turn completed conversationId={} turnId={} strategy={} questionLength={} answerLength={} "
+            RetrievedContext context = draft.context();
+            RetrievalStrategy strategy = context == null ? RetrievalStrategy.NONE : context.strategy();
+            log.info("Turn completed conversationId={} turnId={} mode={} strategy={} questionLength={} answerLength={} "
                             + "promptTokens={} completionTokens={} citedCount={} notFoundAnswer={} latencyMs={}",
-                    draft.conversationId(), turnId, context.strategy(), draft.question().length(), answerLength,
+                    draft.conversationId(), turnId, draft.generationMode(), strategy, draft.question().length(),
+                    answerLength,
                     outcome.promptTokens(), outcome.completionTokens(), outcome.citations().size(),
                     outcome.notFoundAnswer(), outcome.latencyMs());
         } else if (STREAM_CANCELLED.equals(outcome.errorCode())) {

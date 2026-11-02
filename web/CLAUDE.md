@@ -2,7 +2,7 @@
 AMAÇ: Claude (ve ekip üyeleri) web/ altında bir dosyayı okuyunca ya da düzenleyince yüklenir.
 İçerik: ürün hedefi, harita, komutlar, dosya sahipliği, tuzaklar, iş → skill yönlendirmesi.
 Kuralların ayrıntısı frontend-conventions skill'inde. Orada yazanı burada tekrar etme.
-Durum: iskelet ve kabuk TASK-002'de Vite react-ts şablonuyla kuruldu (üst bar, menü, dört ekranın başlığı, "Sayfa bulunamadı"). TASK-007: Bilgi kaynakları listesi ve kaynak detayı gerçek veriyle (retrieval-api), "Belge ekle" penceresi, "Yeniden dene", içe alma polling'i, parça penceresi (shared/chunk). TASK-008: Önizleme (telefon görünümü, SSE ile akan cevap, alıntı ve kaynak düğmeleri, yan kart ve süre çubukları; assistant-api). Konuşmalar ve Değerlendirme içerikleri sonraki task'larda gelir.
+Durum: iskelet ve kabuk TASK-002'de Vite react-ts şablonuyla kuruldu (üst bar, menü, dört ekranın başlığı, "Sayfa bulunamadı"). TASK-007: Bilgi kaynakları listesi ve kaynak detayı gerçek veriyle (retrieval-api), "Belge ekle" penceresi, "Yeniden dene", içe alma polling'i, parça penceresi (shared/chunk). TASK-008: Önizleme (telefon görünümü, SSE ile akan cevap, alıntı ve kaynak düğmeleri, yan kart ve süre çubukları; assistant-api). TASK-011: Önizleme yan sütununda canlı yapılandırma şeridi (GET /api/assistant/live-config, 15 sn yoklama + her cevaptan sonra yenileme), "Asistan nasıl cevaplıyor?" metni yapılandırmadan, Sadece LLM (LLM_ONLY) cevabının görünümü. Konuşmalar ve Değerlendirme içerikleri sonraki task'larda gelir.
 -->
 
 # web (React yönetim paneli)
@@ -34,10 +34,10 @@ web/
     ├── app/                 App (route'lar), AppProviders, queryClient, AdminLayout (ErrorBoundary), AppHeader, MainNav, NotFoundPage
     ├── features/            preview, conversation, source, evaluation (lab'ın yan menüsü)
     │   └── preview/         api/previewApi (createConversation, sendMessage akışı), hooks/ (useAnswerStream, useClock),
-    │                        model/ (types, answerStreamEvents, messageRules, answerFormat, citations, strategyLabels, latencyRows),
-    │                        components/ (PhoneFrame, MessageList, UserMessage, AnswerMessage, MessageComposer, HowItWorksCard,
-    │                        ContextChunksCard, LatencyBars), pages/PreviewPage
-    ├── shared/              api/ (httpClient, eventStream, ApiError, errorMessages, pagination, workspace), components/ (PageHeader, Dialog, Pagination, StatusBadge, ErrorAlert, Callout, button/table stilleri), format/ (sayı, ondalık, tarih, saat, süre, metin), chunk/ (ChunkDialog: Bilgi kaynakları ve Önizleme alıntıları açar); hedef: toast/
+    │                        model/ (types, answerStreamEvents, messageRules, answerFormat, citations, strategyLabels, latencyRows,
+    │                        liveConfigItems, howItWorks), components/ (PhoneFrame, MessageList, UserMessage, AnswerMessage,
+    │                        MessageComposer, HowItWorksCard, ContextChunksCard, LatencyBars, LiveConfigStrip), pages/PreviewPage
+    ├── shared/              api/ (httpClient, eventStream, ApiError, errorMessages, pagination, workspace), components/ (PageHeader, Dialog, Pagination, StatusBadge, ErrorAlert, Callout, button/table stilleri), format/ (sayı, ondalık, tarih, saat, süre, metin), chunk/ (ChunkDialog: Bilgi kaynakları ve Önizleme alıntıları açar), liveConfig/ (GET /api/assistant/live-config: type'lar, `liveConfigKeys`, `useLiveConfigQuery`; Önizleme ve TASK-016'da Değerlendirme okur); hedef: toast/
     └── test/                Vitest setup, MSW server ve handler'lar, SSE yardımcıları (tester)
 ```
 - Feature adları servis paketleriyle aynı: `conversation`, `evaluation` → assistant-api; `source` → retrieval-api. `preview` sadece web'dedir: Önizleme ekranı assistant-api'nin `conversation` API'sini kullanır.

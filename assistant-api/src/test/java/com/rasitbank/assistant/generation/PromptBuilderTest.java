@@ -26,7 +26,7 @@ class PromptBuilderTest {
             + "3. Cevap parçalarda yoksa sadece \"Bu konuda rehberimizde bilgi bulamadım.\" yaz.";
 
     private final PromptBuilder builder = new PromptBuilder(new ClassPathResource("prompts/rag-system.st"),
-            new ClassPathResource("prompts/rag-user.st"), TestProperties.defaults());
+            new ClassPathResource("prompts/rag-user.st"), new ClassPathResource("prompts/llm-only-system.st"), TestProperties.defaults());
 
     @Test
     void givenTwoChunks_whenBuildPrompt_thenSystemIsLabTextAndUserHasNumberedChunksThenQuestion() {
@@ -98,5 +98,38 @@ class PromptBuilderTest {
         SearchHit hit = new SearchHit(100L + vectorRank, vectorRank, 5, heading, content, 10001L, "Rehber", "2026.10",
                 0.3);
         return new RetrievedChunk(hit, vectorRank, null);
+    }
+
+    @Test
+    void givenHistory_whenBuildLlmOnlyPrompt_thenShortSystemHistoryAndQuestion() {
+        // Arrange
+        List<HistoryTurn> history = List.of(new HistoryTurn("q1", "a1"));
+
+        // Act
+        Prompt prompt = builder.buildLlmOnlyPrompt("Kartımı kaybettim, ne yapmalıyım?", history);
+
+        // Assert
+        List<Message> messages = prompt.getInstructions();
+        assertThat(messages).hasSize(4);
+        assertThat(messages.get(0)).isInstanceOf(SystemMessage.class);
+        assertThat(messages.get(0).getText()).isEqualTo(
+                "Sen Raşit Bankası'nın dijital asistanısın. Müşterilerin sorularını Türkçe, kısa ve net cevaplarsın.");
+        assertThat(messages.get(1)).isInstanceOf(UserMessage.class);
+        assertThat(messages.get(1).getText()).isEqualTo("q1");
+        assertThat(messages.get(2)).isInstanceOf(AssistantMessage.class);
+        assertThat(messages.get(2).getText()).isEqualTo("a1");
+        assertThat(messages.get(3)).isInstanceOf(UserMessage.class);
+        assertThat(messages.get(3).getText()).isEqualTo("Kartımı kaybettim, ne yapmalıyım?");
+        assertThat(messages).noneMatch(message -> message.getText().contains("<parcalar>"));
+    }
+
+    @Test
+    void givenQuestionWithBraces_whenBuildLlmOnlyPrompt_thenQuestionVerbatimWithoutTemplate() {
+        // Act
+        Prompt prompt = builder.buildLlmOnlyPrompt("Faiz {oran} nedir?", List.of());
+
+        // Assert
+        assertThat(prompt.getInstructions()).hasSize(2);
+        assertThat(prompt.getInstructions().get(1).getText()).isEqualTo("Faiz {oran} nedir?");
     }
 }

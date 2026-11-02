@@ -163,6 +163,8 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
         assertThat(events.get(0).data().get("text").asString()).isEqualTo("Kartını ");
         assertThat(events.get(1).data().get("text").asString()).isEqualTo("kapat [1].");
         JsonNode sources = events.get(2).data();
+        assertThat(sources.propertyNames().iterator().next()).isEqualTo("generationMode");
+        assertThat(sources.get("generationMode").asString()).isEqualTo("RAG");
         assertThat(sources.get("retrievalStrategy").asString()).isEqualTo("RERANK");
         assertThat(sources.get("candidates").asInt()).isEqualTo(20);
         assertThat(sources.get("topK").asInt()).isEqualTo(5);

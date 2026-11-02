@@ -2,9 +2,12 @@ package com.rasitbank.assistant.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.RetrievalStrategy;
 import org.junit.jupiter.api.Test;
+import java.time.Duration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 
@@ -25,6 +28,9 @@ class AssistantPropertiesTest {
             "assistant.reranker.model=m",
             "assistant.reranker.connect-timeout=1s",
             "assistant.reranker.read-timeout=5s",
+            "assistant.reranker.health-check-interval=15s",
+            "assistant.reranker.health-check-enabled=true",
+            "assistant.generation.mode=rag",
             "assistant.generation.not-found-answer=yok",
             "assistant.generation.first-token-timeout=60s",
             "assistant.generation.token-idle-timeout=30s",
@@ -128,5 +134,33 @@ class AssistantPropertiesTest {
                 .withPropertyValues(java.util.Arrays.stream(BASE)
                         .filter(entry -> !entry.startsWith("assistant.query-rewrite.")).toArray(String[]::new))
                 .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void givenApplicationPropertiesDefaults_whenBound_thenRagModeAnd15SecondHealthCheck() {
+        // Arrange
+        ApplicationContextRunner shipped = new ApplicationContextRunner().withUserConfiguration(Config.class)
+                .withInitializer(new ConfigDataApplicationContextInitializer());
+
+        // Act + Assert
+        shipped.run(context -> {
+            AssistantProperties properties = context.getBean(AssistantProperties.class);
+            assertThat(properties.generation().mode()).isEqualTo("rag");
+            assertThat(properties.generation().configuredMode()).isEqualTo(GenerationMode.RAG);
+            assertThat(properties.reranker().healthCheckInterval()).isEqualTo(Duration.ofSeconds(15));
+            assertThat(properties.reranker().healthCheckEnabled()).isTrue();
+        });
+    }
+
+    @Test
+    void givenModeLlm_whenBound_thenLlmOnly() {
+        runner("assistant.generation.mode=llm").run(context ->
+                assertThat(context.getBean(AssistantProperties.class).generation().configuredMode())
+                        .isEqualTo(GenerationMode.LLM_ONLY));
+    }
+
+    @Test
+    void givenModeFoo_whenBound_thenContextFails() {
+        runner("assistant.generation.mode=foo").run(context -> assertThat(context).hasFailed());
     }
 }

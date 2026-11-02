@@ -1,8 +1,10 @@
 package com.rasitbank.assistant.conversation.domain.entity;
 
 /**
- * Cevabın nasıl üretildiğini belirtir; bu task'ta her tur rehber parçalarıyla (RAG) cevaplanır.
+ * Cevabın nasıl üretildiğini belirtir: rehber parçalarıyla (RAG) ya da retrieval yapmadan doğrudan dil modeliyle
+ * (Sadece LLM).
  */
 public enum GenerationMode {
-    RAG
+    RAG,
+    LLM_ONLY
 }

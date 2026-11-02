@@ -137,4 +137,55 @@ class RerankClientTest {
             slowServer.stop(0);
         }
     }
+
+    @Test
+    void givenHealthEndpointOk_whenIsHealthy_thenTrueAndCallsGetHealth() {
+        // Arrange
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://reranker");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://reranker/health")).andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("{\"status\":\"ok\"}", MediaType.APPLICATION_JSON));
+        RerankClient client = new RerankClient(builder.build(), TestProperties.defaults());
+
+        // Act
+        boolean healthy = client.isHealthy();
+
+        // Assert
+        assertThat(healthy).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void givenHealth503_whenIsHealthy_thenFalseWithoutThrowing() {
+        // Arrange
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://reranker");
+        MockRestServiceServer.bindTo(builder).build().expect(requestTo("http://reranker/health"))
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                        .withStatus(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE));
+        RerankClient client = new RerankClient(builder.build(), TestProperties.defaults());
+
+        // Act
+        boolean healthy = client.isHealthy();
+
+        // Assert
+        assertThat(healthy).isFalse();
+    }
+
+    @Test
+    void givenConnectionRefused_whenIsHealthy_thenFalseWithoutThrowing() throws IOException {
+        // Arrange
+        int closedPort;
+        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
+            closedPort = socket.getLocalPort();
+        }
+        RestClient restClient = RestClient.builder().baseUrl("http://localhost:" + closedPort)
+                .requestFactory(new org.springframework.http.client.JdkClientHttpRequestFactory()).build();
+        RerankClient client = new RerankClient(restClient, TestProperties.defaults());
+
+        // Act
+        boolean healthy = client.isHealthy();
+
+        // Assert
+        assertThat(healthy).isFalse();
+    }
 }

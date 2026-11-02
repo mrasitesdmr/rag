@@ -9,6 +9,7 @@ describe('strategyLabel', () => {
     ['TOP_K', 'top-5'],
     ['RERANK', 'rerank 20→5'],
     ['RERANK_FALLBACK', 'reranker DOWN · vector sırası'],
+    ['NONE', 'kapalı (Sadece LLM)'],
   ] as const)('givenStrategy_whenStrategyLabel_thenLabText %s', (retrievalStrategy, expected) => {
     expect(strategyLabel(sourcesEvent({ retrievalStrategy }))).toBe(expected)
   })
@@ -34,6 +35,10 @@ describe('queryRewriteLabel', () => {
     expect(queryRewriteLabel(sources)).toBe(expected)
   })
 
+  it('givenRewrittenWithoutSearchQuery_whenQueryRewriteLabel_thenNoLabel', () => {
+    expect(queryRewriteLabel(sourcesEvent({ queryRewriteStatus: 'REWRITTEN', searchQuery: null }))).toBeNull()
+  })
+
   it('givenSearchQueryOf45Characters_whenQueryRewriteLabel_thenShortenedTo39PlusEllipsis', () => {
     const searchQuery = 'a'.repeat(45)
 
@@ -48,6 +53,15 @@ describe('queryRewriteLabel', () => {
     expect(queryRewriteLabel(sourcesEvent({ queryRewriteStatus: 'REWRITTEN', searchQuery }))).toBe(
       `arama: "${searchQuery}"`,
     )
+  })
+})
+
+describe('latencyRows without retrieval', () => {
+  it('givenNullRetrievalLatency_whenLatencyRows_thenNoSearchRow', () => {
+    const rows = latencyRows(doneEvent({ retrievalLatencyMs: null, rerankLatencyMs: null }))
+
+    expect(rows.map((row) => row.label)).not.toContain('retrieval-api araması')
+    expect(rows).toEqual([{ label: 'qwen3.5 cevabı', ms: 3920, isModel: true }])
   })
 })
 

@@ -94,7 +94,7 @@ export function AnswerMessage({ turn, onCitationOpen }: AnswerMessageProps) {
 }
 
 function isEmptyKnowledgeBase(sources: SourcesEvent): boolean {
-  return sources.contextChunks.length === 0
+  return sources.generationMode === 'RAG' && sources.contextChunks.length === 0
 }
 
 function Inlines({ inlines, onCitation }: { inlines: AnswerInline[]; onCitation: (n: number) => void }) {

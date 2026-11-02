@@ -1,0 +1,30 @@
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1-75);
+}
+
+.item {
+  padding: var(--space-0-5) var(--space-1-75);
+  border: var(--space-hairline) solid var(--color-line);
+  border-radius: var(--radius-config);
+  background: var(--color-card);
+  color: var(--color-neutral-ink);
+  font: 500 var(--text-config) var(--font-site);
+  white-space: nowrap;
+}
+
+.item b {
+  color: var(--color-ink);
+  font-weight: 700;
+}
+
+.item[data-tone='warning'] {
+  border-color: var(--color-config-warning-line);
+  background: var(--color-accent-soft);
+}
+
+.item[data-tone='danger'] {
+  border-color: var(--color-config-danger-line);
+  background: var(--color-red-soft);
+}

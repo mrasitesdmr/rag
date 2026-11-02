@@ -35,8 +35,7 @@ public final class TestProperties {
                 new AssistantProperties.RetrievalApi("http://localhost:8080", Duration.ofSeconds(2),
                         Duration.ofSeconds(15)),
                 new AssistantProperties.Retrieval("rerank", 20, 5),
-                new AssistantProperties.Reranker("http://localhost:8081", "bge-reranker-v2-m3",
-                        Duration.ofSeconds(1), Duration.ofSeconds(5)),
+                reranker("http://localhost:8081", Duration.ofSeconds(5)),
                 generation(Duration.ofSeconds(60), Duration.ofSeconds(30)),
                 new AssistantProperties.QueryRewrite(enabled, timeout, maxLength),
                 new AssistantProperties.History(3));
@@ -47,7 +46,7 @@ public final class TestProperties {
                 new AssistantProperties.RetrievalApi("http://localhost:8080", Duration.ofSeconds(2),
                         Duration.ofSeconds(15)),
                 new AssistantProperties.Retrieval("rerank", 20, 5),
-                new AssistantProperties.Reranker(baseUrl, "bge-reranker-v2-m3", Duration.ofSeconds(1), readTimeout),
+                reranker(baseUrl, readTimeout),
                 generation(Duration.ofSeconds(60), Duration.ofSeconds(30)),
                 new AssistantProperties.QueryRewrite(true, Duration.ofSeconds(20), 1000),
                 new AssistantProperties.History(3));
@@ -57,8 +56,7 @@ public final class TestProperties {
         return new AssistantProperties(42, null,
                 new AssistantProperties.RetrievalApi(baseUrl, Duration.ofSeconds(1), Duration.ofSeconds(5)),
                 new AssistantProperties.Retrieval("rerank", 20, 5),
-                new AssistantProperties.Reranker("http://localhost:8081", "bge-reranker-v2-m3",
-                        Duration.ofSeconds(1), Duration.ofSeconds(5)),
+                reranker("http://localhost:8081", Duration.ofSeconds(5)),
                 generation(Duration.ofSeconds(60), Duration.ofSeconds(30)),
                 new AssistantProperties.QueryRewrite(true, Duration.ofSeconds(20), 1000),
                 new AssistantProperties.History(3));
@@ -70,14 +68,30 @@ public final class TestProperties {
                 new AssistantProperties.RetrievalApi("http://localhost:8080", Duration.ofSeconds(2),
                         Duration.ofSeconds(15)),
                 new AssistantProperties.Retrieval(strategy, candidates, topK),
-                new AssistantProperties.Reranker("http://localhost:8081", "bge-reranker-v2-m3",
-                        Duration.ofSeconds(1), Duration.ofSeconds(5)),
+                reranker("http://localhost:8081", Duration.ofSeconds(5)),
                 generation(firstToken, tokenIdle),
                 new AssistantProperties.QueryRewrite(true, Duration.ofSeconds(20), 1000),
                 new AssistantProperties.History(3));
     }
 
+    public static AssistantProperties withMode(String mode, String strategy) {
+        return new AssistantProperties(42, null,
+                new AssistantProperties.RetrievalApi("http://localhost:8080", Duration.ofSeconds(2),
+                        Duration.ofSeconds(15)),
+                new AssistantProperties.Retrieval(strategy, 20, 5),
+                reranker("http://localhost:8081", Duration.ofSeconds(5)),
+                new AssistantProperties.Generation(mode, NOT_FOUND_ANSWER, Duration.ofSeconds(60),
+                        Duration.ofSeconds(30), Duration.ofSeconds(300)),
+                new AssistantProperties.QueryRewrite(true, Duration.ofSeconds(20), 1000),
+                new AssistantProperties.History(3));
+    }
+
+    private static AssistantProperties.Reranker reranker(String baseUrl, Duration readTimeout) {
+        return new AssistantProperties.Reranker(baseUrl, "bge-reranker-v2-m3", Duration.ofSeconds(1), readTimeout,
+                Duration.ofSeconds(15), true);
+    }
+
     private static AssistantProperties.Generation generation(Duration firstToken, Duration tokenIdle) {
-        return new AssistantProperties.Generation(NOT_FOUND_ANSWER, firstToken, tokenIdle, Duration.ofSeconds(300));
+        return new AssistantProperties.Generation("rag", NOT_FOUND_ANSWER, firstToken, tokenIdle, Duration.ofSeconds(300));
     }
 }

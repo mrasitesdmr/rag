@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
-import { pageOf, workspace } from './fixtures.ts'
+import { liveConfig, pageOf, workspace } from './fixtures.ts'
 
 type TestViolation = { field: string; message: string }
 
@@ -12,6 +12,7 @@ export function problem(status: number, errorCode: string, violations?: TestViol
 }
 
 export const defaultHandlers = [
+  http.get('/api/assistant/live-config', () => HttpResponse.json(liveConfig())),
   http.get('/api/workspaces/42', () => HttpResponse.json(workspace())),
   http.get('/api/workspaces/42/sources', () => HttpResponse.json(pageOf([]))),
 ]

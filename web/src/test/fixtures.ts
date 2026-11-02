@@ -1,3 +1,4 @@
+import type { LiveConfigResponse } from '../shared/liveConfig/types.ts'
 import type { PageResponse } from '../shared/api/pagination.ts'
 import type { ChunkResponse } from '../shared/chunk/types.ts'
 import type {
@@ -136,6 +137,26 @@ export function chunkDetail(overrides: Partial<ChunkResponse> = {}): ChunkRespon
     sourceId: 10001,
     sourceName: GUIDE_NAME,
     version: '2026.10',
+    ...overrides,
+  }
+}
+
+export function liveConfig(overrides: Partial<LiveConfigResponse> = {}): LiveConfigResponse {
+  return {
+    chatModel: 'qwen3.5:9b',
+    embeddingModel: 'bge-m3',
+    embeddingDimensions: 1024,
+    generationMode: 'RAG',
+    retrievalStrategy: 'RERANK',
+    candidates: 20,
+    topK: 5,
+    queryRewriteEnabled: true,
+    rerankerStatus: 'UP',
+    knowledgeBase: {
+      status: 'READY',
+      searchableSourceCount: 1,
+      sources: [{ sourceId: 10001, name: GUIDE_NAME, version: '2026.10' }],
+    },
     ...overrides,
   }
 }

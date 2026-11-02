@@ -1,3 +1,5 @@
+import type { GenerationMode } from '../../../shared/liveConfig/types.ts'
+
 export const CHANNELS = ['PREVIEW'] as const
 export type Channel = (typeof CHANNELS)[number]
 
@@ -11,7 +13,7 @@ export type ConversationResponse = {
 
 export type SendMessageRequest = { text: string }
 
-export const RETRIEVAL_STRATEGIES = ['TOP_K', 'RERANK', 'RERANK_FALLBACK'] as const
+export const RETRIEVAL_STRATEGIES = ['TOP_K', 'RERANK', 'RERANK_FALLBACK', 'NONE'] as const
 export type RetrievalStrategy = (typeof RETRIEVAL_STRATEGIES)[number]
 
 export const QUERY_REWRITE_STATUSES = ['DISABLED', 'NO_HISTORY', 'REWRITTEN', 'FAILED', 'EMPTY'] as const
@@ -34,10 +36,11 @@ export type ContextChunk = {
 export type TokenEvent = { text: string }
 
 export type SourcesEvent = {
+  generationMode: GenerationMode
   retrievalStrategy: RetrievalStrategy
-  candidates: number
-  topK: number
-  searchQuery: string
+  candidates: number | null
+  topK: number | null
+  searchQuery: string | null
   queryRewriteStatus: QueryRewriteStatus
   contextChunks: ContextChunk[]
   citations: number[]
@@ -50,7 +53,7 @@ export type DoneEvent = {
   promptTokens: number | null
   completionTokens: number | null
   queryRewriteLatencyMs: number | null
-  retrievalLatencyMs: number
+  retrievalLatencyMs: number | null
   rerankLatencyMs: number | null
   generationLatencyMs: number | null
   timeToFirstTokenMs: number | null

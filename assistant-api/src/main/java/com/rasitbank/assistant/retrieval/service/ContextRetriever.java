@@ -17,7 +17,8 @@ import org.springframework.stereotype.Service;
 
 /**
  * Soruya göre prompt'a girecek parçaları seçer: yapılandırılan stratejiye göre vector sırasının ilkleri ya da
- * reranker puanına göre en iyileri; reranker başarısız olursa vector sırasına döner.
+ * reranker puanına göre en iyileri; reranker başarısız olursa vector sırasına döner. Rerank sonucunu reranker durum
+ * takipçisine bildirir.
  */
 @Service
 public class ContextRetriever {
@@ -31,11 +32,14 @@ public class ContextRetriever {
 
     private final RetrievalClient retrievalClient;
     private final RerankClient rerankClient;
+    private final RerankerStatusTracker rerankerStatusTracker;
     private final AssistantProperties.Retrieval settings;
 
-    public ContextRetriever(RetrievalClient retrievalClient, RerankClient rerankClient, AssistantProperties properties) {
+    public ContextRetriever(RetrievalClient retrievalClient, RerankClient rerankClient,
+            RerankerStatusTracker rerankerStatusTracker, AssistantProperties properties) {
         this.retrievalClient = retrievalClient;
         this.rerankClient = rerankClient;
+        this.rerankerStatusTracker = rerankerStatusTracker;
         this.settings = properties.retrieval();
     }
 
@@ -66,6 +70,7 @@ public class ContextRetriever {
         try {
             List<Double> scores = rerankClient.rerankChunks(query, documents);
             long rerankLatencyMs = elapsedMs(rerankStart);
+            rerankerStatusTracker.recordAvailable();
             List<RetrievedChunk> scoredChunks = new ArrayList<>(candidateChunks.size());
             for (int i = 0; i < candidateChunks.size(); i++) {
                 RetrievedChunk chunk = candidateChunks.get(i);
@@ -81,6 +86,7 @@ public class ContextRetriever {
                     retrievalLatencyMs, rerankLatencyMs);
         } catch (ServiceUnavailableException exception) {
             long rerankLatencyMs = elapsedMs(rerankStart);
+            rerankerStatusTracker.recordUnavailable();
             log.warn("Reranker unavailable, falling back to vector order candidates={} topK={} reason={}",
                     candidateChunks.size(), topK, exception.getMessage());
             return new RetrievedContext(RetrievalStrategy.RERANK_FALLBACK, candidates, topK, candidateChunks,

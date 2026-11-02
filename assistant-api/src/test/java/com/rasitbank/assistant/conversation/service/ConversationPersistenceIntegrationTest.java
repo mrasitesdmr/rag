@@ -67,7 +67,7 @@ class ConversationPersistenceIntegrationTest extends PostgresIntegrationTest {
     void givenRecordedTurn_whenReadBack_thenEveryColumnAndCandidateMapsToEntity() {
         long conversationId = conversationService.createConversation(new CreateConversationRequest(Channel.PREVIEW))
                 .conversationId();
-        TurnDraft draft = new TurnDraft(conversationId, "Kartımı kaybettim", "Kartımı kaybettim",
+        TurnDraft draft = new TurnDraft(conversationId, GenerationMode.RAG, "Kartımı kaybettim", "Kartımı kaybettim",
                 QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b",
                 Instant.parse("2026-11-01T10:00:00Z"), System.nanoTime(),
                 ContextFixtures.rerankContext(7, 2, 15, 1, 3));

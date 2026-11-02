@@ -10,6 +10,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
 import com.rasitbank.assistant.config.AssistantProperties;
 import com.rasitbank.assistant.conversation.domain.entity.RetrievalStrategy;
@@ -58,7 +59,7 @@ class AnswerStreamerTest {
     }
 
     private static TurnDraft draft(RetrievedContext context) {
-        return new TurnDraft(7L, "Kartımı kaybettim, ne yapmalıyım?", "Kartımı kaybettim, ne yapmalıyım?",
+        return new TurnDraft(7L, GenerationMode.RAG, "Kartımı kaybettim, ne yapmalıyım?", "Kartımı kaybettim, ne yapmalıyım?",
                 QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"), System.nanoTime(), context);
     }
 
@@ -95,6 +96,7 @@ class AnswerStreamerTest {
         assertThat(events.get(2).data()).isEqualTo(new TokenEvent("."));
         SourcesEvent sources = (SourcesEvent) events.get(3).data();
         assertThat(sources.citations()).containsExactly(1);
+        assertThat(sources.generationMode()).isEqualTo(GenerationMode.RAG);
         assertThat(sources.retrievalStrategy()).isEqualTo(RetrievalStrategy.RERANK);
         assertThat(sources.candidates()).isEqualTo(20);
         assertThat(sources.topK()).isEqualTo(5);
@@ -278,7 +280,7 @@ class AnswerStreamerTest {
         given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.text("a"),
                 ChatResponses.text("b"), ChatResponses.text("c")).delayElements(Duration.ofMillis(100)));
         given(turnService.recordTurn(any(), any())).willReturn(1L);
-        TurnDraft slowDraft = new TurnDraft(7L, "q", "q", QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"),
+        TurnDraft slowDraft = new TurnDraft(7L, GenerationMode.RAG, "q", "q", QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"),
                 System.nanoTime() - Duration.ofSeconds(2).toNanos(), ContextFixtures.topKContext());
 
         streamer(TestProperties.defaults()).streamModelAnswer(slowDraft, PROMPT, emitter);
@@ -449,5 +451,56 @@ class AnswerStreamerTest {
         assertThat(emitter.events()).isEmpty();
         assertThat(recordedOutcome().errorCode()).isEqualTo("STREAM_CANCELLED");
         verify(registry, times(1)).finish(eq(7L));
+    }
+
+    private static TurnDraft llmOnlyDraft() {
+        return new TurnDraft(7L, GenerationMode.LLM_ONLY, "Kartımı kaybettim, ne yapmalıyım?", null,
+                QueryRewriteStatus.DISABLED, null, 0, "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"),
+                System.nanoTime(), null);
+    }
+
+    @Test
+    void givenLlmOnlyAnswerWithCitationText_whenStreamModelAnswer_thenSourcesWithoutChunksAndNoCitations()
+            throws Exception {
+        // Arrange
+        RecordingSseEmitter emitter = new RecordingSseEmitter();
+        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.text("Kartını kapat "),
+                ChatResponses.textWithUsage("[1].", 63, 9)));
+        given(turnService.recordTurn(any(), any())).willReturn(31L);
+
+        // Act
+        streamer(TestProperties.withMode("llm", "rerank")).streamModelAnswer(llmOnlyDraft(), PROMPT, emitter);
+        awaitCompleted(emitter);
+
+        // Assert
+        assertThat(emitter.eventNames()).containsExactly("token", "token", "sources", "done");
+        SourcesEvent sources = (SourcesEvent) emitter.events().get(2).data();
+        assertThat(sources).isEqualTo(new SourcesEvent(GenerationMode.LLM_ONLY, RetrievalStrategy.NONE, null, null,
+                null, QueryRewriteStatus.DISABLED, List.of(), List.of()));
+        DoneEvent done = (DoneEvent) emitter.events().get(3).data();
+        assertThat(done.retrievalLatencyMs()).isNull();
+        assertThat(done.rerankLatencyMs()).isNull();
+        assertThat(done.notFoundAnswer()).isFalse();
+        assertThat(done.promptTokens()).isEqualTo(63);
+        TurnOutcome outcome = recordedOutcome();
+        assertThat(outcome.answer()).isEqualTo("Kartını kapat [1].");
+        assertThat(outcome.citations()).isEmpty();
+    }
+
+    @Test
+    void givenLlmOnlyAnswerWithNotFoundSentence_whenCompleted_thenNotFoundFalse() throws Exception {
+        // Arrange
+        RecordingSseEmitter emitter = new RecordingSseEmitter();
+        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.textWithUsage(NOT_FOUND, 40, 8)));
+        given(turnService.recordTurn(any(), any())).willReturn(32L);
+
+        // Act
+        streamer(TestProperties.withMode("llm", "rerank")).streamModelAnswer(llmOnlyDraft(), PROMPT, emitter);
+        awaitCompleted(emitter);
+
+        // Assert
+        DoneEvent done = (DoneEvent) emitter.events().get(emitter.events().size() - 1).data();
+        assertThat(done.notFoundAnswer()).isFalse();
+        assertThat(recordedOutcome().notFoundAnswer()).isFalse();
     }
 }

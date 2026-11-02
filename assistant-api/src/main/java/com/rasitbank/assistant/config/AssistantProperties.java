@@ -1,5 +1,6 @@
 package com.rasitbank.assistant.config;
 
+import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.RetrievalStrategy;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
@@ -14,8 +15,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 /**
- * Asistanın sunucu ayarlarını taşır: çalışma alanı, retrieval-api ve reranker adresleri, retrieval stratejisi,
- * sorgu yeniden yazma, konuşma geçmişi sınırı, zaman aşımları ve sabit "bulamadım" cümlesi.
+ * Asistanın sunucu ayarlarını taşır: çalışma alanı, üretim modu, retrieval-api ve reranker adresleri, reranker sağlık
+ * kontrolü, retrieval stratejisi, sorgu yeniden yazma, konuşma geçmişi sınırı, zaman aşımları ve sabit "bulamadım"
+ * cümlesi.
  */
 @Validated
 @ConfigurationProperties("assistant")
@@ -55,14 +57,21 @@ public record AssistantProperties(
             @NotBlank String baseUrl,
             @NotBlank String model,
             @NotNull Duration connectTimeout,
-            @NotNull Duration readTimeout) {
+            @NotNull Duration readTimeout,
+            @NotNull Duration healthCheckInterval,
+            boolean healthCheckEnabled) {
     }
 
     public record Generation(
+            @NotNull @Pattern(regexp = "rag|llm", message = "must be one of rag, llm") String mode,
             @NotBlank String notFoundAnswer,
             @NotNull Duration firstTokenTimeout,
             @NotNull Duration tokenIdleTimeout,
             @NotNull Duration streamTimeout) {
+
+        public GenerationMode configuredMode() {
+            return "llm".equals(mode) ? GenerationMode.LLM_ONLY : GenerationMode.RAG;
+        }
     }
 
     public record QueryRewrite(boolean enabled, @NotNull Duration timeout, @Min(1) @Max(1000) int maxLength) {

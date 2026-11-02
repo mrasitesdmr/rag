@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.rasitbank.assistant.conversation.domain.dto.SendMessageRequest;
 import com.rasitbank.assistant.conversation.domain.entity.Conversation;
+import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.RetrievalStrategy;
 import com.rasitbank.assistant.exception.ConflictException;
 import com.rasitbank.assistant.exception.NotFoundException;
@@ -57,7 +58,7 @@ class AnswerServiceTest {
     private final AnswerStreamer answerStreamer = mock(AnswerStreamer.class);
     private final TurnService turnService = mock(TurnService.class);
     private final PromptBuilder promptBuilder = new PromptBuilder(new ClassPathResource("prompts/rag-system.st"),
-            new ClassPathResource("prompts/rag-user.st"), TestProperties.defaults());
+            new ClassPathResource("prompts/rag-user.st"), new ClassPathResource("prompts/llm-only-system.st"), TestProperties.defaults());
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-01T10:00:00Z"), ZoneOffset.UTC);
 
     private final AnswerService service = new AnswerService(conversationService, registry, queryRewriter, contextRetriever,
@@ -275,5 +276,107 @@ class AnswerServiceTest {
         assertThat(draft.getValue().queryRewriteStatus()).isEqualTo(QueryRewriteStatus.REWRITTEN);
         assertThat(draft.getValue().queryRewriteLatencyMs()).isEqualTo(812L);
         assertThat(draft.getValue().historyTurns()).isEqualTo(1);
+    }
+
+    private AnswerService llmOnlyService() {
+        return new AnswerService(conversationService, registry, queryRewriter, contextRetriever, promptBuilder,
+                answerStreamer, turnService, TestProperties.withMode("llm", "rerank"), "qwen3.5:9b", clock);
+    }
+
+    @Test
+    void givenLlmOnlyMode_whenSendMessage_thenNoRewriteNoRetrieval() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+
+        // Act
+        SseEmitter emitter = llmOnlyService().sendMessage(CONVERSATION_ID, request("Kartımı kaybettim, ne yapmalıyım?"));
+
+        // Assert
+        verifyNoInteractions(contextRetriever);
+        verify(queryRewriter, never()).rewriteQuery(anyString(), any());
+        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.captor();
+        verify(answerStreamer, times(1)).streamModelAnswer(draft.capture(), prompt.capture(),
+                org.mockito.ArgumentMatchers.same(emitter));
+        verify(answerStreamer, never()).streamFixedAnswer(any(), any(), any());
+        assertThat(draft.getValue().generationMode()).isEqualTo(GenerationMode.LLM_ONLY);
+        assertThat(draft.getValue().searchQuery()).isNull();
+        assertThat(draft.getValue().queryRewriteStatus()).isEqualTo(QueryRewriteStatus.DISABLED);
+        assertThat(draft.getValue().queryRewriteLatencyMs()).isNull();
+        assertThat(draft.getValue().context()).isNull();
+        assertThat(draft.getValue().question()).isEqualTo("Kartımı kaybettim, ne yapmalıyım?");
+        assertThat(prompt.getValue().getInstructions()).hasSize(2);
+    }
+
+    @Test
+    void givenLlmOnlyMode_whenSendMessageWithNoDocuments_thenModelStillCalledNotFixedAnswer() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+
+        // Act
+        llmOnlyService().sendMessage(CONVERSATION_ID, request("Soru"));
+
+        // Assert
+        verify(answerStreamer).streamModelAnswer(any(), any(), any(SseEmitter.class));
+        verify(answerStreamer, never()).streamFixedAnswer(any(), any(), any());
+    }
+
+    @Test
+    void givenLlmOnlyFollowUp_whenSendMessage_thenHistoryInPromptAndNoRewrite() {
+        // Arrange
+        List<HistoryTurn> history = List.of(new HistoryTurn("Kartımı kaybettim, ne yapmalıyım?", "Kartını hemen kapat."));
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        given(conversationService.getHistory(CONVERSATION_ID)).willReturn(history);
+
+        // Act
+        llmOnlyService().sendMessage(CONVERSATION_ID, request("Yenisi kaç günde gelir?"));
+
+        // Assert
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.captor();
+        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
+        verify(answerStreamer).streamModelAnswer(draft.capture(), prompt.capture(), any(SseEmitter.class));
+        List<Message> messages = prompt.getValue().getInstructions();
+        assertThat(messages).hasSize(4);
+        assertThat(messages.get(0)).isInstanceOf(SystemMessage.class);
+        assertThat(messages.get(1)).isInstanceOf(UserMessage.class);
+        assertThat(messages.get(1).getText()).isEqualTo("Kartımı kaybettim, ne yapmalıyım?");
+        assertThat(messages.get(2)).isInstanceOf(AssistantMessage.class);
+        assertThat(messages.get(2).getText()).isEqualTo("Kartını hemen kapat.");
+        assertThat(messages.get(3)).isInstanceOf(UserMessage.class);
+        assertThat(messages.get(3).getText()).isEqualTo("Yenisi kaç günde gelir?");
+        assertThat(draft.getValue().historyTurns()).isEqualTo(1);
+        verify(queryRewriter, never()).rewriteQuery(anyString(), any());
+        verifyNoInteractions(contextRetriever);
+    }
+
+    @Test
+    void givenLlmOnlyAndTurnInProgress_whenSendMessage_thenConflictAndModelNotCalled() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        registry.tryStart(CONVERSATION_ID);
+
+        // Act
+        Throwable thrown = org.assertj.core.api.Assertions
+                .catchThrowable(() -> llmOnlyService().sendMessage(CONVERSATION_ID, request("Soru")));
+
+        // Assert
+        assertThat(thrown).isInstanceOfSatisfying(ConflictException.class,
+                exception -> assertThat(exception.getErrorCode()).isEqualTo("TURN_IN_PROGRESS"));
+        verifyNoInteractions(answerStreamer);
+    }
+
+    @Test
+    void givenRagMode_whenSendMessage_thenDraftCarriesRagMode() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        given(contextRetriever.retrieveContext(anyString())).willReturn(ContextFixtures.topKContext());
+
+        // Act
+        service.sendMessage(CONVERSATION_ID, request("Soru"));
+
+        // Assert
+        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
+        verify(answerStreamer).streamModelAnswer(draft.capture(), any(), any(SseEmitter.class));
+        assertThat(draft.getValue().generationMode()).isEqualTo(GenerationMode.RAG);
     }
 }

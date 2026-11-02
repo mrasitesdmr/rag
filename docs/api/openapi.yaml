@@ -14,6 +14,9 @@
 #   (POST /api/assistant/conversations/{conversationId}/messages; cevap SSE ile akar, olaylar docs/api/sse.md).
 #   TASK-010: sendMessage takip sorusunu retrieval'dan önce geçmişle bağımsız bir arama sorgusuna çevirir (REST şeması
 #   değişmedi; arama sorgusu ve yeniden yazma süresi SSE `sources` / `done` olaylarındadır).
+#   TASK-011: canlı yapılandırma (GET /api/assistant/live-config; assistant-api, bilgi bankası durumu için retrieval-api'nin
+#   GET /api/workspaces/{workspaceId} ve GET .../sources uçlarını çağırır) ve üretim modu Sadece LLM (sendMessage
+#   `assistant.generation.mode=llm` iken retrieval yapmaz; olay alanları docs/api/sse.md).
 # Bilgi bankasına hiçbir belge kendiliğinden girmez: retrieval-api açılışta kaynak, sürüm, parça ya da iş oluşturmaz (TASK-027).
 #   Belgeler sadece POST .../sources ile girer. Yeni sürüm yükleme ucu yoktur (kapsam dışı).
 # Ortak davranış (TASK-002): iki serviste de tanımsız bir path'e gelen her istek 404 + application/problem+json + errorCode NOT_FOUND döner
@@ -26,6 +29,8 @@ info:
 tags:
   - name: Conversations
     description: Conversations of the Önizleme screen and the streamed answer to each question (assistant-api)
+  - name: Live config
+    description: The assistant's effective server configuration shown on Önizleme (assistant-api)
   - name: Workspaces
     description: The single workspace and its embedding, chunking and index settings (retrieval-api)
   - name: Sources
@@ -99,6 +104,14 @@ paths:
         never rewritten. A failed, timed-out, empty or too long rewrite never fails the request: the search uses the
         question as typed and the turn records the outcome (`queryRewriteStatus` in the `sources` event).
 
+        Generation mode (TASK-011): `assistant.generation.mode` is `rag` (default, everything above) or `llm`
+        (Sadece LLM). In `llm` mode there is no query rewrite, no retrieval-api search and no rerank: the prompt is the
+        short system instruction without chunks, the conversation history and the question as typed; citations are not
+        parsed and the "not found" sentence is not detected. The turn is recorded with `generationMode` `LLM_ONLY`,
+        `retrievalStrategy` `NONE`, no search query and no chunks. Because nothing is retrieved, `RETRIEVAL_UNAVAILABLE`
+        never occurs in this mode and an empty knowledge base does not change the answer. The mode is server
+        configuration; changing it needs a restart.
+
         The response is `200 text/event-stream`. Events, their order and payloads are defined in `docs/api/sse.md`
         (`token`* → `sources` → `done`; `error` ends the stream). The stream is opened only after the query rewrite and
         the retrieval (and rerank) steps have finished, so every error listed below is returned before any event. An
@@ -108,7 +121,7 @@ paths:
         The client must send `Accept: text/event-stream, application/problem+json` so that error responses can be written.
 
         Check order: 400 → 404 (`CONVERSATION_NOT_FOUND`) → 409 (`TURN_IN_PROGRESS`) → query rewrite (no error) →
-        503 (`RETRIEVAL_UNAVAILABLE`) → 200 stream.
+        503 (`RETRIEVAL_UNAVAILABLE`) → 200 stream. In `llm` mode: 400 → 404 → 409 → 200 stream.
         A `RETRIEVAL_UNAVAILABLE` turn is recorded with that error code (and the search query and rewrite outcome); 400,
         404 and 409 record nothing.
       parameters:
@@ -172,6 +185,35 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+  /api/assistant/live-config:
+    get:
+      tags: [Live config]
+      operationId: getLiveConfig
+      summary: Get the assistant's effective configuration, the reranker status and the knowledge base status
+      description: |
+        assistant-api (TASK-011). Read by the Önizleme screen for its configuration strip and the "Asistan nasıl
+        cevaplıyor?" card (and by Değerlendirme in TASK-016). Read-only: the configuration cannot be changed through the
+        API; it comes from `assistant.*` / `spring.ai.ollama.*` and environment variables and changes with a restart.
+
+        - `chatModel`, `generationMode`, `retrievalStrategy`, `candidates`, `topK`, `queryRewriteEnabled` are the
+          configured values (`retrievalStrategy` is the configured one, `TOP_K` or `RERANK`, also in `LLM_ONLY` mode).
+        - `rerankerStatus` is the last measured reachability of the reranker (see `RerankerStatus`).
+        - `embeddingModel`, `embeddingDimensions` and `knowledgeBase` come from retrieval-api at request time
+          (`GET /api/workspaces/{workspaceId}` and every page of `GET /api/workspaces/{workspaceId}/sources` with
+          `size=100`), with the workspace id `assistant.workspace-id` (42) and the retrieval-api client's timeouts
+          (connect 2 s, read 15 s). Any failure of these calls (connection refused, timeout, non-2xx, unreadable body)
+          does not fail this request: `knowledgeBase.status` is `UNAVAILABLE`, `embeddingModel`,
+          `embeddingDimensions` and `knowledgeBase.searchableSourceCount` are null and `knowledgeBase.sources` is empty.
+        - The response is not cached by the server; every call reads retrieval-api again.
+      responses:
+        '200':
+          description: The effective configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveConfigResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/workspaces/{workspaceId}:
     get:
       tags: [Workspaces]
@@ -179,7 +221,7 @@ paths:
       summary: Get the workspace with its embedding model and the current chunking and index settings
       description: |
         retrieval-api. Used by the Bilgi kaynakları screen (info box under the source list, meta boxes of the source
-        detail). Name and embedding model come from the `workspaces` row; the chunking settings are the service's
+        detail) and by assistant-api's `getLiveConfig` (embedding model and dimensions, TASK-011). Name and embedding model come from the `workspaces` row; the chunking settings are the service's
         current `ingestion.*` configuration (they apply to every version ingested with that configuration); the
         vector index is the one created by the migrations (HNSW, cosine).
       parameters:
@@ -287,6 +329,8 @@ paths:
       summary: List the sources of a workspace, ordered by id
       description: |
         retrieval-api. Fixed order `id ASC`. A freshly started system returns an empty page (nothing is ingested on startup).
+        Also called by assistant-api's `getLiveConfig` (TASK-011): a source counts as searchable when `chunkCount` is
+        not null (it has a current version).
         Each item carries the fields of the Bilgi kaynakları table (see `SourceResponse`), including the source's latest
         ingestion job, so a client can show the running stage and poll that job.
       parameters:
@@ -796,6 +840,125 @@ components:
             (Java `String.length()`, counted before stripping). Stripped before it is searched, sent to the model and
             stored; case and Turkish letters are kept as sent.
           example: Kartımı kaybettim, ne yapmalıyım?
+    GenerationMode:
+      type: string
+      description: |
+        How answers are produced (`assistant.generation.mode`): `RAG` (`rag`, default) searches the knowledge base and
+        answers from the numbered chunks; `LLM_ONLY` (`llm`, Sadece LLM) sends the question to the chat model without
+        retrieval and without chunks.
+      enum: [RAG, LLM_ONLY]
+    RerankerStatus:
+      type: string
+      description: |
+        Last measured reachability of the reranker (TASK-011).
+        - `UP`: the last measurement succeeded.
+        - `DOWN`: the last measurement failed (no connection, timeout, non-2xx, unusable answer).
+        - `UNKNOWN`: nothing has been measured since assistant-api started.
+        - `NOT_USED`: the reranker is not part of the configuration (`generationMode` `LLM_ONLY` or `retrievalStrategy`
+          `TOP_K`); it is not measured.
+        A measurement is either the periodic health check (`GET {assistant.reranker.base-url}/health` every
+        `assistant.reranker.health-check-interval`, 15 s; 2xx → `UP`) or a rerank call made for a question (success →
+        `UP`, failure that falls back to vector order → `DOWN`); the latest one wins.
+      enum: [UP, DOWN, UNKNOWN, NOT_USED]
+    KnowledgeBaseStatus:
+      type: string
+      description: |
+        - `READY`: at least one source has a current version (is searchable).
+        - `EMPTY`: retrieval-api answered and no source is searchable (no source, or only sources whose first ingestion
+          is running or failed).
+        - `UNAVAILABLE`: retrieval-api could not be read.
+      enum: [READY, EMPTY, UNAVAILABLE]
+    KnowledgeBaseSource:
+      type: object
+      description: A searchable source (one with a current version)
+      required: [sourceId, name, version]
+      properties:
+        sourceId:
+          type: integer
+          format: int64
+          example: 10001
+        name:
+          type: string
+          example: Raşit Bankası Ürün ve Hizmet Rehberi
+        version:
+          type: string
+          description: Version label of the current version
+          example: '2026.10'
+    KnowledgeBaseResponse:
+      type: object
+      required: [status, searchableSourceCount, sources]
+      properties:
+        status:
+          $ref: '#/components/schemas/KnowledgeBaseStatus'
+        searchableSourceCount:
+          type: [integer, 'null']
+          format: int32
+          description: Number of searchable sources; null when `UNAVAILABLE`
+          example: 1
+        sources:
+          type: array
+          description: All searchable sources, ordered by `sourceId` ascending; empty when `EMPTY` or `UNAVAILABLE`
+          items:
+            $ref: '#/components/schemas/KnowledgeBaseSource'
+    LiveConfigResponse:
+      type: object
+      description: Body of `getLiveConfig`
+      required: [chatModel, embeddingModel, embeddingDimensions, generationMode, retrievalStrategy, candidates, topK, queryRewriteEnabled, rerankerStatus, knowledgeBase]
+      properties:
+        chatModel:
+          type: string
+          description: Configured chat model (`spring.ai.ollama.chat.model`)
+          example: qwen3.5:9b
+        embeddingModel:
+          type: [string, 'null']
+          description: The workspace's embedding model (retrieval-api `WorkspaceResponse.embeddingModel`); null when retrieval-api could not be read
+          example: bge-m3
+        embeddingDimensions:
+          type: [integer, 'null']
+          format: int32
+          description: The workspace's embedding dimensions; null when retrieval-api could not be read
+          example: 1024
+        generationMode:
+          $ref: '#/components/schemas/GenerationMode'
+        retrievalStrategy:
+          type: string
+          description: Configured retrieval strategy (`assistant.retrieval.strategy`; `top5` → `TOP_K`, `rerank` → `RERANK`). Reported also in `LLM_ONLY` mode, where it is not applied
+          enum: [TOP_K, RERANK]
+        candidates:
+          type: integer
+          format: int32
+          description: '`assistant.retrieval.candidates`'
+          example: 20
+        topK:
+          type: integer
+          format: int32
+          description: '`assistant.retrieval.top-k`'
+          example: 5
+        queryRewriteEnabled:
+          type: boolean
+          description: '`assistant.query-rewrite.enabled`'
+          example: true
+        rerankerStatus:
+          $ref: '#/components/schemas/RerankerStatus'
+        knowledgeBase:
+          $ref: '#/components/schemas/KnowledgeBaseResponse'
+      example:
+        chatModel: qwen3.5:9b
+        embeddingModel: bge-m3
+        embeddingDimensions: 1024
+        generationMode: RAG
+        retrievalStrategy: RERANK
+        candidates: 20
+        topK: 5
+        queryRewriteEnabled: true
+        rerankerStatus: UP
+        knowledgeBase:
+          status: READY
+          searchableSourceCount: 1
+          sources:
+            - sourceId: 10001
+              name: Raşit Bankası Ürün ve Hizmet Rehberi
+              version: '2026.10'
     ProblemDetail:
       type: object
       description: RFC 9457 Problem Details with the project's `errorCode` extension

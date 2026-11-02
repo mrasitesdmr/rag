@@ -148,7 +148,10 @@ Compose'da ayarlıdır. retrieval-api değişkenlerini TASK-005'ten beri okur; a
 | assistant-api | `RERANKER_MODEL` | `bge-reranker-v2-m3` | `bge-reranker-v2-m3` | TASK-008 (okunuyor) |
 | assistant-api | `RETRIEVAL_API_URL` | `http://retrieval-api:8080` | `http://localhost:8080` | TASK-008 (okunuyor) |
 | assistant-api | `RETRIEVAL_STRATEGY` | `rerank` (`top5` seçilebilir) | `rerank` | TASK-008 (okunuyor) |
+| assistant-api | `GENERATION_MODE` | `rag` (`llm`: Sadece LLM, retrieval/rerank yok) | `rag` | TASK-011 (okunuyor) |
 | assistant-api | `ASSISTANT_HOST_LABEL` | boş (ör. `Apple M5 · 16 GB`) | boş | TASK-008 (okunuyor) |
+
+Üretim modunu değiştirmek: `GENERATION_MODE=llm docker compose -f deployment/docker-compose.yml up -d assistant-api` (geri dönüş: değişkensiz aynı komut). Mod ortam değişkenidir; servis yeniden başlatılmadan değişmez. Reranker sağlığı assistant-api tarafından 15 sn'de bir `/health` ile yoklanır (`GET /api/assistant/live-config` `rerankerStatus`).
 
 Reranker okuma zaman aşımı 5 sn, bağlantı 1 sn'dir (`assistant.reranker.read-timeout`); aşılırsa ya da reranker kapalıysa assistant-api vector sırasının ilk 5'ine döner. Sıcak rerank ~0,7-1,1 sn ölçüldü (20 belge).
 
