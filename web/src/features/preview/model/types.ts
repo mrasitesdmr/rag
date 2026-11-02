@@ -82,3 +82,25 @@ export type PreviewTurn = {
   done: DoneEvent | null
   errorCode: string | null
 }
+
+export type SuggestedQuestionResponse = {
+  text: string
+  starter: boolean
+  followUps: string[]
+}
+
+export type SuggestionCategoryResponse = {
+  name: string
+  questions: SuggestedQuestionResponse[]
+}
+
+export type SuggestionSetResponse = {
+  questionCount: number
+  followUpCount: number
+  categories: SuggestionCategoryResponse[]
+}
+
+export const SUGGESTION_KINDS = ['followUp', 'question'] as const
+export type SuggestionKind = (typeof SUGGESTION_KINDS)[number]
+
+export type SuggestionItem = { text: string; kind: SuggestionKind }

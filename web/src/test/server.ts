@@ -13,6 +13,7 @@ export function problem(status: number, errorCode: string, violations?: TestViol
 
 export const defaultHandlers = [
   http.get('/api/assistant/live-config', () => HttpResponse.json(liveConfig())),
+  http.get('/api/assistant/suggestions', () => HttpResponse.json({ questionCount: 0, followUpCount: 0, categories: [] })),
   http.get('/api/workspaces/42', () => HttpResponse.json(workspace())),
   http.get('/api/workspaces/42/sources', () => HttpResponse.json(pageOf([]))),
 ]

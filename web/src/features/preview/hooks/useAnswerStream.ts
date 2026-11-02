@@ -17,6 +17,7 @@ export type AnswerStream = {
   isStreaming: boolean
   sendQuestion: (text: string) => void
   startNewConversation: () => void
+  askInNewConversation: (text: string) => void
 }
 
 export function useAnswerStream(): AnswerStream {
@@ -123,7 +124,28 @@ export function useAnswerStream(): AnswerStream {
     rememberConversation(null)
   }, [rememberConversation, turns])
 
-  return { conversationId, turns, previousTurns, isStreaming, sendQuestion, startNewConversation }
+  const askInNewConversation = useCallback(
+    (text: string) => {
+      if (controllerRef.current !== null || !canSendMessage(text)) {
+        return
+      }
+      if (turns.length > 0) {
+        startNewConversation()
+      }
+      sendQuestion(text)
+    },
+    [sendQuestion, startNewConversation, turns.length],
+  )
+
+  return {
+    conversationId,
+    turns,
+    previousTurns,
+    isStreaming,
+    sendQuestion,
+    startNewConversation,
+    askInNewConversation,
+  }
 }
 
 function newTurn(localId: string, question: string): PreviewTurn {

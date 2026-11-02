@@ -25,7 +25,7 @@ const QUESTION = 'Kartımı kaybettim, ne yapmalıyım?'
 const SOURCE_BUTTON = 'Raşit Bankası Ürün ve H… · s. 19'
 
 async function ask(text: string) {
-  await userEvent.type(screen.getByRole('textbox', { name: 'Soru' }), text)
+  await userEvent.type(screen.getByRole('combobox', { name: 'Soru' }), text)
   await userEvent.click(screen.getByRole('button', { name: 'Gönder' }))
 }
 
@@ -44,7 +44,7 @@ describe('PreviewPage', () => {
     expect(screen.getByText(WELCOME_MESSAGE)).toBeInTheDocument()
     expect(screen.getByText('Dijital Asistan', { selector: 'b' })).toBeInTheDocument()
     expect(screen.getByText('Raşit Mobil · 7/24')).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Soru' })).toBeEnabled()
+    expect(screen.getByRole('combobox', { name: 'Soru' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Gönder' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Yeni konuşma' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'Kayıtlı sorular' })).not.toBeInTheDocument()
@@ -65,7 +65,7 @@ describe('PreviewPage', () => {
 
     expect(await screen.findByRole('button', { name: 'Kaynak 1' })).toBeInTheDocument()
     expect(screen.getByText(/Kartını\s+hemen kapat/)).toBeInTheDocument()
-    await userEvent.type(screen.getByRole('textbox', { name: 'Soru' }), 'Başka soru')
+    await userEvent.type(screen.getByRole('combobox', { name: 'Soru' }), 'Başka soru')
     expect(screen.getByRole('button', { name: 'Gönder' })).toBeEnabled()
   })
 
@@ -78,12 +78,12 @@ describe('PreviewPage', () => {
     stream.push(token('Kartını '))
 
     await screen.findByText('Kartını')
-    expect(screen.getByRole('textbox', { name: 'Soru' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'Soru' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Gönder' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Yeni konuşma' })).toBeDisabled()
     stream.push(sources(), done())
     stream.close()
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Soru' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Soru' })).toBeEnabled())
     expect(screen.getByRole('button', { name: 'Yeni konuşma' })).toBeEnabled()
   })
 
@@ -95,7 +95,7 @@ describe('PreviewPage', () => {
     await ask(`  ${QUESTION}  `)
 
     expect(await screen.findByText(QUESTION)).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Soru' })).toHaveValue('')
+    expect(screen.getByRole('combobox', { name: 'Soru' })).toHaveValue('')
     stream.close()
   })
 
@@ -256,7 +256,7 @@ describe('PreviewPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Bilgi bankasına şu an ulaşılamıyor. Biraz sonra tekrar dene.',
     )
-    expect(screen.getByRole('textbox', { name: 'Soru' })).toBeEnabled()
+    expect(screen.getByRole('combobox', { name: 'Soru' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Yeni konuşma' })).toBeEnabled()
   })
 
@@ -271,7 +271,7 @@ describe('PreviewPage', () => {
     )
     expect(screen.getByText(/Kartını/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /· s\. \d+/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Soru' })).toBeEnabled()
+    expect(screen.getByRole('combobox', { name: 'Soru' })).toBeEnabled()
   })
 
   it('givenStreamEndsWithoutDone_whenStreaming_thenInterruptedMessage', async () => {
@@ -281,7 +281,7 @@ describe('PreviewPage', () => {
     await ask(QUESTION)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Cevap yarıda kesildi. Soruyu yeniden gönder.')
-    expect(screen.getByRole('textbox', { name: 'Soru' })).toBeEnabled()
+    expect(screen.getByRole('combobox', { name: 'Soru' })).toBeEnabled()
   })
 
   it('givenNetworkDown_whenQuestionSent_thenNetworkMessage', async () => {

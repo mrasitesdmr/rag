@@ -43,12 +43,12 @@ test.beforeAll(async () => {
 async function askQuestion(page: Page, text: string) {
   await page.goto('/onizleme')
   await expect(page.getByRole('heading', { level: 1, name: 'Asistan önizleme' })).toBeVisible()
-  await page.getByRole('textbox', { name: 'Soru' }).fill(text)
+  await page.getByRole('combobox', { name: 'Soru' }).fill(text)
   await page.getByRole('button', { name: 'Gönder' }).click()
 }
 
 async function waitUntilAnswerDone(page: Page) {
-  await expect(page.getByRole('textbox', { name: 'Soru' })).toBeEnabled({ timeout: ANSWER_TIMEOUT_MS })
+  await expect(page.getByRole('combobox', { name: 'Soru' })).toBeEnabled({ timeout: ANSWER_TIMEOUT_MS })
   await expect(page.getByRole('heading', { name: 'Son cevapta modele giden parçalar' })).toBeVisible({
     timeout: ANSWER_TIMEOUT_MS,
   })
@@ -90,10 +90,10 @@ test('givenLostCardAnswered_whenFollowUpAsked_thenSideCardShowsSearchQueryAndRew
 
   await askQuestion(page, 'Kartımı kaybettim, ne yapmalıyım?')
   await waitUntilAnswerDone(page)
-  await page.getByRole('textbox', { name: 'Soru' }).fill('Yenisi kaç günde gelir?')
+  await page.getByRole('combobox', { name: 'Soru' }).fill('Yenisi kaç günde gelir?')
   await page.getByRole('button', { name: 'Gönder' }).click()
 
-  await expect(page.getByRole('textbox', { name: 'Soru' })).toBeEnabled({ timeout: ANSWER_TIMEOUT_MS })
+  await expect(page.getByRole('combobox', { name: 'Soru' })).toBeEnabled({ timeout: ANSWER_TIMEOUT_MS })
   const card = page.getByRole('region', { name: 'Son cevapta modele giden parçalar' })
   await expect(card.getByText(/· arama: "/)).toBeVisible({ timeout: ANSWER_TIMEOUT_MS })
   await expect(page.getByText('yeniden yazma', { exact: true })).toBeVisible()
@@ -113,4 +113,24 @@ test('givenRunningSystem_whenPreviewOpens_thenStripMatchesLiveConfig', async ({ 
   if (config.generationMode === 'LLM_ONLY') {
     await expect(strip).toContainText('Retrieval kapalı (Sadece LLM)')
   }
+})
+
+test('givenRunningSystem_whenPreviewOpens_thenChipsMatchSuggestionSet', async ({ page, request }) => {
+  const response = await request.get(`${BASE_URL}/api/assistant/suggestions`)
+  expect(response.status()).toBe(200)
+  const set = (await response.json()) as { questionCount: number; followUpCount: number }
+
+  await page.goto('/onizleme')
+  const chips = page.getByRole('group', { name: 'Soru önerileri' })
+
+  if (set.questionCount === 0) {
+    await expect(chips.getByText('Henüz soru önerisi yok.')).toBeVisible()
+  } else {
+    await expect(chips.getByRole('button').first()).toBeVisible()
+    expect(await chips.getByRole('button').count()).toBeLessThanOrEqual(2)
+  }
+  await page.getByRole('button', { name: 'Soru listesi' }).click()
+  await expect(
+    page.getByRole('dialog', { name: `Kayıtlı sorular · ${set.questionCount} soru, ${set.followUpCount} takip` }),
+  ).toBeVisible()
 })

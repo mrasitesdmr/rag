@@ -6,6 +6,7 @@ import type {
   ConversationResponse,
   CreateConversationRequest,
   SendMessageRequest,
+  SuggestionSetResponse,
 } from '../model/types.ts'
 
 const CONVERSATIONS_PATH = '/api/assistant/conversations'
@@ -26,4 +27,10 @@ export async function* sendMessage(
       yield answerEvent
     }
   }
+}
+
+const SUGGESTIONS_PATH = '/api/assistant/suggestions'
+
+export function getSuggestions(): Promise<SuggestionSetResponse> {
+  return request<SuggestionSetResponse>(SUGGESTIONS_PATH)
 }

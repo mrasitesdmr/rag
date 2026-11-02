@@ -31,6 +31,15 @@ Site: http://localhost:3000 (assistant-api 8090, retrieval-api 8080, PostgreSQL 
 
 - **Bilgi bankası ilk açılışta boştur.** Belgeyi Bilgi kaynakları ekranından ya da `curl -F file=@rehber.pdf -F name="Ürün ve Hizmet Rehberi" -F version=2026.10 localhost:3000/api/workspaces/42/sources` ile yükle (PDF'te yer imi gerekir; `bge-m3` için Ollama açık olmalı). Durum: `curl localhost:8080/api/workspaces/42/ingestion-jobs/<id>`. Başarısız işi yeniden dene: `curl -X POST localhost:8080/api/workspaces/42/sources/<id>/ingestion-jobs`. Eski sürümden kalan rehber verisini silmek için `docker compose -f deployment/docker-compose.yml down -v` (veritabanını kalıcı siler).
 - **Önizleme'nin çalışması için sıra:** Ollama (`qwen3.5:9b`, `bge-m3`) → reranker (llama-server) → Compose → rehberi yükle → `localhost:3000/onizleme`'de soru sor. Reranker kapalıysa cevap yine gelir (vector sırasının ilk 5'i, "reranker DOWN"); Ollama kapalıysa "Dil modeline şu an ulaşılamıyor" görünür. Stratejiyi değiştirmek: `RETRIEVAL_STRATEGY=top5 docker compose -f deployment/docker-compose.yml up -d assistant-api`; süre kartına makine etiketi: `ASSISTANT_HOST_LABEL="Apple M5 · 16 GB"` (aynı komut). Takip sorusunu yeniden yazmayı kapatmak: `QUERY_REWRITE_ENABLED=false` (aynı komut; varsayılan açık). Sadece LLM modu (retrieval/rerank yok): `GENERATION_MODE=llm docker compose -f deployment/docker-compose.yml up -d assistant-api`; geri dönmek için değişkensiz aynı komut (mod ortam değişkenidir, servis yeniden başlar).
+- **Önerileri yükleme (Önizleme çipleri, "Soru listesi", otomatik tamamlama):** liste ilk açılışta boştur; ürün ekibi bir JSON dosyasıyla yükler, her yükleme bütün listeyi değiştirir: `curl -X PUT http://localhost:3000/api/assistant/suggestions -H 'Content-Type: application/json' --data-binary @suggestions.json`. Okumak: `curl localhost:3000/api/assistant/suggestions`. Temizlemek: `curl -X PUT http://localhost:3000/api/assistant/suggestions -H 'Content-Type: application/json' -d '{"categories":[]}'`. Dosya biçimi (`starter` ve `followUps` isteğe bağlı; en fazla 50 kategori, toplam 500 soru, soru başına 5 takip):
+
+```json
+{"categories":[{"name":"Kartlar","questions":[
+  {"text":"Kartımı kaybettim, ne yapmalıyım?","starter":true,"followUps":["Yenisi kaç günde gelir?"]},
+  {"text":"Kart aidatı ne kadar?"}]}]}
+```
+
+  Hatalı dosya 400 `VALIDATION_FAILED` döner ve kayıtlı liste değişmez. Gövde sınırı 2 MB (nginx).
 - Tam sistem ve `docker-compose.dev.yml` ikisi de 5432'yi kullanır; tam sistemden önce `docker compose -f deployment/docker-compose.dev.yml stop` (veri silmez).
 - PostgreSQL init script'i (iki veritabanı ve kullanıcı) sadece boş volume'da çalışır; script değişirse `down -v` gerekir.
 - `../embedding-pgvector` aynı portları (5432, 8080, 3000) kullanır; iki proje aynı anda açılmaz, önce diğerini `down` et.

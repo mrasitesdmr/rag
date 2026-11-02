@@ -55,6 +55,10 @@ Tek PostgreSQL sunucusu (pgvector'lü imaj), iki ayrı veritabanı: `assistant` 
 - nginx `/api/workspaces/` location'ında `client_max_body_size 21m`; retrieval-api sınırı 20 MB (aşılırsa 413 `FILE_TOO_LARGE`, problem+json).
 - **Eski rehber verisinin temizliği (TASK-005'ten kalan kaynak 10001 ve parçaları):** tam sistem için `docker compose -f deployment/docker-compose.yml down -v`; geliştirme postgres'i için `docker compose -f deployment/docker-compose.dev.yml down -v`. Bu komutlar veritabanını kalıcı siler; sadece kullanıcı onayıyla çalıştırılır.
 
+## Gerçek yapı (TASK-012)
+- Yeni servis, ortam değişkeni ya da model yok; imajlar yeniden derlendi. nginx `/api/assistant/` location'ında `client_max_body_size 2m` (en büyük geçerli öneri listesi ~1,2 MB; 3 MB gövde 413 döner).
+- Öneri listesi açılışta **boştur**. Yükleme/okuma/temizleme (web adresi üzerinden): `curl -X PUT localhost:3000/api/assistant/suggestions -H 'Content-Type: application/json' --data-binary @suggestions.json`; `curl localhost:3000/api/assistant/suggestions`; temizleme gövdesi `{"categories":[]}`. Dosya biçimi ve kurallar `README.md` "Önerileri yükleme" ve `docs/api/openapi.yaml` `ReplaceSuggestionsRequest`.
+
 ## Ayarlar
 - Değerler compose dosyalarında düz yazılır; şifreler sadece local kullanım içindir (dosya başında "local use only" yorumu). Dockerfile'a ya da imaja gömülmez. Gerçek gizli bilgi bu yapıya girmez.
 - Model adları ve adresleri servislere ortam değişkeniyle verilir (`assistant-api/CLAUDE.md`, `retrieval-api/CLAUDE.md`).

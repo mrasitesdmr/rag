@@ -26,7 +26,7 @@
   background: var(--color-card);
 }
 
-.send {
+.iconButton {
   display: grid;
   flex: none;
   place-items: center;
@@ -38,7 +38,13 @@
   color: var(--color-on-brand);
 }
 
-.send:disabled {
+.light {
+  border: var(--size-field-border) solid var(--color-composer-line);
+  background: var(--color-card);
+  color: var(--color-neutral-ink);
+}
+
+.iconButton:disabled {
   cursor: default;
   opacity: var(--opacity-disabled);
 }
