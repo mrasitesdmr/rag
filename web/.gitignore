@@ -19,3 +19,7 @@ blob-report
 .DS_Store
 *.suo
 *.sw?
+
+# Mutation testing (Stryker)
+reports/
+.stryker-tmp/

@@ -124,13 +124,13 @@ describe('PreviewPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Yeni konuşma' }))
     await ask('Limitimi nasıl artırırım?')
 
-    expect(await screen.findByText('Yeni konuşma · 2')).toBeInTheDocument()
+    expect(await screen.findByText('Yeni konuşma · cnv_2')).toBeInTheDocument()
     expect(log.conversationBodies).toHaveLength(2)
     expect(log.messages.map((message) => message.conversationId)).toEqual([1, 2])
     const messages = screen.getByRole('region', { name: 'Mesajlar' })
     const text = messages.textContent ?? ''
-    expect(text.indexOf(QUESTION)).toBeLessThan(text.indexOf('Yeni konuşma · 2'))
-    expect(text.indexOf('Yeni konuşma · 2')).toBeLessThan(text.indexOf('Limitimi nasıl artırırım?'))
+    expect(text.indexOf(QUESTION)).toBeLessThan(text.indexOf('Yeni konuşma · cnv_2'))
+    expect(text.indexOf('Yeni konuşma · cnv_2')).toBeLessThan(text.indexOf('Limitimi nasıl artırırım?'))
   })
 
   it('givenNewConversationBeforeAnyQuestion_whenClicked_thenNoSeparatorAndNoRequest', async () => {
@@ -152,7 +152,7 @@ describe('PreviewPage', () => {
 
     await userEvent.click(citation)
 
-    const dialog = await screen.findByRole('dialog', { name: '2.16 Kayıp ya da çalıntı bildirimi' })
+    const dialog = await screen.findByRole('dialog', { name: '[1] s. 19 · 2.16 Kayıp ya da çalıntı bildirimi' })
     expect(requested).toEqual([151])
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(dialog).not.toBeInTheDocument())
@@ -721,7 +721,7 @@ describe('PreviewPage', () => {
 
     await userEvent.click(rows[2] as HTMLElement)
 
-    await screen.findByRole('dialog', { name: 'Parça 153 başlığı' })
+    await screen.findByRole('dialog', { name: '[3] s. 19 · Parça 153 başlığı' })
     expect(requested).toEqual([153])
   })
 

@@ -73,7 +73,7 @@ describe('ConversationDetailPage', () => {
     expect(rows).toHaveLength(5)
     expect(within(rows[0]).getAllByRole('cell').map((cell) => cell.textContent)).toEqual([
       '[1]',
-      's. 19 · #31',
+      's. 19 · 2.16 Kayıp ya da çalıntı bildirimi · #31',
       '7',
       '0,3124',
       '5,360',
@@ -81,7 +81,7 @@ describe('ConversationDetailPage', () => {
     ])
     expect(within(rows[1]).getAllByRole('cell').map((cell) => cell.textContent)).toEqual([
       '[2]',
-      's. 20 · #32',
+      's. 20 · Başlık 2 · #32',
       '1',
       '0,3500',
       '1,200',
@@ -323,7 +323,7 @@ describe('ConversationDetailPage', () => {
     }
 
     const dialog = await screen.findByRole('dialog')
-    expect(await within(dialog).findByText('2.16 Kayıp ya da çalıntı bildirimi')).toBeInTheDocument()
+    expect(await within(dialog).findByRole('heading', { name: '[1] s. 19 · 2.16 Kayıp ya da çalıntı bildirimi' })).toBeInTheDocument()
     expect(log.urls.some((url) => url.pathname === '/api/workspaces/42/chunks/151')).toBe(true)
   })
 
@@ -341,7 +341,7 @@ describe('ConversationDetailPage', () => {
     await user.click(screen.getByText('[1]'))
 
     expect(await within(await screen.findByRole('dialog')).findByText('Parça bulunamadı.')).toBeInTheDocument()
-    expect(screen.getByText('s. 19 · #31')).toBeInTheDocument()
+    expect(screen.getByText('s. 19 · 2.16 Kayıp ya da çalıntı bildirimi · #31')).toBeInTheDocument()
   })
 
   it('givenDetailWithAllCards_whenRendered_thenNoAxeViolations', async () => {

@@ -17,17 +17,18 @@ Geliştirilecek ürün `kaynaklar/rag-lab.html`'in **sol yarısının aynısıd�
 - Veritabanı: Tek PostgreSQL sunucusu (pgvector'lü imaj), iki ayrı veritabanı: `assistant` (assistant-api: konuşmalar, turlar, değerlendirme çalıştırmaları) ve `retrieval` (retrieval-api: çalışma alanı, kaynaklar, parçalar ve embedding'leri, içe alma işleri). Flyway her serviste ayrıdır.
 - Modeller: lokal, ücretsiz. Lab'da dil modeli ve embedding Ollama'da (`qwen3.5:9b`, `bge-m3`), reranker llama-server'da (`bge-reranker-v2-m3`). Kesin modeller kullanıcı onayıyla seçilir.
 - Çalıştırma: Docker Compose → `deployment/`
-- Durum: iskelet kuruldu (TASK-002): iki servis (sağlık ucu, RFC 9457 hata yakalayıcı, boş Flyway), web kabuğu (üst bar, menü, dört ekranın başlığı) ve Docker Compose. Domain tabloları, endpoint'ler ve lokal modeller henüz yok. Modüllerin güncel yapısı kendi `CLAUDE.md` dosyalarındadır.
+- Durum: ürün çalışıyor (TASK-002…016, TASK-027): dört ekran gerçek veriyle, lokal modellerle (Ollama `qwen3.5:9b` ve `bge-m3`, llama-server `bge-reranker-v2-m3`) ve Docker Compose ile. Bilgi bankası boş açılır; belgeler "Belge ekle" ile yüklenir, golden set ve öneri listesi dosyayla yüklenir. TASK-018: uçtan uca doğrulama ve dokümanlar. Modüllerin güncel yapısı kendi `CLAUDE.md` dosyalarındadır.
 
 ## Klasör yapısı
 | Yol | İçerik |
 |-----|--------|
 | `assistant-api/`, `retrieval-api/`, `web/`, `deployment/` | Modüller; her birinin kendi `CLAUDE.md`'si var |
 | `kaynaklar/*.html` | Başlangıç içeriği: RAG anlatım sayfası ve lab demosu. Referanstır; task'lar bunları kaynak olarak kullanır |
-| `ollama.md` | Lokal modellerin kurulum ve kullanım rehberi (henüz yok; ilk model task'ında devops oluşturur) |
+| `ollama.md` | Lokal modellerin kurulum ve kullanım rehberi (TASK-003) |
 | `docs/tasks/TASK-XXX/TASK.md` | Kullanıcının yazdığı iş talebi (şablon: `docs/tasks/_TEMPLATE.md`) |
+| `docs/rehber/` | Raşit Bankası Ürün ve Hizmet Rehberi: Typst kaynağı, iki sürümün PDF'i (2026.10, 2026.11; 70 sayfa, 11 bölüm), golden set (`golden/rehber-golden-v1.json`), rehberde olmayan konular ve doğrulama betikleri. Bilgi bankasına "Belge ekle" ile yüklenir; açılışta kendiliğinden yüklenmez |
 | `docs/api/openapi.yaml` | REST sözleşmesi, tek doğru kaynak (iki servis, path önekiyle: `/api/assistant/**` → assistant-api, `/api/workspaces/**` → retrieval-api) |
-| `docs/api/sse.md` | Cevap akışı sözleşmesi: endpoint, olay adları, sırası ve payload'lar (ilk akış task'ında oluşturulur) |
+| `docs/api/sse.md` | Cevap akışı sözleşmesi: endpoint, olay adları, sırası ve payload'lar |
 | `docs/api/websocket.md` | STOMP sözleşmesi: destination'lar ve payload'lar (ilk WebSocket task'ında oluşturulur) |
 | `handoff/` | Aktif task'ın rol çıktıları. Aynı anda tek task yürür. |
 | `.claude/agents/` | Rol tanımları |

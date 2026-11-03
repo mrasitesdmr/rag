@@ -9,13 +9,13 @@ import type { ChunkResponse } from './types.ts'
 const EMBEDDING_FRACTION_DIGITS = 5
 const LOADING_TITLE = 'Parça'
 
-type ChunkDialogProps = { chunkId: number; onClose: () => void }
+type ChunkDialogProps = { chunkId: number; citationNumber?: number; onClose: () => void }
 
-export function ChunkDialog({ chunkId, onClose }: ChunkDialogProps) {
+export function ChunkDialog({ chunkId, citationNumber, onClose }: ChunkDialogProps) {
   const chunkQuery = useChunkQuery(chunkId)
   const chunk = chunkQuery.data
   return (
-    <Dialog title={chunk?.heading ?? LOADING_TITLE} onClose={onClose}>
+    <Dialog title={chunk ? chunkTitle(chunk, citationNumber) : LOADING_TITLE} onClose={onClose}>
       {chunk ? (
         <ChunkDetails chunk={chunk} />
       ) : chunkQuery.isError ? (
@@ -30,6 +30,11 @@ export function ChunkDialog({ chunkId, onClose }: ChunkDialogProps) {
       </div>
     </Dialog>
   )
+}
+
+function chunkTitle(chunk: ChunkResponse, citationNumber: number | undefined): string {
+  const pageLabel = `s. ${chunk.pageNumber} · ${chunk.heading}`
+  return citationNumber === undefined ? pageLabel : `[${citationNumber}] ${pageLabel}`
 }
 
 function ChunkDetails({ chunk }: { chunk: ChunkResponse }) {

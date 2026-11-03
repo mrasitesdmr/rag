@@ -1,3 +1,4 @@
+import type { ChunkCitation } from '../../../shared/chunk/types.ts'
 import { Callout } from '../../../shared/components/Callout.tsx'
 import { StatusBadge } from '../../../shared/components/StatusBadge.tsx'
 import { formatDuration } from '../../../shared/format/formatDuration.ts'
@@ -15,7 +16,7 @@ import type { TurnResponse } from '../model/types.ts'
 import styles from './turnCard.module.css'
 import { TurnChunkTable } from './TurnChunkTable.tsx'
 
-type TurnCardProps = { turn: TurnResponse; onChunkOpen: (chunkId: number) => void }
+type TurnCardProps = { turn: TurnResponse; onChunkOpen: (citation: ChunkCitation) => void }
 
 export function TurnCard({ turn, onChunkOpen }: TurnCardProps) {
   const isLlmOnly = turn.generationMode === 'LLM_ONLY'
@@ -24,7 +25,7 @@ export function TurnCard({ turn, onChunkOpen }: TurnCardProps) {
   function openCitation(n: number) {
     const chunk = turn.contextChunks.find((contextChunk) => contextChunk.n === n)
     if (chunk !== undefined) {
-      onChunkOpen(chunk.chunkId)
+      onChunkOpen({ chunkId: chunk.chunkId, n: chunk.n })
     }
   }
 

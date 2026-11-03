@@ -1,4 +1,5 @@
 import type { MouseEvent } from 'react'
+import type { ChunkCitation } from '../../../shared/chunk/types.ts'
 import { StatusBadge } from '../../../shared/components/StatusBadge.tsx'
 import table from '../../../shared/components/table.module.css'
 import { formatDecimal } from '../../../shared/format/formatNumber.ts'
@@ -11,7 +12,7 @@ type TurnChunkTableProps = {
   chunks: TurnChunkResponse[]
   cited: number[]
   hasRerank: boolean
-  onChunkOpen: (chunkId: number) => void
+  onChunkOpen: (citation: ChunkCitation) => void
 }
 
 export function TurnChunkTable({ chunks, cited, hasRerank, onChunkOpen }: TurnChunkTableProps) {
@@ -48,13 +49,13 @@ type TurnChunkRowProps = {
   chunk: TurnChunkResponse
   isCited: boolean
   hasRerank: boolean
-  onChunkOpen: (chunkId: number) => void
+  onChunkOpen: (citation: ChunkCitation) => void
 }
 
 function TurnChunkRow({ chunk, isCited, hasRerank, onChunkOpen }: TurnChunkRowProps) {
   function handleRowClick(event: MouseEvent<HTMLTableRowElement>) {
     event.currentTarget.querySelector('button')?.focus()
-    onChunkOpen(chunk.chunkId)
+    onChunkOpen({ chunkId: chunk.chunkId, n: chunk.n })
   }
 
   return (
@@ -63,8 +64,8 @@ function TurnChunkRow({ chunk, isCited, hasRerank, onChunkOpen }: TurnChunkRowPr
     <tr className={table.clickable} onClick={handleRowClick}>
       <td className={table.num}>{`[${chunk.n}]`}</td>
       <td className={table.text}>
-        <button type="button" className={styles.openButton} title={chunk.heading}>
-          {`s. ${chunk.pageNumber} · #${chunk.chunkNo}`}
+        <button type="button" className={styles.openButton}>
+          {`s. ${chunk.pageNumber} · ${chunk.heading} · #${chunk.chunkNo}`}
         </button>
         {chunk.containsAnswer ? (
           <>

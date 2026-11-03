@@ -1,4 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
+import type { ChunkCitation } from '../../../shared/chunk/types.ts'
+import { conversationLabel } from '../../../shared/conversation/conversationLabel.ts'
 import type { HandoffControls } from '../hooks/useHandoffRequests.ts'
 import type { FeedbackControls } from '../hooks/useTurnFeedback.ts'
 import type { PreviewTurn } from '../model/types.ts'
@@ -20,7 +22,7 @@ type MessageListProps = {
   conversationId: number | null
   feedback: FeedbackControls
   handoff: HandoffControls
-  onCitationOpen: (chunkId: number) => void
+  onCitationOpen: (citation: ChunkCitation) => void
 }
 
 export function MessageList({
@@ -57,7 +59,7 @@ export function MessageList({
             />
           ))}
           <div className={styles.systemMessage}>
-            {conversationId === null ? 'Yeni konuşma' : `Yeni konuşma · ${conversationId}`}
+            {conversationId === null ? 'Yeni konuşma' : `Yeni konuşma · ${conversationLabel(conversationId)}`}
           </div>
         </>
       ) : null}
@@ -79,7 +81,7 @@ type TurnMessagesProps = {
   turn: PreviewTurn
   feedback: FeedbackControls
   handoff: HandoffControls
-  onCitationOpen: (chunkId: number) => void
+  onCitationOpen: (citation: ChunkCitation) => void
 }
 
 function TurnMessages({ turn, feedback, handoff, onCitationOpen }: TurnMessagesProps) {

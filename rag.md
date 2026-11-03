@@ -1,7 +1,7 @@
 # RAG Asistan – Ürün dokümanı
 
 > Bu dosyayı kullanıcı yazar ve günceller. Planner iş kuralı belirsiz olduğunda önce `TASK.md`'ye, sonra buraya bakar.
-> Durum: taslak. Aşağıdaki bilgiler `kaynaklar/rag-lab.html`'den özetlendi; kesinleşen kurallar task'larla buraya eklenir.
+> Durum: ürün çalışıyor (TASK-002…016, TASK-027). Aşağıdaki bilgiler `kaynaklar/rag-lab.html`'den özetlendi; kesinleşen kurallar task'larla buraya eklenmiştir.
 
 ## Amaç
 Dil modeline cevabı kendi verinle ve kaynak göstererek yazdırmayı (RAG) anlatmak ve bunu çalışan bir demoyla göstermek. Önceki proje (`../embedding-pgvector`) parçaları anlamıyla bulmayı öğretti; bu proje bulunan parçalarla dil modeline doğru, güncel ve kaynağı gösterilebilen bir cevap yazdırmayı öğretir.
@@ -27,7 +27,7 @@ Tek PostgreSQL sunucusu (pgvector'lü imaj), iki ayrı veritabanı: `assistant` 
 Bu sayfalar şu an tek başına çalışan statik HTML dosyalarıdır. Hedef, lab'ı backend, frontend, PostgreSQL ve lokal modeller üzerinde gerçekten çalışan bir projeye dönüştürmektir.
 
 ## Lab'da görünenler (referans)
-- **Senaryo:** Raşit Bankası'nın dijital asistanı, müşteri sorularını "Ürün ve Hizmet Rehberi" PDF'ine (sürüm 2026.10, 31 sayfa, 61 parça) dayanarak Türkçe, kısa ve kaynak numaralı cevaplar. Rehberde olmayan soruda sabit cümle: "Bu konuda rehberimizde bilgi bulamadım."
+- **Senaryo:** Raşit Bankası'nın dijital asistanı, müşteri sorularını "Ürün ve Hizmet Rehberi" PDF'ine dayanarak Türkçe, kısa ve kaynak numaralı cevaplar. Rehber kurgusaldır ve repodadır (`docs/rehber/`): 70 sayfa, 11 bölüm, iki sürüm (2026.10 ana sürüm, 2026.11 isteğe bağlı ikinci belge). Bilgi bankası boş açılır; belgeler Bilgi kaynakları'ndaki "Belge ekle" ile girer. Rehberde olmayan soruda sabit cümle: "Bu konuda rehberimizde bilgi bulamadım."
 - **Ekranlar (sol yarı):** Önizleme (asistanla sohbet), Konuşmalar (geçmiş konuşmalar ve turlar), Bilgi kaynakları (rehber, sürümleri, parçaları, içe alma), Değerlendirme (golden set ile recall@5 ve MRR).
 - **Canlı yapılandırma (sağ yarıda; ekrana gelmez):** üretim modu (Sadece LLM / RAG), retrieval (top-5 / rerank 20→5), takip sorusunu yeniden yazma (açık/kapalı), reranker durumu.
 - **Cevap:** token token akar (SSE: `token`, `sources`, `done`); cevaptaki `[n]` parçayı açar; tura geri bildirim verilir; cevap yoksa temsilciye aktarma önerilir.
@@ -35,6 +35,6 @@ Bu sayfalar şu an tek başına çalışan statik HTML dosyalarıdır. Hedef, la
 - **Servisler:** web → assistant-api (8090, Spring AI) → retrieval-api (8080, bu repoda) + Ollama (11434: `qwen3.5:9b`, `bge-m3`) + llama-server reranker (8081: `bge-reranker-v2-m3`); assistant ve retrieval için ayrı PostgreSQL veritabanları.
 
 ## Genel kurallar
-<!-- Kullanıcı dolduracak: hedef kitle, modeller, veri kaynağı vb. -->
+- Hedef kitle: RAG'i öğrenmek isteyen geliştiriciler. Modeller: lokal ve ücretsiz (Ollama `qwen3.5:9b`, `bge-m3`; llama-server `bge-reranker-v2-m3`). Veri kaynağı: `docs/rehber/` altındaki kurgusal Raşit Bankası rehberi (PDF), "Belge ekle" ile yüklenir.
 - Ekranlar ve görsel dil: Ürün hedefi.
 - Bilgi bankası: retrieval-api, bu repoda.

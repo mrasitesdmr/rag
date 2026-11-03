@@ -110,18 +110,20 @@ docker compose -f deployment/docker-compose.yml exec assistant-api curl -s http:
 Bağlantı TASK-008'de bu değerleri kullanır (ortam değişkeni değil, properties varsayılanıdır).
 
 ## 7. Bellek notları
-Makine: Apple M5, 16 GB, Metal'in kullanılabilir belleği ~12 GB. Üç model birlikte yüklüyken ölçüm (Docker'daki dört servis açık):
+Makine: Apple M5, 16 GB, macOS 27.0, Metal'in kullanılabilir belleği ~12 GB. Üç model birlikte yüklüyken ölçüm (TASK-018, 2026-11-03; Docker'daki dört servis açık, rehber yüklü, 18 soruluk döngü sırasında 2 sn'de bir örnekleme):
 
 | Bileşen | Bellek |
 |---------|--------|
-| `qwen3.5:9b` (`ollama ps`, num_ctx 8192) | 7,8 GB, 100% GPU |
+| `qwen3.5:9b` (`ollama ps`, num_ctx 8192) | 10 GB, 100% GPU |
 | `bge-m3` (`ollama ps`) | 673 MB, 100% GPU |
-| Reranker llama-server | RSS 387 MB, `phys_footprint` 217 MB (+ Metal arabelleği ~388 MiB: ağırlık 308 + KV 80) |
-| Docker: web / assistant-api / retrieval-api / postgres | 16 / 435 / 550 / 102 MiB (Docker VM'e ayrılan 7,75 GB içinde) |
-| Swap (`sysctl vm.swapusage`) | başlangıç 9228 MB → ölçüm sonu 9699 MB (+~470 MB) |
-| Serbest bellek (`memory_pressure`) | %68 |
+| Ollama runner süreci (RSS) | 595-599 MiB (model ağırlıkları Metal belleğinde, RSS'e yansımaz) |
+| Reranker llama-server (RSS) | 130-181 MiB |
+| Docker: web / assistant-api / retrieval-api / postgres | 9 / 1135-1143 / 1116-1118 / 94-96 MiB (Docker VM'e ayrılan 7,75 GB içinde) |
+| Swap (`vm.swapusage`, toplam 14336 MB) | ölçüm başı 12963 MB → tepe 13506 MB (+543 MB) |
+| Serbest bellek (`memory_pressure`) | %30-31 |
 
-- Swap'in büyük kısmı (9 GB) ölçümden önce de doluydu (başka uygulamalar); üç modelin eklediği artış küçüktür.
+- Swap'in büyük kısmı (13 GB) ölçümden önce de doluydu (başka uygulamalar); modellerin eklediği artış küçüktür ama alan %94 doluydu.
+- Örnekleme acceptance koşusundan hemen sonra başladığı için modeller zaten bellekteydi; soğuk boşta değerleri değildir.
 - Süreler:
 
 | Çağrı | Soğuk (ilk yükleme) | Sıcak |

@@ -336,7 +336,7 @@ describe('SourceDetailPage', () => {
 
     await actor.click(rowButton)
 
-    const dialog = await screen.findByRole('dialog', { name: '2.16 Kayıp ya da çalıntı bildirimi' })
+    const dialog = await screen.findByRole('dialog', { name: 's. 19 · 2.16 Kayıp ya da çalıntı bildirimi' })
     expect(dialog).toHaveTextContent('chunk_id 101')
     await actor.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -483,7 +483,7 @@ describe('SourceDetailPage', () => {
     const actor = userEvent.setup()
     renderAppAt('/kaynaklar/10001')
     await actor.click(await screen.findByRole('button', { name: /^s\. 4Başlık 1$/ }))
-    await screen.findByRole('dialog', { name: '2.16 Kayıp ya da çalıntı bildirimi' })
+    await screen.findByRole('dialog', { name: 's. 19 · 2.16 Kayıp ya da çalıntı bildirimi' })
 
     // The lab's dialog title is an h3 under the page h1 by plan; heading-order is reported separately in the test report.
     expect(await axe(document.body, { rules: { 'heading-order': { enabled: false } } })).toHaveNoViolations()

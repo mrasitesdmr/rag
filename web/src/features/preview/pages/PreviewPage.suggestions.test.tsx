@@ -77,7 +77,7 @@ describe('PreviewPage suggestions', () => {
     expect(other).toHaveAttribute('title', 'Yeni konuşmada sorulur')
     await userEvent.click(other)
 
-    expect(await screen.findByText('Yeni konuşma · 2')).toBeInTheDocument()
+    expect(await screen.findByText('Yeni konuşma · cnv_2')).toBeInTheDocument()
     expect(log.conversationBodies).toHaveLength(2)
     expect(log.messages[1]?.conversationId).toBe(2)
     expect(log.messages[1]?.body).toEqual({ text: MINIMUM_PAYMENT })
@@ -118,7 +118,7 @@ describe('PreviewPage suggestions', () => {
     expect(within(newGroup).getAllByRole('option').map((o) => o.textContent)).toContain(FORGOT_PASSWORD)
     await userEvent.click(within(newGroup).getByRole('option', { name: FORGOT_PASSWORD }))
 
-    expect(await screen.findByText('Yeni konuşma · 2')).toBeInTheDocument()
+    expect(await screen.findByText('Yeni konuşma · cnv_2')).toBeInTheDocument()
     expect(log.conversationBodies).toHaveLength(2)
     expect(log.messages[1]?.body).toEqual({ text: FORGOT_PASSWORD })
   })

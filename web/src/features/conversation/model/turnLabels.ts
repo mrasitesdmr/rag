@@ -13,10 +13,6 @@ const FAILURE_REASON_LABELS: Record<TurnErrorCode, string> = {
 
 const LLM_ONLY_LABEL = 'Sadece LLM'
 
-export function conversationLabel(conversationId: number): string {
-  return `cnv_${conversationId}`
-}
-
 export function channelLabel(channel: Channel): string {
   return CHANNEL_LABELS[channel]
 }

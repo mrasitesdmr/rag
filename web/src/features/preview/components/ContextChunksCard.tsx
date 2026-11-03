@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import type { ChunkCitation } from '../../../shared/chunk/types.ts'
 import { formatDecimal } from '../../../shared/format/formatNumber.ts'
 import { shortenText } from '../../../shared/format/formatText.ts'
 import { queryRewriteLabel, strategyLabel } from '../model/strategyLabels.ts'
@@ -17,7 +18,7 @@ type ContextChunksCardProps = {
   question: string
   sources: SourcesEvent
   done: DoneEvent
-  onChunkOpen: (chunkId: number) => void
+  onChunkOpen: (citation: ChunkCitation) => void
 }
 
 export function ContextChunksCard({ question, sources, done, onChunkOpen }: ContextChunksCardProps) {
@@ -34,7 +35,7 @@ export function ContextChunksCard({ question, sources, done, onChunkOpen }: Cont
             key={chunk.n}
             type="button"
             className={chunk.containsAnswer ? `${styles.chunk} ${styles.gold}` : styles.chunk}
-            onClick={() => onChunkOpen(chunk.chunkId)}
+            onClick={() => onChunkOpen({ chunkId: chunk.chunkId, n: chunk.n })}
           >
             <span className={styles.number}>
               {`[${chunk.n}]`}

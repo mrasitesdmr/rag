@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { messageFor } from '../../../shared/api/errorMessages.ts'
+import type { ChunkCitation } from '../../../shared/chunk/types.ts'
 import { AnswerText } from '../../../shared/turn/AnswerText.tsx'
 import type { HandoffControls } from '../hooks/useHandoffRequests.ts'
 import type { FeedbackControls } from '../hooks/useTurnFeedback.ts'
@@ -17,7 +18,7 @@ type AnswerMessageProps = {
   turn: PreviewTurn
   feedback: FeedbackControls
   handoff: HandoffControls
-  onCitationOpen: (chunkId: number) => void
+  onCitationOpen: (citation: ChunkCitation) => void
 }
 
 export function AnswerMessage({ turn, feedback, handoff, onCitationOpen }: AnswerMessageProps) {
@@ -47,7 +48,7 @@ export function AnswerMessage({ turn, feedback, handoff, onCitationOpen }: Answe
   function openCitation(n: number) {
     const chunk = doneSources === null ? undefined : contextChunkOf(doneSources, n)
     if (chunk !== undefined) {
-      onCitationOpen(chunk.chunkId)
+      onCitationOpen({ chunkId: chunk.chunkId, n: chunk.n })
     }
   }
 
@@ -69,7 +70,7 @@ export function AnswerMessage({ turn, feedback, handoff, onCitationOpen }: Answe
               type="button"
               className={styles.sourceButton}
               title={sourceButtonTitle(chunk)}
-              onClick={() => onCitationOpen(chunk.chunkId)}
+              onClick={() => onCitationOpen({ chunkId: chunk.chunkId, n: chunk.n })}
             >
               {sourceButtonLabel(chunk)}
             </button>

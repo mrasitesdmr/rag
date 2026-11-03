@@ -1,3 +1,5 @@
+export type ChunkCitation = { chunkId: number; n: number }
+
 export type ChunkResponse = {
   chunkId: number
   chunkNo: number

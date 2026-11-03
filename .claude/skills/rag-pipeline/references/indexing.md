@@ -12,7 +12,7 @@
 
 ## 2. Okuma (PARSING)
 
-- Kaynak rehber bir PDF'tir (lab: "Raşit Bankası Ürün ve Hizmet Rehberi", sürüm 2026.10, 31 sayfa). Sayfa numarası ve bölüm başlığı parçaya taşınır; alıntıda "s. 7" gösterilir.
+- Kaynak belge yer imli bir PDF'tir (örnek: "Raşit Bankası Ürün ve Hizmet Rehberi", `docs/rehber/`, 70 sayfa, 11 bölüm, sürüm 2026.10 ve 2026.11). Belgeler "Belge ekle" ile yüklenir; açılışta kendiliğinden içe alınmaz. Sayfa numarası ve bölüm başlığı parçaya taşınır; alıntıda "s. 7" gösterilir.
 - PDF kütüphanesi plan kararıdır (referans uygulamada Apache PDFBox).
 - Dosya türü uzantıdan değil içerikten de doğrulanır; desteklenmeyen tür 415 `UNSUPPORTED_FILE_TYPE`, büyük dosya 413 `FILE_TOO_LARGE` (örnek kodlar).
 

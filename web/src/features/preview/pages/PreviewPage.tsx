@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { ApiError, errorCodeOf } from '../../../shared/api/ApiError.ts'
 import { ChunkDialog } from '../../../shared/chunk/ChunkDialog.tsx'
+import type { ChunkCitation } from '../../../shared/chunk/types.ts'
 import { ErrorAlert } from '../../../shared/components/ErrorAlert.tsx'
 import { PageHeader } from '../../../shared/components/PageHeader.tsx'
 import hidden from '../../../shared/components/visuallyHidden.module.css'
@@ -31,7 +32,7 @@ export function PreviewPage() {
   const feedback = useTurnFeedback()
   const handoff = useHandoffRequests()
   const liveConfig = useLiveConfigQuery()
-  const [openChunkId, setOpenChunkId] = useState<number | null>(null)
+  const [openCitation, setOpenCitation] = useState<ChunkCitation | null>(null)
   const suggestionsQuery = useSuggestionsQuery()
   const suggestions = suggestionsQuery.data
   const [isQuestionListOpen, setIsQuestionListOpen] = useState(false)
@@ -89,7 +90,7 @@ export function PreviewPage() {
                 conversationId={answerStream.conversationId}
                 feedback={feedback}
                 handoff={handoff}
-                onCitationOpen={setOpenChunkId}
+                onCitationOpen={setOpenCitation}
               />
               <SuggestionChips
                 items={suggestions === undefined ? [] : suggestionChips(suggestions, turns)}
@@ -122,7 +123,7 @@ export function PreviewPage() {
                 question={lastTurn.question}
                 sources={lastTurn.sources}
                 done={lastTurn.done}
-                onChunkOpen={setOpenChunkId}
+                onChunkOpen={setOpenCitation}
               />
             ) : (
               <HowItWorksCard config={liveConfig.data} />
@@ -143,7 +144,13 @@ export function PreviewPage() {
           onClose={() => setIsQuestionListOpen(false)}
         />
       ) : null}
-      {openChunkId === null ? null : <ChunkDialog chunkId={openChunkId} onClose={() => setOpenChunkId(null)} />}
+      {openCitation === null ? null : (
+        <ChunkDialog
+          chunkId={openCitation.chunkId}
+          citationNumber={openCitation.n}
+          onClose={() => setOpenCitation(null)}
+        />
+      )}
     </>
   )
 }

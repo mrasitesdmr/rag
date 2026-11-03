@@ -13,7 +13,7 @@ describe('ChunkDialog', () => {
 
     renderWithProviders(<ChunkDialog chunkId={151} onClose={() => undefined} />)
 
-    const dialog = await screen.findByRole('dialog', { name: '2.16 Kayıp ya da çalıntı bildirimi' })
+    const dialog = await screen.findByRole('dialog', { name: 's. 19 · 2.16 Kayıp ya da çalıntı bildirimi' })
     expect(within(dialog).getByText(/^chunk_id/)).toHaveTextContent('chunk_id 151')
     expect(within(dialog).getByText(/^chunk_no/)).toHaveTextContent('chunk_no 31')
     expect(within(dialog).getByText(/^token/)).toHaveTextContent('token 297')
@@ -50,7 +50,7 @@ describe('ChunkDialog', () => {
 
     expect(screen.getByRole('dialog', { name: 'Parça' })).toBeInTheDocument()
     expect(screen.getByText('Yükleniyor…')).toBeInTheDocument()
-    await screen.findByRole('dialog', { name: '2.16 Kayıp ya da çalıntı bildirimi' })
+    await screen.findByRole('dialog', { name: 's. 19 · 2.16 Kayıp ya da çalıntı bildirimi' })
   })
 
   it.each([
@@ -62,7 +62,7 @@ describe('ChunkDialog', () => {
     const onClose = vi.fn()
     const actor = userEvent.setup()
     renderWithProviders(<ChunkDialog chunkId={151} onClose={onClose} />)
-    await screen.findByRole('dialog', { name: '2.16 Kayıp ya da çalıntı bildirimi' })
+    await screen.findByRole('dialog', { name: 's. 19 · 2.16 Kayıp ya da çalıntı bildirimi' })
 
     await close(actor)
 
@@ -88,7 +88,7 @@ describe('ChunkDialog', () => {
 
     renderWithProviders(<ChunkDialog chunkId={500} onClose={() => undefined} />)
 
-    expect(await screen.findByRole('dialog', { name: 'Başka parça' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 's. 19 · Başka parça' })).toBeInTheDocument()
     expect(requested).toBe('500')
   })
 })

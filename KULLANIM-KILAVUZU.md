@@ -73,7 +73,7 @@ Henüz başlamamış roller görünmez. Planner'ın bu task'ta çalışmayacak d
 
 **Düzeltme turu:** Bir adım `NEEDS_FIX` dönerse düzeltme turu kendiliğinden başlar. Aynı adım üst üste 2 kez `NEEDS_FIX` dönerse lead durur ve sana sorar.
 
-**Lokal modeller:** Dil modeli ve embedding Ollama'da, reranker llama-server'da, Mac'te çalışır. Bir task yeni model gerektiriyorsa devops ya da lead sana hangi `ollama pull` komutunu çalıştıracağını söyler; gigabaytlarca indirmeyi ekip kendi başına başlatmaz. Kurulum ve indirme komutları `ollama.md`'dedir (ilk model task'ında oluşturulur).
+**Lokal modeller:** Dil modeli ve embedding Ollama'da, reranker llama-server'da, Mac'te çalışır. Bir task yeni model gerektiriyorsa devops ya da lead sana hangi `ollama pull` komutunu çalıştıracağını söyler; gigabaytlarca indirmeyi ekip kendi başına başlatmaz. Kurulum ve indirme komutları `ollama.md`'dedir; sistemi baştan sona kurmak için kök `README.md`'deki "Kurulum" ve "İlk kullanım" bölümlerini izle.
 
 **İzin istemleri:** Komutların çoğu önceden izinli. `npm install` ve `git commit` her seferinde onay ister. `git push` kapalıdır.
 

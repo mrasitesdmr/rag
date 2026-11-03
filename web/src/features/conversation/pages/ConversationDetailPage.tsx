@@ -2,15 +2,17 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { errorCodeOf, isApiErrorWithCode } from '../../../shared/api/ApiError.ts'
 import { ChunkDialog } from '../../../shared/chunk/ChunkDialog.tsx'
+import type { ChunkCitation } from '../../../shared/chunk/types.ts'
 import { ErrorAlert } from '../../../shared/components/ErrorAlert.tsx'
 import { PageHeader } from '../../../shared/components/PageHeader.tsx'
+import { conversationLabel } from '../../../shared/conversation/conversationLabel.ts'
 import { formatListTime } from '../../../shared/format/formatDateTime.ts'
 import { useConversationDetailQuery } from '../api/conversationQueries.ts'
 import { HandoffLine } from '../components/HandoffLine.tsx'
 import { InProgressTurnCard } from '../components/InProgressTurnCard.tsx'
 import { TurnCard } from '../components/TurnCard.tsx'
 import { BACK_TO_LIST, NO_TURNS, NOT_FOUND_TITLE } from '../model/conversationTexts.ts'
-import { channelLabel, conversationLabel } from '../model/turnLabels.ts'
+import { channelLabel } from '../model/turnLabels.ts'
 import type { ConversationDetailResponse } from '../model/types.ts'
 import styles from './ConversationPages.module.css'
 
@@ -53,7 +55,7 @@ function ConversationDetail({ conversationId }: { conversationId: number }) {
 }
 
 function ConversationDetailContent({ detail }: { detail: ConversationDetailResponse }) {
-  const [selectedChunkId, setSelectedChunkId] = useState<number | null>(null)
+  const [openCitation, setOpenCitation] = useState<ChunkCitation | null>(null)
   const [now] = useState(() => new Date())
   const label = conversationLabel(detail.conversationId)
   const turnCount = detail.turns.length + (detail.inProgressTurn === null ? 0 : 1)
@@ -69,11 +71,15 @@ function ConversationDetailContent({ detail }: { detail: ConversationDetailRespo
       {detail.handoff === null ? null : <HandoffLine handoff={detail.handoff} />}
       {turnCount === 0 ? <p className={styles.status}>{NO_TURNS}</p> : null}
       {detail.turns.map((turn) => (
-        <TurnCard key={turn.turnId} turn={turn} onChunkOpen={setSelectedChunkId} />
+        <TurnCard key={turn.turnId} turn={turn} onChunkOpen={setOpenCitation} />
       ))}
       {detail.inProgressTurn === null ? null : <InProgressTurnCard turn={detail.inProgressTurn} />}
-      {selectedChunkId === null ? null : (
-        <ChunkDialog chunkId={selectedChunkId} onClose={() => setSelectedChunkId(null)} />
+      {openCitation === null ? null : (
+        <ChunkDialog
+          chunkId={openCitation.chunkId}
+          citationNumber={openCitation.n}
+          onClose={() => setOpenCitation(null)}
+        />
       )}
     </>
   )
