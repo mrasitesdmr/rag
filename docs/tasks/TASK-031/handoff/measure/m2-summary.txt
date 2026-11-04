@@ -1,0 +1,86 @@
+{
+  "golden": {
+    "total": 100,
+    "errors": 0,
+    "answered": 100,
+    "notFound": 0,
+    "withCitations": 100,
+    "citedContainsAnswer": 91,
+    "answerSources": {
+      "MODEL": 100
+    },
+    "topRerankScore": {
+      "min": -2.742690086364746,
+      "median": 3.405472755432129,
+      "max": 9.372678756713867,
+      "count": 100
+    }
+  },
+  "negative": {
+    "total": 55,
+    "withCitations": 7,
+    "categories": {
+      "not-in-guide": {
+        "total": 27,
+        "withCitations": 7,
+        "notFound": 20,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "maxTopRerankScore": 4.0647172927856445
+      },
+      "small-talk-listed": {
+        "total": 13,
+        "withCitations": 0,
+        "notFound": 0,
+        "smallTalkPattern": 13,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "maxTopRerankScore": null
+      },
+      "small-talk-unlisted": {
+        "total": 5,
+        "withCitations": 0,
+        "notFound": 1,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 4,
+        "errors": 0,
+        "maxTopRerankScore": null
+      },
+      "off-topic": {
+        "total": 5,
+        "withCitations": 0,
+        "notFound": 5,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "maxTopRerankScore": null
+      },
+      "gibberish": {
+        "total": 4,
+        "withCitations": 0,
+        "notFound": 4,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "maxTopRerankScore": 1.2294089794158936
+      },
+      "follow-up": {
+        "total": 1,
+        "withCitations": 0,
+        "notFound": 0,
+        "smallTalkPattern": 1,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "maxTopRerankScore": null
+      }
+    },
+    "topRerankScore": {
+      "min": -3.8345084190368652,
+      "median": -1.5726033449172974,
+      "max": 4.0647172927856445,
+      "count": 17
+    }
+  },
+  "secondPersonSelfReference": 0
+}

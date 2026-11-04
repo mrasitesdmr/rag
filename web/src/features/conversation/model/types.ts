@@ -7,6 +7,7 @@ export const TURN_STATUSES = [
   'IN_PROGRESS',
   'INCOMPLETE',
   'UNGROUNDED',
+  'SMALL_TALK',
   'DONT_KNOW',
   'MISSED',
   'GENERATION_ERROR',

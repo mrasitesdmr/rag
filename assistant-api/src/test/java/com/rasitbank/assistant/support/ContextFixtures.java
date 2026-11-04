@@ -30,6 +30,17 @@ public final class ContextFixtures {
         return new RetrievedContext(RetrievalStrategy.RERANK, 20, 5, candidates, context, 84L, 712L);
     }
 
+    /** 20 aday vector sırasıyla; en iyi adayın puanı verilen değer, sonrakiler 0,1 azalır; bağlam ilk 5 aday. */
+    public static RetrievedContext rerankContextWithTopScore(double topScore) {
+        List<SearchHit> hits = SearchHitFixtures.hits(20);
+        List<RetrievedChunk> candidates = new ArrayList<>();
+        for (int i = 0; i < hits.size(); i++) {
+            candidates.add(new RetrievedChunk(hits.get(i), i + 1, topScore - i / 10.0));
+        }
+        return new RetrievedContext(RetrievalStrategy.RERANK, 20, 5, candidates, candidates.subList(0, 5), 84L,
+                712L);
+    }
+
     /** İlk 5 vector sırası bağlamda, puansız (TOP_K). */
     public static RetrievedContext topKContext() {
         List<RetrievedChunk> candidates = new ArrayList<>();

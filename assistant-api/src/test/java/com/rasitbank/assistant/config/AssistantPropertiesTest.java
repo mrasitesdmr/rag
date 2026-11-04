@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.RetrievalStrategy;
+import com.rasitbank.assistant.generation.MessageLabel;
 import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -35,6 +36,13 @@ class AssistantPropertiesTest {
             "assistant.generation.first-token-timeout=60s",
             "assistant.generation.token-idle-timeout=30s",
             "assistant.generation.stream-timeout=300s",
+            "assistant.generation.personal-info-opener=Kisisel.",
+            "assistant.generation.other-banks-opener=Baska banka.",
+            "assistant.generation.investment-advice-opener=Yatirim.",
+            "assistant.small-talk.greeting-answer=Merhaba",
+            "assistant.small-talk.thanks-answer=Rica ederim",
+            "assistant.small-talk.farewell-answer=Gorusuruz",
+            "assistant.small-talk.label-timeout=10s",
             "assistant.query-rewrite.enabled=true",
             "assistant.query-rewrite.timeout=20s",
             "assistant.query-rewrite.max-length=1000",
@@ -188,5 +196,58 @@ class AssistantPropertiesTest {
     @Test
     void givenHandoffQueueLongerThan40_whenBound_thenContextFails() {
         runner("assistant.handoff.queue=" + "a".repeat(41)).run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void givenEmptyMinRerankScore_whenBound_thenNullAndThresholdDisabled() {
+        runner("assistant.retrieval.min-rerank-score=").run(context ->
+                assertThat(context.getBean(AssistantProperties.class).retrieval().minRerankScore()).isNull());
+    }
+
+    @Test
+    void givenNegativeMinRerankScore_whenBound_thenKeptAsNumber() {
+        runner("assistant.retrieval.min-rerank-score=-4.0").run(context ->
+                assertThat(context.getBean(AssistantProperties.class).retrieval().minRerankScore())
+                        .isEqualTo(-4.0));
+    }
+
+    @Test
+    void givenShippedProperties_whenBound_thenThresholdMinusFourAndSmallTalkAnswersFirstPerson() {
+        ApplicationContextRunner shipped = new ApplicationContextRunner().withUserConfiguration(Config.class)
+                .withInitializer(new ConfigDataApplicationContextInitializer());
+
+        shipped.run(context -> {
+            AssistantProperties properties = context.getBean(AssistantProperties.class);
+            assertThat(properties.retrieval().minRerankScore()).isEqualTo(-4.0);
+            assertThat(properties.smallTalk().labelTimeout()).isEqualTo(Duration.ofSeconds(10));
+            assertThat(properties.smallTalk().greetingAnswer()).startsWith("Merhaba, ben Raşit Bankası'nın dijital asistanıyım.");
+            assertThat(properties.smallTalk().thanksAnswer()).startsWith("Rica ederim.");
+            assertThat(properties.smallTalk().farewellAnswer()).startsWith("Görüşmek üzere.");
+            assertThat(properties.generation().targetedOpeners()).containsExactly(
+                    "Hesabına özel bilgileri (bakiye, limit, borç, başvuru durumu, hesap hareketleri) göremiyorum.",
+                    "Başka bankaların ürünleri ve koşulları hakkında bilgi veremiyorum.",
+                    "Yatırım tavsiyesi ya da piyasa tahmini veremiyorum.");
+        });
+    }
+
+    @Test
+    void givenSmallTalkLabels_whenAnswerFor_thenEachLabelItsOwnAnswerAndOtherRejected() {
+        AssistantProperties.SmallTalk smallTalk = new AssistantProperties.SmallTalk("g", "t", "f", Duration.ofSeconds(1));
+
+        assertThat(smallTalk.answerFor(MessageLabel.GREETING)).isEqualTo("g");
+        assertThat(smallTalk.answerFor(MessageLabel.THANKS)).isEqualTo("t");
+        assertThat(smallTalk.answerFor(MessageLabel.FAREWELL)).isEqualTo("f");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> smallTalk.answerFor(MessageLabel.OTHER))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void givenBlankSmallTalkAnswer_whenBound_thenContextFails() {
+        runner("assistant.small-talk.thanks-answer= ").run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void givenBlankOpener_whenBound_thenContextFails() {
+        runner("assistant.generation.other-banks-opener= ").run(context -> assertThat(context).hasFailed());
     }
 }

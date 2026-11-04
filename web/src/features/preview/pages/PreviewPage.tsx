@@ -118,7 +118,8 @@ export function PreviewPage() {
             lastTurn.phase === 'done' &&
             lastTurn.sources !== null &&
             lastTurn.sources.generationMode === 'RAG' &&
-            lastTurn.done !== null ? (
+            lastTurn.done !== null &&
+            lastTurn.done.answerSource !== 'SMALL_TALK' ? (
               <ContextChunksCard
                 question={lastTurn.question}
                 sources={lastTurn.sources}

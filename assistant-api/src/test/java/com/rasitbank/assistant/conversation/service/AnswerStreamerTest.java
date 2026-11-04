@@ -10,7 +10,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.rasitbank.assistant.conversation.domain.entity.AnswerSource;
 import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
+import com.rasitbank.assistant.generation.MessageLabel;
 import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
 import com.rasitbank.assistant.config.AssistantProperties;
 import com.rasitbank.assistant.conversation.domain.entity.RetrievalStrategy;
@@ -19,6 +21,7 @@ import com.rasitbank.assistant.conversation.domain.event.DoneEvent;
 import com.rasitbank.assistant.conversation.domain.event.SourcesEvent;
 import com.rasitbank.assistant.conversation.domain.event.StreamErrorEvent;
 import com.rasitbank.assistant.conversation.domain.event.TokenEvent;
+import com.rasitbank.assistant.generation.AnswerFinalizer;
 import com.rasitbank.assistant.generation.CitationParser;
 import com.rasitbank.assistant.generation.NotFoundAnswerDetector;
 import com.rasitbank.assistant.retrieval.service.RetrievedContext;
@@ -55,13 +58,17 @@ class AnswerStreamerTest {
     private final ActiveTurnRegistry registry = mock(ActiveTurnRegistry.class);
 
     private AnswerStreamer streamer(AssistantProperties properties) {
-        return new AnswerStreamer(chatModel, new CitationParser(), new NotFoundAnswerDetector(properties),
+        return new AnswerStreamer(chatModel, answerFinalizer(properties), new NotFoundAnswerDetector(properties),
                 turnService, registry, properties);
+    }
+
+    private static AnswerFinalizer answerFinalizer(AssistantProperties properties) {
+        return new AnswerFinalizer(new NotFoundAnswerDetector(properties), new CitationParser(), properties);
     }
 
     private static TurnDraft draft(RetrievedContext context) {
         return new TurnDraft(7L, GenerationMode.RAG, "Kartımı kaybettim, ne yapmalıyım?", "Kartımı kaybettim, ne yapmalıyım?",
-                QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"), System.nanoTime(), context);
+                QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"), System.nanoTime(), context, null, null);
     }
 
     private TurnOutcome recordedOutcome() {
@@ -246,7 +253,7 @@ class AnswerStreamerTest {
         assertThat(emitter.eventNames()).containsExactly("token");
         TurnOutcome outcome = recordedOutcome();
         assertThat(outcome.errorCode()).isEqualTo("STREAM_CANCELLED");
-        assertThat(outcome.answer()).isEqualTo("Kartını ");
+        assertThat(outcome.answer()).isEqualTo("Kartını kapat [1]");
         verify(registry, times(1)).finish(7L);
     }
 
@@ -282,7 +289,7 @@ class AnswerStreamerTest {
                 ChatResponses.text("b"), ChatResponses.text("c")).delayElements(Duration.ofMillis(100)));
         given(turnService.recordTurn(any(), any())).willReturn(1L);
         TurnDraft slowDraft = new TurnDraft(7L, GenerationMode.RAG, "q", "q", QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"),
-                System.nanoTime() - Duration.ofSeconds(2).toNanos(), ContextFixtures.topKContext());
+                System.nanoTime() - Duration.ofSeconds(2).toNanos(), ContextFixtures.topKContext(), null, null);
 
         streamer(TestProperties.defaults()).streamModelAnswer(slowDraft, PROMPT, emitter, Set.of());
         awaitCompleted(emitter);
@@ -376,7 +383,8 @@ class AnswerStreamerTest {
         assertThat(done.notFoundAnswer()).isTrue();
         TurnOutcome outcome = recordedOutcome();
         assertThat(outcome.notFoundAnswer()).isTrue();
-        assertThat(outcome.citations()).containsExactly(1);
+        assertThat(outcome.citations()).isEmpty();
+        assertThat(outcome.answer()).isEqualTo(NOT_FOUND);
     }
 
     @Test
@@ -421,7 +429,7 @@ class AnswerStreamerTest {
         given(turnService.recordTurn(any(), any())).willReturn(8L);
 
         streamer(TestProperties.defaults()).streamFixedAnswer(
-                draft(ContextFixtures.emptyContext(RetrievalStrategy.RERANK)), NOT_FOUND, emitter);
+                draft(ContextFixtures.emptyContext(RetrievalStrategy.RERANK)), NOT_FOUND, com.rasitbank.assistant.conversation.domain.entity.AnswerSource.EMPTY_KNOWLEDGE_BASE, emitter);
 
         assertThat(emitter.timeline()).containsExactly("token", "sources", "done", "complete");
         assertThat(emitter.events().get(0).data()).isEqualTo(new TokenEvent(NOT_FOUND));
@@ -447,7 +455,7 @@ class AnswerStreamerTest {
         RecordingSseEmitter emitter = new RecordingSseEmitter(1);
 
         streamer(TestProperties.defaults()).streamFixedAnswer(
-                draft(ContextFixtures.emptyContext(RetrievalStrategy.RERANK)), NOT_FOUND, emitter);
+                draft(ContextFixtures.emptyContext(RetrievalStrategy.RERANK)), NOT_FOUND, com.rasitbank.assistant.conversation.domain.entity.AnswerSource.EMPTY_KNOWLEDGE_BASE, emitter);
 
         assertThat(emitter.events()).isEmpty();
         assertThat(recordedOutcome().errorCode()).isEqualTo("STREAM_CANCELLED");
@@ -457,7 +465,7 @@ class AnswerStreamerTest {
     private static TurnDraft llmOnlyDraft() {
         return new TurnDraft(7L, GenerationMode.LLM_ONLY, "Kartımı kaybettim, ne yapmalıyım?", null,
                 QueryRewriteStatus.DISABLED, null, 0, "qwen3.5:9b", Instant.parse("2026-11-01T10:00:00Z"),
-                System.nanoTime(), null);
+                System.nanoTime(), null, null, null);
     }
 
     @Test
@@ -526,5 +534,195 @@ class AnswerStreamerTest {
                         org.assertj.core.groups.Tuple.tuple(115L, false),
                         org.assertj.core.groups.Tuple.tuple(101L, false),
                         org.assertj.core.groups.Tuple.tuple(103L, true));
+    }
+
+    private static TurnDraft smallTalkDraft(RetrievedContext context, MessageLabel label) {
+        return new TurnDraft(7L, GenerationMode.RAG, "Selam", context == null ? null : "Selam",
+                context == null ? QueryRewriteStatus.DISABLED : QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b",
+                Instant.parse("2026-11-01T10:00:00Z"), System.nanoTime(), context, label, null);
+    }
+
+    @Test
+    void givenSmallTalkByPattern_whenStreamFixedAnswer_thenNoneStrategySourcesAndSmallTalkDone() throws Exception {
+        // Arrange
+        RecordingSseEmitter emitter = new RecordingSseEmitter();
+        given(turnService.recordTurn(any(), any())).willReturn(21L);
+
+        // Act
+        streamer(TestProperties.defaults()).streamFixedAnswer(smallTalkDraft(null, MessageLabel.GREETING),
+                TestProperties.GREETING_ANSWER, AnswerSource.SMALL_TALK, emitter);
+
+        // Assert
+        assertThat(emitter.timeline()).containsExactly("token", "sources", "done", "complete");
+        assertThat(emitter.events().get(0).data()).isEqualTo(new TokenEvent(TestProperties.GREETING_ANSWER));
+        assertThat(emitter.events().get(1).data()).isEqualTo(new SourcesEvent(GenerationMode.RAG,
+                RetrievalStrategy.NONE, null, null, null, QueryRewriteStatus.DISABLED, List.of(), List.of()));
+        DoneEvent done = (DoneEvent) emitter.events().get(2).data();
+        assertThat(done.notFoundAnswer()).isFalse();
+        assertThat(done.answer()).isEqualTo(TestProperties.GREETING_ANSWER);
+        assertThat(done.answerSource()).isEqualTo(AnswerSource.SMALL_TALK);
+        assertThat(done.retrievalLatencyMs()).isNull();
+        assertThat(done.rerankLatencyMs()).isNull();
+        TurnOutcome outcome = recordedOutcome();
+        assertThat(outcome.answer()).isEqualTo(TestProperties.GREETING_ANSWER);
+        assertThat(outcome.notFoundAnswer()).isFalse();
+        assertThat(outcome.citations()).isEmpty();
+        assertThat(outcome.answerSource()).isEqualTo(AnswerSource.SMALL_TALK);
+        verify(chatModel, never()).stream(any(Prompt.class));
+    }
+
+    @Test
+    void givenBelowThresholdContextWithoutPromptChunks_whenStreamFixedAnswer_thenSourcesKeepStrategyAndEmptyChunks()
+            throws Exception {
+        // Arrange
+        RecordingSseEmitter emitter = new RecordingSseEmitter();
+        given(turnService.recordTurn(any(), any())).willReturn(22L);
+        RetrievedContext withoutChunks = ContextFixtures.rerankContextWithTopScore(-5.0).withoutContextChunks();
+
+        // Act
+        streamer(TestProperties.defaults()).streamFixedAnswer(smallTalkDraft(withoutChunks, MessageLabel.OTHER),
+                NOT_FOUND, AnswerSource.BELOW_RERANK_THRESHOLD, emitter);
+
+        // Assert
+        SourcesEvent sources = (SourcesEvent) emitter.events().get(1).data();
+        assertThat(sources.retrievalStrategy()).isEqualTo(RetrievalStrategy.RERANK);
+        assertThat(sources.candidates()).isEqualTo(20);
+        assertThat(sources.topK()).isEqualTo(5);
+        assertThat(sources.contextChunks()).isEmpty();
+        assertThat(sources.citations()).isEmpty();
+        DoneEvent done = (DoneEvent) emitter.events().get(2).data();
+        assertThat(done.notFoundAnswer()).isTrue();
+        assertThat(done.answerSource()).isEqualTo(AnswerSource.BELOW_RERANK_THRESHOLD);
+        assertThat(done.generationLatencyMs()).isNull();
+        TurnOutcome outcome = recordedOutcome();
+        assertThat(outcome.notFoundAnswer()).isTrue();
+        assertThat(outcome.answerSource()).isEqualTo(AnswerSource.BELOW_RERANK_THRESHOLD);
+    }
+
+    @Test
+    void givenSmallTalkAndDisconnectedClient_whenStreamFixedAnswer_thenCancelledTurnKeepsSmallTalkSource() {
+        // Arrange
+        RecordingSseEmitter emitter = new RecordingSseEmitter(1);
+
+        // Act
+        streamer(TestProperties.defaults()).streamFixedAnswer(smallTalkDraft(null, MessageLabel.THANKS),
+                TestProperties.THANKS_ANSWER, AnswerSource.SMALL_TALK, emitter);
+
+        // Assert
+        TurnOutcome outcome = recordedOutcome();
+        assertThat(outcome.errorCode()).isEqualTo("STREAM_CANCELLED");
+        assertThat(outcome.answerSource()).isEqualTo(AnswerSource.SMALL_TALK);
+        assertThat(outcome.notFoundAnswer()).isFalse();
+    }
+
+    @Test
+    void givenModelWritesNotFoundSentenceThenCitation_whenStreamModelAnswer_thenOneSentenceTokenAndNoCitation()
+            throws Exception {
+        // Arrange
+        RecordingSseEmitter emitter = new RecordingSseEmitter();
+        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.text("Bu konuda "),
+                ChatResponses.text("rehberimizde bilgi bulamadım."), ChatResponses.textWithUsage(" [5]", 900, 12)));
+        given(turnService.recordTurn(any(), any())).willReturn(23L);
+
+        // Act
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.rerankContext(7, 2, 15, 1, 3)),
+                PROMPT, emitter, Set.of());
+        awaitCompleted(emitter);
+
+        // Assert
+        assertThat(emitter.eventNames()).containsExactly("token", "sources", "done");
+        assertThat(emitter.events().get(0).data()).isEqualTo(new TokenEvent(NOT_FOUND));
+        assertThat(((SourcesEvent) emitter.events().get(1).data()).citations()).isEmpty();
+        DoneEvent done = (DoneEvent) emitter.events().get(2).data();
+        assertThat(done.notFoundAnswer()).isTrue();
+        assertThat(done.answer()).isEqualTo(NOT_FOUND);
+        assertThat(done.answerSource()).isEqualTo(AnswerSource.MODEL);
+        assertThat(done.completionTokens()).isEqualTo(12);
+        TurnOutcome outcome = recordedOutcome();
+        assertThat(outcome.answer()).isEqualTo(NOT_FOUND);
+        assertThat(outcome.citations()).isEmpty();
+        assertThat(outcome.completionTokens()).isEqualTo(12);
+    }
+
+    @Test
+    void givenModelStopsInsideHeldPrefix_whenStreamModelAnswer_thenHeldTextSentBeforeSources() throws Exception {
+        // Arrange
+        RecordingSseEmitter emitter = new RecordingSseEmitter();
+        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.textWithUsage("Bu konuda", 50, 3)));
+        given(turnService.recordTurn(any(), any())).willReturn(24L);
+
+        // Act
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter,
+                Set.of());
+        awaitCompleted(emitter);
+
+        // Assert
+        assertThat(emitter.eventNames()).containsExactly("token", "sources", "done");
+        assertThat(emitter.events().get(0).data()).isEqualTo(new TokenEvent("Bu konuda"));
+        DoneEvent done = (DoneEvent) emitter.events().get(2).data();
+        assertThat(done.answer()).isEqualTo("Bu konuda");
+        assertThat(done.notFoundAnswer()).isFalse();
+    }
+
+    @Test
+    void givenModelFailsWhileHoldingPrefix_whenStreamModelAnswer_thenRawHeldTextRecordedWithError() throws Exception {
+        // Arrange
+        RecordingSseEmitter emitter = new RecordingSseEmitter();
+        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.concat(Flux.just(ChatResponses.text("Bu konuda")),
+                Flux.error(new IllegalStateException("down"))));
+        given(turnService.recordTurn(any(), any())).willReturn(25L);
+
+        // Act
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.topKContext()), PROMPT, emitter,
+                Set.of());
+        awaitCompleted(emitter);
+
+        // Assert
+        assertThat(emitter.eventNames()).containsExactly("error");
+        TurnOutcome outcome = recordedOutcome();
+        assertThat(outcome.answer()).isEqualTo("Bu konuda");
+        assertThat(outcome.errorCode()).isEqualTo("CHAT_MODEL_UNAVAILABLE");
+        assertThat(outcome.answerSource()).isEqualTo(AnswerSource.MODEL);
+    }
+
+    @Test
+    void givenModelCitesOpenerAndOutOfRangeMarker_whenStreamModelAnswer_thenDoneAnswerCleanAndSourcesCitationsFromCleanText()
+            throws Exception {
+        // Arrange
+        RecordingSseEmitter emitter = new RecordingSseEmitter();
+        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(
+                ChatResponses.text(TestProperties.INVESTMENT_ADVICE_OPENER + " [4] "),
+                ChatResponses.text("Altın hesabı Raşit Mobil'den açılır [2] [9].")));
+        given(turnService.recordTurn(any(), any())).willReturn(26L);
+
+        // Act
+        streamer(TestProperties.defaults()).streamModelAnswer(draft(ContextFixtures.rerankContext(7, 2, 15, 1, 3)),
+                PROMPT, emitter, Set.of());
+        awaitCompleted(emitter);
+
+        // Assert
+        assertThat(((SourcesEvent) emitter.events().get(2).data()).citations()).containsExactly(2);
+        DoneEvent done = (DoneEvent) emitter.events().get(3).data();
+        assertThat(done.answer()).isEqualTo(TestProperties.INVESTMENT_ADVICE_OPENER
+                + " Altın hesabı Raşit Mobil'den açılır [2].");
+        assertThat(recordedOutcome().citations()).containsExactly(2);
+    }
+
+    @Test
+    void givenLlmOnlyAnswer_whenStreamModelAnswer_thenDoneAnswerIsStreamedTextAndSourceModel() throws Exception {
+        // Arrange
+        RecordingSseEmitter emitter = new RecordingSseEmitter();
+        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.text("Merhaba "),
+                ChatResponses.text("[1] dünya")));
+        given(turnService.recordTurn(any(), any())).willReturn(27L);
+
+        // Act
+        streamer(TestProperties.withMode("llm", "rerank")).streamModelAnswer(llmOnlyDraft(), PROMPT, emitter, Set.of());
+        awaitCompleted(emitter);
+
+        // Assert
+        DoneEvent done = (DoneEvent) emitter.events().get(emitter.events().size() - 1).data();
+        assertThat(done.answer()).isEqualTo("Merhaba [1] dünya");
+        assertThat(done.answerSource()).isEqualTo(AnswerSource.MODEL);
     }
 }

@@ -1,0 +1,157 @@
+{
+  "golden": {
+    "total": 100,
+    "errors": 0,
+    "answered": 100,
+    "notFound": 0,
+    "withCitations": 100,
+    "citedContainsAnswer": 92,
+    "answerSources": {
+      "MODEL": 100
+    },
+    "paraphrasedNotFound": 0,
+    "goldenStartsWithOpener": 1,
+    "goldenStartsWithOpenerTexts": [
+      "SWIFT iade talebim olumsuz sonuçlanırsa talep ücreti geri verilir mi?"
+    ],
+    "topRerankScore": {
+      "min": -2.742690086364746,
+      "median": 3.405472755432129,
+      "max": 9.372678756713867,
+      "count": 100
+    }
+  },
+  "negative": {
+    "total": 55,
+    "withCitations": 14,
+    "untargetedWithCitations": 1,
+    "targetedOk": 15,
+    "targetedTotal": 15,
+    "categories": {
+      "personal-info": {
+        "total": 9,
+        "withCitations": 8,
+        "notFound": 1,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 8,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 8,
+        "targetedOk": 9,
+        "maxTopRerankScore": 4.0647172927856445
+      },
+      "not-in-guide": {
+        "total": 12,
+        "withCitations": 1,
+        "notFound": 11,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 1,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 1,
+        "targetedOk": 0,
+        "maxTopRerankScore": -0.4590415060520172
+      },
+      "other-banks": {
+        "total": 3,
+        "withCitations": 3,
+        "notFound": 0,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 3,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 3,
+        "targetedOk": 3,
+        "maxTopRerankScore": 1.8863999843597412
+      },
+      "investment-advice": {
+        "total": 3,
+        "withCitations": 2,
+        "notFound": 1,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 2,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 2,
+        "targetedOk": 3,
+        "maxTopRerankScore": -1.5726033449172974
+      },
+      "small-talk-listed": {
+        "total": 13,
+        "withCitations": 0,
+        "notFound": 0,
+        "smallTalkPattern": 13,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 0,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "targetedOk": 0,
+        "maxTopRerankScore": null
+      },
+      "small-talk-unlisted": {
+        "total": 5,
+        "withCitations": 0,
+        "notFound": 0,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 5,
+        "errors": 0,
+        "startsWithOpener": 0,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "targetedOk": 0,
+        "maxTopRerankScore": null
+      },
+      "off-topic": {
+        "total": 5,
+        "withCitations": 0,
+        "notFound": 5,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 0,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "targetedOk": 0,
+        "maxTopRerankScore": null
+      },
+      "gibberish": {
+        "total": 4,
+        "withCitations": 0,
+        "notFound": 4,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 0,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "targetedOk": 0,
+        "maxTopRerankScore": 1.2294089794158936
+      },
+      "follow-up": {
+        "total": 1,
+        "withCitations": 0,
+        "notFound": 0,
+        "smallTalkPattern": 1,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 0,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "targetedOk": 0,
+        "maxTopRerankScore": null
+      }
+    },
+    "topRerankScore": {
+      "min": -3.8345084190368652,
+      "median": -1.5726033449172974,
+      "max": 4.0647172927856445,
+      "count": 17
+    }
+  },
+  "secondPersonSelfReference": 0
+}

@@ -174,7 +174,13 @@ function applyEvent(turn: PreviewTurn, event: AnswerStreamEvent): PreviewTurn {
     case 'sources':
       return { ...turn, sources: event.data }
     case 'done':
-      return { ...turn, done: event.data, phase: 'done', answeredAt: new Date().toISOString() }
+      return {
+        ...turn,
+        answer: event.data.answer,
+        done: event.data,
+        phase: 'done',
+        answeredAt: new Date().toISOString(),
+      }
     case 'error':
       return failTurn(turn, event.data.errorCode)
   }

@@ -1,0 +1,45 @@
+{
+  "baseUrl": "http://localhost:8090",
+  "summary": {
+    "golden": {
+      "total": 1,
+      "errors": 0,
+      "answered": 1,
+      "notFound": 0,
+      "withCitations": 1,
+      "citedContainsAnswer": 1,
+      "answerSources": {
+        "None": 1
+      },
+      "topRerankScore": {
+        "min": 2.7254180908203125,
+        "median": 2.7254180908203125,
+        "max": 2.7254180908203125,
+        "count": 1
+      }
+    },
+    "secondPersonSelfReference": 0
+  },
+  "rows": [
+    {
+      "set": "golden",
+      "category": "Para transferi ve ödemeler",
+      "text": "Yurt dışından bana gelen SWIFT için ücret ödüyor muyum?",
+      "errorCode": null,
+      "answerSource": null,
+      "route": null,
+      "retrievalStrategy": "RERANK",
+      "notFoundAnswer": false,
+      "citations": 1,
+      "citedContainsAnswer": true,
+      "containsAnswerInContext": true,
+      "topRerankScore": 2.7254180908203125,
+      "answer": "Yurt dışından gelen SWIFT transferleri için Raşit Bankası herhangi bir ücret almaz [2]. Ancak aradaki muhabir bankalar gönderilen tutardan kesinti yapabilir [2].",
+      "streamedText": "Yurt dışından gelen SWIFT transferleri için Raşit Bankası herhangi bir ücret almaz [2]. Ancak aradaki muhabir bankalar gönderilen tutardan kesinti yapabilir [2].",
+      "secondPersonSelfReference": false,
+      "latencyMs": 26335,
+      "elapsedSeconds": 26.84,
+      "conversationId": 158
+    }
+  ]
+}

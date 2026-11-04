@@ -1,0 +1,86 @@
+{
+  "golden": {
+    "total": 100,
+    "errors": 0,
+    "answered": 100,
+    "notFound": 0,
+    "withCitations": 100,
+    "citedContainsAnswer": 90,
+    "answerSources": {
+      "None": 100
+    },
+    "topRerankScore": {
+      "min": -2.742690086364746,
+      "median": 3.413705348968506,
+      "max": 9.372678756713867,
+      "count": 99
+    }
+  },
+  "negative": {
+    "total": 55,
+    "withCitations": 32,
+    "categories": {
+      "not-in-guide": {
+        "total": 27,
+        "withCitations": 14,
+        "notFound": 23,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "maxTopRerankScore": 4.0647172927856445
+      },
+      "small-talk-listed": {
+        "total": 13,
+        "withCitations": 13,
+        "notFound": 0,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "maxTopRerankScore": 0.8727713823318481
+      },
+      "small-talk-unlisted": {
+        "total": 5,
+        "withCitations": 4,
+        "notFound": 1,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "maxTopRerankScore": -4.700211048126221
+      },
+      "off-topic": {
+        "total": 5,
+        "withCitations": 0,
+        "notFound": 5,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "maxTopRerankScore": -4.778291702270508
+      },
+      "gibberish": {
+        "total": 4,
+        "withCitations": 0,
+        "notFound": 4,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "maxTopRerankScore": 1.2294089794158936
+      },
+      "follow-up": {
+        "total": 1,
+        "withCitations": 1,
+        "notFound": 0,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "maxTopRerankScore": 6.033585548400879
+      }
+    },
+    "topRerankScore": {
+      "min": -9.607986450195312,
+      "median": -4.700211048126221,
+      "max": 6.033585548400879,
+      "count": 55
+    }
+  },
+  "secondPersonSelfReference": 5
+}

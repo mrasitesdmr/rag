@@ -1,12 +1,14 @@
 package com.rasitbank.assistant.conversation.domain.entity;
 
+import com.rasitbank.assistant.generation.MessageLabel;
 import java.time.Instant;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Akış bitince kaydedilecek turun bütün değerlerini (soru, arama sorgusu, mod, strateji, cevap, token sayıları,
- * süreler, hata kodu) tek yerde toplar; Sadece LLM turunda arama sorgusu ve aday/top-k boştur.
+ * süreler, hata kodu, cevabın geldiği yol ve mesaj etiketi) tek yerde toplar; Sadece LLM turunda ve kalıp listesiyle
+ * tanınan selamlaşma turunda arama sorgusu ve aday/top-k boştur.
  */
 public record TurnValues(
         String question,
@@ -31,7 +33,10 @@ public record TurnValues(
         int latencyMs,
         @Nullable String errorCode,
         Instant createdAt,
-        Instant completedAt) {
+        Instant completedAt,
+        AnswerSource answerSource,
+        @Nullable MessageLabel messageLabel,
+        @Nullable Integer messageLabelLatencyMs) {
 
     public TurnValues {
         cited = List.copyOf(cited);

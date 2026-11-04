@@ -1,0 +1,40 @@
+# TASK-031. One phrase per line (at most 4 words); lines starting with # are comments.
+# Spelling is free: case, punctuation, Turkish letters vs ASCII and repeated letters are normalized on load.
+# Greeting phrases. A message made only of these (and address words) gets the greeting reply.
+selam
+selamlar
+merhaba
+merhabalar
+mrb
+mrhb
+slm
+sa
+selamün aleyküm
+selamünaleyküm
+selamın aleyküm
+aleyküm selam
+aleykümselam
+hey
+hi
+hello
+alo
+günaydın
+tünaydın
+iyi günler
+iyi akşamlar
+hayırlı günler
+hayırlı sabahlar
+hayırlı akşamlar
+nasılsın
+nasılsınız
+naber
+nbr
+ne haber
+ne var ne yok
+napıyorsun
+naptın
+iyi misin
+iyi misiniz
+nasıl gidiyor
+kolay gelsin
+hoş bulduk

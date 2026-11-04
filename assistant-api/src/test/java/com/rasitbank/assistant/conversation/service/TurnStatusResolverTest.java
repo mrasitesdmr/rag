@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.rasitbank.assistant.conversation.domain.entity.AnswerSource;
 import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.Turn;
 import com.rasitbank.assistant.conversation.domain.entity.TurnChunk;
@@ -138,5 +139,64 @@ class TurnStatusResolverTest {
 
         // Assert
         assertThat(status).isEqualTo(TurnStatus.GROUNDED);
+    }
+
+    @Test
+    void givenSmallTalkTurn_whenResolve_thenSmallTalk() {
+        // Arrange: kalıp yolu (parçasız) ve etiket yolu (aday parçalı, prompt'ta parça yok); ikisi de cevap parçası taşısa bile
+        Turn byPattern = mock(Turn.class);
+        given(byPattern.getGenerationMode()).willReturn(GenerationMode.RAG);
+        given(byPattern.getAnswerSource()).willReturn(AnswerSource.SMALL_TALK);
+        Turn byLabel = mock(Turn.class);
+        given(byLabel.getGenerationMode()).willReturn(GenerationMode.RAG);
+        given(byLabel.getAnswerSource()).willReturn(AnswerSource.SMALL_TALK);
+
+        // Act
+        TurnStatus pattern = resolver.resolve(byPattern, Set.of());
+        TurnStatus label = resolver.resolve(byLabel, Set.of(104L));
+
+        // Assert
+        assertThat(pattern).isEqualTo(TurnStatus.SMALL_TALK);
+        assertThat(label).isEqualTo(TurnStatus.SMALL_TALK);
+    }
+
+    @Test
+    void givenSmallTalkTurnWithErrorCode_whenResolve_thenIncompleteWins() {
+        // Arrange
+        Turn turn = mock(Turn.class);
+        given(turn.getErrorCode()).willReturn("STREAM_CANCELLED");
+        given(turn.getGenerationMode()).willReturn(GenerationMode.RAG);
+
+        // Act
+        TurnStatus status = resolver.resolve(turn, Set.of());
+
+        // Assert
+        assertThat(status).isEqualTo(TurnStatus.INCOMPLETE);
+    }
+
+    @Test
+    void givenBelowThresholdTurnWithAnswerChunks_whenResolve_thenMissed() {
+        // Arrange: eşik altı tur: aday parçaları var, hiçbirinin prompt_position'ı yok; cevap parçası 104 adaylarda
+        Turn turn = notFoundTurn(null, List.of(chunk(101, null), chunk(104, null)));
+        given(turn.getAnswerSource()).willReturn(AnswerSource.BELOW_RERANK_THRESHOLD);
+
+        // Act
+        TurnStatus status = resolver.resolve(turn, Set.of(104L));
+
+        // Assert
+        assertThat(status).isEqualTo(TurnStatus.MISSED);
+    }
+
+    @Test
+    void givenBelowThresholdTurnWithoutAnswerChunks_whenResolve_thenDontKnow() {
+        // Arrange
+        Turn turn = notFoundTurn(null, List.of(chunk(101, null)));
+        given(turn.getAnswerSource()).willReturn(AnswerSource.BELOW_RERANK_THRESHOLD);
+
+        // Act
+        TurnStatus status = resolver.resolve(turn, Set.of());
+
+        // Assert
+        assertThat(status).isEqualTo(TurnStatus.DONT_KNOW);
     }
 }

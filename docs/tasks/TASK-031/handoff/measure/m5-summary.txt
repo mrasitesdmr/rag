@@ -1,0 +1,353 @@
+{
+  "golden": {
+    "total": 100,
+    "errors": 0,
+    "answered": 100,
+    "notFound": 0,
+    "withCitations": 100,
+    "citedContainsAnswer": 92,
+    "answerSources": {
+      "MODEL": 100
+    },
+    "paraphrasedNotFound": 0,
+    "goldenStartsWithOpener": 1,
+    "goldenStartsWithOpenerTexts": [
+      "SWIFT iade talebim olumsuz sonuçlanırsa talep ücreti geri verilir mi?"
+    ],
+    "topRerankScore": {
+      "min": -2.742690086364746,
+      "median": 3.405472755432129,
+      "max": 9.372678756713867,
+      "count": 100
+    }
+  },
+  "negative": {
+    "total": 73,
+    "withCitations": 12,
+    "untargetedWithCitations": 9,
+    "targetedOk": 15,
+    "targetedTotal": 15,
+    "categories": {
+      "personal-info": {
+        "total": 9,
+        "withCitations": 0,
+        "notFound": 1,
+        "smallTalkNoSearch": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 8,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 8,
+        "targetedOk": 9,
+        "smallTalk": 0,
+        "maxTopRerankScore": 4.0647172927856445
+      },
+      "not-in-guide": {
+        "total": 12,
+        "withCitations": 0,
+        "notFound": 11,
+        "smallTalkNoSearch": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 1,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 1,
+        "targetedOk": 0,
+        "smallTalk": 0,
+        "maxTopRerankScore": -0.4590415060520172
+      },
+      "other-banks": {
+        "total": 3,
+        "withCitations": 1,
+        "notFound": 0,
+        "smallTalkNoSearch": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 3,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 3,
+        "targetedOk": 3,
+        "smallTalk": 0,
+        "maxTopRerankScore": 1.8863999843597412
+      },
+      "investment-advice": {
+        "total": 3,
+        "withCitations": 2,
+        "notFound": 1,
+        "smallTalkNoSearch": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 2,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 2,
+        "targetedOk": 3,
+        "smallTalk": 0,
+        "maxTopRerankScore": -1.5726033449172974
+      },
+      "small-talk-listed": {
+        "total": 13,
+        "withCitations": 0,
+        "notFound": 0,
+        "smallTalkNoSearch": 13,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 0,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 0,
+        "targetedOk": 0,
+        "smallTalk": 13,
+        "maxTopRerankScore": null
+      },
+      "small-talk-unlisted": {
+        "total": 5,
+        "withCitations": 0,
+        "notFound": 0,
+        "smallTalkNoSearch": 0,
+        "smallTalkLabel": 5,
+        "errors": 0,
+        "startsWithOpener": 0,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 0,
+        "targetedOk": 0,
+        "smallTalk": 5,
+        "maxTopRerankScore": null
+      },
+      "off-topic": {
+        "total": 5,
+        "withCitations": 0,
+        "notFound": 5,
+        "smallTalkNoSearch": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 0,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 0,
+        "targetedOk": 0,
+        "smallTalk": 0,
+        "maxTopRerankScore": null
+      },
+      "gibberish": {
+        "total": 4,
+        "withCitations": 0,
+        "notFound": 4,
+        "smallTalkNoSearch": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 0,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 0,
+        "targetedOk": 0,
+        "smallTalk": 0,
+        "maxTopRerankScore": 1.2294089794158936
+      },
+      "follow-up": {
+        "total": 1,
+        "withCitations": 0,
+        "notFound": 0,
+        "smallTalkNoSearch": 1,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 0,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 0,
+        "targetedOk": 0,
+        "smallTalk": 1,
+        "maxTopRerankScore": null
+      },
+      "follow-up-small-talk": {
+        "total": 10,
+        "withCitations": 1,
+        "notFound": 0,
+        "smallTalkNoSearch": 9,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 0,
+        "openerHasCitation": 1,
+        "openerTrailingCitation": 1,
+        "streamedOpenerHasCitation": 1,
+        "targetedOk": 0,
+        "smallTalk": 9,
+        "answers": [
+          {
+            "text": "Gold kart aidatı ne kadar? >> Çok makbule geçti",
+            "answerSource": "SMALL_TALK",
+            "route": "NO_SEARCH",
+            "notFoundAnswer": false,
+            "citations": 0,
+            "answer": "Rica ederim. Kart, hesap, kredi, transfer ya da dijital bankacılıkla ilgili başka bir sorun olursa yazabilirsin."
+          },
+          {
+            "text": "Kartımı kaybettim, ne yapmalıyım? >> Çok makbule geçti, sağ olun",
+            "answerSource": "SMALL_TALK",
+            "route": "NO_SEARCH",
+            "notFoundAnswer": false,
+            "citations": 0,
+            "answer": "Rica ederim. Kart, hesap, kredi, transfer ya da dijital bankacılıkla ilgili başka bir sorun olursa yazabilirsin."
+          },
+          {
+            "text": "Gold kart aidatı ne kadar? >> Çok işime yaradı sağ olun",
+            "answerSource": "SMALL_TALK",
+            "route": "NO_SEARCH",
+            "notFoundAnswer": false,
+            "citations": 0,
+            "answer": "Rica ederim. Kart, hesap, kredi, transfer ya da dijital bankacılıkla ilgili başka bir sorun olursa yazabilirsin."
+          },
+          {
+            "text": "Gold kart aidatı ne kadar? >> Allah razı olsun",
+            "answerSource": "SMALL_TALK",
+            "route": "NO_SEARCH",
+            "notFoundAnswer": false,
+            "citations": 0,
+            "answer": "Rica ederim. Kart, hesap, kredi, transfer ya da dijital bankacılıkla ilgili başka bir sorun olursa yazabilirsin."
+          },
+          {
+            "text": "Gold kart aidatı ne kadar? >> Yardımların için minnettarım",
+            "answerSource": "SMALL_TALK",
+            "route": "NO_SEARCH",
+            "notFoundAnswer": false,
+            "citations": 0,
+            "answer": "Rica ederim. Kart, hesap, kredi, transfer ya da dijital bankacılıkla ilgili başka bir sorun olursa yazabilirsin."
+          },
+          {
+            "text": "Gold kart aidatı ne kadar? >> Harikasınız, eyvallah",
+            "answerSource": "SMALL_TALK",
+            "route": "NO_SEARCH",
+            "notFoundAnswer": false,
+            "citations": 0,
+            "answer": "Rica ederim. Kart, hesap, kredi, transfer ya da dijital bankacılıkla ilgili başka bir sorun olursa yazabilirsin."
+          },
+          {
+            "text": "Kartımı kaybettim, ne yapmalıyım? >> Merhaba tekrar",
+            "answerSource": "SMALL_TALK",
+            "route": "NO_SEARCH",
+            "notFoundAnswer": false,
+            "citations": 0,
+            "answer": "Merhaba, ben Raşit Bankası'nın dijital asistanıyım. Kart, hesap, kredi, transfer ve dijital bankacılıkla ilgili sorularını Ürün ve Hizmet Rehberi'ne dayanarak cevaplayabilirim. Ne sormak istersin?"
+          },
+          {
+            "text": "Gold kart aidatı ne kadar? >> Her şey için sağ olun, iyi akşamlar",
+            "answerSource": "MODEL",
+            "route": null,
+            "notFoundAnswer": false,
+            "citations": 1,
+            "answer": "İyi akşamlar! [5]"
+          },
+          {
+            "text": "Kartımı kaybettim, ne yapmalıyım? >> Tamamdır, kolay gelsin",
+            "answerSource": "SMALL_TALK",
+            "route": "NO_SEARCH",
+            "notFoundAnswer": false,
+            "citations": 0,
+            "answer": "Görüşmek üzere. Kart, hesap, kredi, transfer ya da dijital bankacılıkla ilgili bir sorun olursa buradayım."
+          },
+          {
+            "text": "Gold kart aidatı ne kadar? >> Size de iyi çalışmalar",
+            "answerSource": "SMALL_TALK",
+            "route": "NO_SEARCH",
+            "notFoundAnswer": false,
+            "citations": 0,
+            "answer": "Rica ederim. Kart, hesap, kredi, transfer ya da dijital bankacılıkla ilgili başka bir sorun olursa yazabilirsin."
+          }
+        ],
+        "maxTopRerankScore": 4.768555641174316
+      },
+      "follow-up-question": {
+        "total": 8,
+        "withCitations": 8,
+        "notFound": 0,
+        "smallTalkNoSearch": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 0,
+        "openerHasCitation": 6,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 6,
+        "targetedOk": 0,
+        "smallTalk": 0,
+        "answers": [
+          {
+            "text": "Gold kart aidatı ne kadar? >> Peki Platinum?",
+            "answerSource": "MODEL",
+            "route": null,
+            "notFoundAnswer": false,
+            "citations": 2,
+            "answer": "Raşit Platinum kartın yıllık üyelik ücreti 2.950 TL'dir [1]. Eğer önceki 12 ayda kartla toplam 400.000 TL alışveriş yaptıysanız bu ücret alınmaz [2]. Raşit Platinum'a bağlı her ek kart için ise yıllık 750 TL ücret alınır [1]."
+          },
+          {
+            "text": "Gold kart aidatı ne kadar? >> ya kredi kartında",
+            "answerSource": "MODEL",
+            "route": null,
+            "notFoundAnswer": false,
+            "citations": 1,
+            "answer": "Kredi kartı ile ilgili genel bilgiler ve ücretler rehberimizde yer almaktadır [1]. Hesabına özel bilgileri (bakiye, limit, borç, başvuru durumu, hesap hareketleri) göremiyorum."
+          },
+          {
+            "text": "Kartımı kaybettim, ne yapmalıyım? >> Ya yurt dışında",
+            "answerSource": "MODEL",
+            "route": null,
+            "notFoundAnswer": false,
+            "citations": 1,
+            "answer": "Kartınız yurt dışında kullanılabilir; ancak seyahatten önce Raşit Mobil'den \"Yurt dışı kullanım\" seçeneğini açmanız gerekir [2]. Yurt dışında yapılan her işlemin %1,99'u kadar işlem ücreti alınır ve ATM'lerden nakit çekimde ayrıca tutarın %1,5'i en az 75 TL ücret kesilir [2]. Yurt dışında kartınız kaybolursa ya da çalınırsa Raşit Mobil'den kapatın; yeni kart yurt dışına gönderilmez, Türkiye'deki kayıtlı adresinize gelir [2]."
+          },
+          {
+            "text": "Kartımı kaybettim, ne yapmalıyım? >> Yenisi kaç günde gelir",
+            "answerSource": "MODEL",
+            "route": null,
+            "notFoundAnswer": false,
+            "citations": 1,
+            "answer": "Yeni kartınız, il merkezlerinde 3 iş günü, diğer yerlerde ise 5 iş günü içinde kayıtlı adresinize kuryeyle teslim edilir [1]."
+          },
+          {
+            "text": "Kartımı kaybettim, ne yapmalıyım? >> Peki ücreti var mı",
+            "answerSource": "MODEL",
+            "route": null,
+            "notFoundAnswer": false,
+            "citations": 1,
+            "answer": "Evet, bir takvim yılındaki ilk kayıp bildirimi için yeni kart ücretsizdir; ancak aynı yıldaki sonraki bildirimlerde kart yenileme ücreti 100 TL'dir [1]."
+          },
+          {
+            "text": "Kartımı kaybettim, ne yapmalıyım? >> Mobil uygulamadan da olur",
+            "answerSource": "MODEL",
+            "route": null,
+            "notFoundAnswer": false,
+            "citations": 1,
+            "answer": "Evet, mobil uygulamadan da kayıp bildirimi yapabilirsiniz. Raşit Mobil uygulamasında \"Kartlarım\" bölümünden kartınızı seçip \"Kayıp/çalıntı bildir\" adımını izleyerek 7/24 hizmet alabilirsiniz [1]."
+          },
+          {
+            "text": "Gold kart aidatı ne kadar? >> Ek kart için de aynı mı",
+            "answerSource": "MODEL",
+            "route": null,
+            "notFoundAnswer": false,
+            "citations": 1,
+            "answer": "Evet, Raşit Classic ve Raşit Gold'a bağlı ek kartlar ücretsizdir [3]."
+          },
+          {
+            "text": "Gold kart aidatı ne kadar? >> Hangi kartlarda yok",
+            "answerSource": "MODEL",
+            "route": null,
+            "notFoundAnswer": false,
+            "citations": 2,
+            "answer": "Hangi kartlarda yıllık üyelik ücreti olmadığını belirtmek gerekirse; Raşit Bankası'na maaş alan müşteriler için Raşit Classic kartının ilk yılında ücretsizdir [2]. Ayrıca, önceki 12 ayda belirli harcama tutarlarına ulaşan müşteriler (Raşit Classic'te 60.000 TL, Raşit Gold'da 150.000 TL, Raşit Platinum'da 400.000 TL) o yıl için ücret ödemeden kullanabilir [2]. Raşit Classic ve Raşit Gold'a bağlı ek kartlar da ücretsizdir [3]."
+          }
+        ],
+        "maxTopRerankScore": 7.675675392150879
+      }
+    },
+    "topRerankScore": {
+      "min": -3.8345084190368652,
+      "median": 0.9623233377933502,
+      "max": 7.675675392150879,
+      "count": 26
+    }
+  },
+  "secondPersonSelfReference": 0
+}

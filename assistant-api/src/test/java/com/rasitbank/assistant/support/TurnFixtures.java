@@ -44,6 +44,29 @@ public final class TurnFixtures {
                 returning id""", Long.class, conversationId, turnNo);
     }
 
+    public long smallTalkTurn(long conversationId, String question, String label) {
+        int turnNo = nextTurnNo(conversationId);
+        return jdbc.queryForObject("""
+                insert into conversation_turns (conversation_id, turn_no, question, search_query, query_rewrite_status,
+                    generation_mode, retrieval_strategy, candidates, top_k, chat_model, answer, not_found_answer,
+                    latency_ms, created_at, completed_at, answer_source, message_label)
+                values (?, ?, ?, null, 'DISABLED', 'RAG', 'NONE', null, null, 'm', 'Merhaba', false, 10, now(), now(),
+                    'SMALL_TALK', ?)
+                returning id""", Long.class, conversationId, turnNo, question, label);
+    }
+
+    public long belowThresholdTurn(long conversationId, String question) {
+        int turnNo = nextTurnNo(conversationId);
+        return jdbc.queryForObject("""
+                insert into conversation_turns (conversation_id, turn_no, question, search_query, query_rewrite_status,
+                    generation_mode, retrieval_strategy, candidates, top_k, chat_model, answer, not_found_answer,
+                    latency_ms, created_at, completed_at, answer_source, message_label, message_label_latency_ms)
+                values (?, ?, ?, ?, 'DISABLED', 'RAG', 'RERANK', 20, 5, 'm', ?, true, 10, now(), now(),
+                    'BELOW_RERANK_THRESHOLD', 'OTHER', 600)
+                returning id""", Long.class, conversationId, turnNo, question, question,
+                TestProperties.NOT_FOUND_ANSWER);
+    }
+
     public long conversationCreatedAt(String createdAt) {
         return jdbc.queryForObject(
                 "insert into conversations (channel, created_at) values ('PREVIEW', ?::timestamptz) returning id",

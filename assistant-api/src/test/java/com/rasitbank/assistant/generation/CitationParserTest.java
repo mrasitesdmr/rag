@@ -59,4 +59,20 @@ class CitationParserTest {
     void givenAnswerWithoutCitations_whenRemoveCitations_thenUnchanged() {
         assertThat(parser.removeCitations("Kartını kapat.")).isEqualTo("Kartını kapat.");
     }
+
+    @Test
+    void givenInRangeAndOutOfRangeMarkers_whenRemoveOutOfRangeCitations_thenOnlyOutOfRangeRemovedWithLeadingSpace() {
+        assertThat(parser.removeOutOfRangeCitations("Kartını kapat [1]. Yenisi gelir [6]. Ara [0] [5].", 5))
+                .isEqualTo("Kartını kapat [1]. Yenisi gelir. Ara [5].");
+    }
+
+    @Test
+    void givenNoMarkers_whenRemoveOutOfRangeCitations_thenUnchanged() {
+        assertThat(parser.removeOutOfRangeCitations("Kartını kapat.", 5)).isEqualTo("Kartını kapat.");
+    }
+
+    @Test
+    void givenEmptyContext_whenRemoveOutOfRangeCitations_thenAllMarkersRemoved() {
+        assertThat(parser.removeOutOfRangeCitations("a [1] b [2]", 0)).isEqualTo("a b");
+    }
 }

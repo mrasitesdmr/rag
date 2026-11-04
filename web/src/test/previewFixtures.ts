@@ -48,6 +48,8 @@ export function doneEvent(overrides: Partial<DoneEvent> = {}): DoneEvent {
   return {
     turnId: 12,
     notFoundAnswer: false,
+    answer: 'Kartını hemen kapat [1].',
+    answerSource: 'MODEL',
     chatModel: 'qwen3.5:9b',
     promptTokens: 2154,
     completionTokens: 61,
@@ -99,6 +101,6 @@ export function llmOnlyAnswer(): SseEvent[] {
   return [
     token('Kartını kapat [1].'),
     { event: 'sources', data: llmOnlySourcesEvent() },
-    done({ retrievalLatencyMs: null, rerankLatencyMs: null }),
+    done({ answer: 'Kartını kapat [1].', retrievalLatencyMs: null, rerankLatencyMs: null }),
   ]
 }

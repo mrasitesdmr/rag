@@ -13,6 +13,7 @@ const RERANK_SCORE_DIGITS = 2
 const DISTANCE_DIGITS = 3
 const CITED_LEGEND = '✓ atıf yapılan'
 const ANSWER_CHUNK_LEGEND = 'sarı: cevabın geçtiği parça'
+const BELOW_THRESHOLD_NOTE = 'Bu turda modele hiçbir parça gitmedi: en iyi parçanın rerank puanı eşiğin altında kaldı.'
 
 type ContextChunksCardProps = {
   question: string
@@ -23,12 +24,31 @@ type ContextChunksCardProps = {
 
 export function ContextChunksCard({ question, sources, done, onChunkOpen }: ContextChunksCardProps) {
   const titleId = useId()
+  const isBelowThreshold = done.answerSource === 'BELOW_RERANK_THRESHOLD'
   return (
     <section className={card.card} aria-labelledby={titleId}>
       <h2 id={titleId} className={card.title}>
         Son cevapta modele giden parçalar
       </h2>
       <div className={card.sub}>{subtitleText(question, sources)}</div>
+      {isBelowThreshold ? (
+        <div className={card.sub}>{BELOW_THRESHOLD_NOTE}</div>
+      ) : (
+        <ContextChunkList sources={sources} onChunkOpen={onChunkOpen} />
+      )}
+      <LatencyBars done={done} />
+    </section>
+  )
+}
+
+type ContextChunkListProps = {
+  sources: SourcesEvent
+  onChunkOpen: (citation: ChunkCitation) => void
+}
+
+function ContextChunkList({ sources, onChunkOpen }: ContextChunkListProps) {
+  return (
+    <>
       <div className={styles.list}>
         {sources.contextChunks.map((chunk) => (
           <button
@@ -47,8 +67,7 @@ export function ContextChunksCard({ question, sources, done, onChunkOpen }: Cont
         ))}
       </div>
       <div className={card.sub}>{legendText(sources)}</div>
-      <LatencyBars done={done} />
-    </section>
+    </>
   )
 }
 

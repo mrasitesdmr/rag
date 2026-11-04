@@ -3,6 +3,7 @@ package com.rasitbank.assistant.conversation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
+import com.rasitbank.assistant.conversation.domain.entity.AnswerSource;
 import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
 import com.rasitbank.assistant.conversation.domain.dto.CreateConversationRequest;
@@ -11,6 +12,7 @@ import com.rasitbank.assistant.retrieval.service.RetrievedContext;
 import com.rasitbank.assistant.support.ContextFixtures;
 import com.rasitbank.assistant.support.PostgresIntegrationTest;
 import java.time.Instant;
+import com.rasitbank.assistant.generation.MessageLabel;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -41,11 +43,11 @@ class TurnServiceIntegrationTest extends PostgresIntegrationTest {
 
     private static TurnDraft draft(long conversationId, RetrievedContext context) {
         return new TurnDraft(conversationId, GenerationMode.RAG, "Kartımı kaybettim, ne yapmalıyım?",
-                "Kartımı kaybettim, ne yapmalıyım?", QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", RECEIVED_AT, System.nanoTime(), context);
+                "Kartımı kaybettim, ne yapmalıyım?", QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", RECEIVED_AT, System.nanoTime(), context, null, null);
     }
 
     private static TurnOutcome successOutcome() {
-        return new TurnOutcome("Kartını kapat [1]. Ara [3].", false, List.of(1, 3), 2154, 61, 3920L, 900L, 4730L, null);
+        return new TurnOutcome("Kartını kapat [1]. Ara [3].", false, List.of(1, 3), 2154, 61, 3920L, 900L, 4730L, null, AnswerSource.MODEL);
     }
 
     @Test
@@ -158,7 +160,7 @@ class TurnServiceIntegrationTest extends PostgresIntegrationTest {
     void givenNotFoundOutcome_whenRecordTurn_thenNotFoundFlagAndEmptyCitationsStored() {
         long conversationId = newConversation();
         TurnOutcome outcome = new TurnOutcome("Bu konuda rehberimizde bilgi bulamadım.", true, List.of(), null, null,
-                null, null, 20L, null);
+                null, null, 20L, null, AnswerSource.EMPTY_KNOWLEDGE_BASE);
 
         long turnId = turnService.recordTurn(draft(conversationId, ContextFixtures.emptyContext(null)), outcome);
 
@@ -175,7 +177,7 @@ class TurnServiceIntegrationTest extends PostgresIntegrationTest {
         long conversationId = newConversation();
         TurnDraft rewritten = new TurnDraft(conversationId, GenerationMode.RAG, "Yenisi kaç günde gelir?",
                 "Kaybolan kartın yenisi kaç günde gelir?", QueryRewriteStatus.REWRITTEN, 812L, 1, "qwen3.5:9b",
-                RECEIVED_AT, System.nanoTime(), ContextFixtures.topKContext());
+                RECEIVED_AT, System.nanoTime(), ContextFixtures.topKContext(), null, null);
 
         long turnId = turnService.recordTurn(rewritten, successOutcome());
 
@@ -201,14 +203,14 @@ class TurnServiceIntegrationTest extends PostgresIntegrationTest {
 
     private static TurnDraft llmOnlyDraft(long conversationId, int historyTurns) {
         return new TurnDraft(conversationId, GenerationMode.LLM_ONLY, "Kartımı kaybettim, ne yapmalıyım?", null,
-                QueryRewriteStatus.DISABLED, null, historyTurns, "qwen3.5:9b", RECEIVED_AT, System.nanoTime(), null);
+                QueryRewriteStatus.DISABLED, null, historyTurns, "qwen3.5:9b", RECEIVED_AT, System.nanoTime(), null, null, null);
     }
 
     @Test
     void givenLlmOnlyDraft_whenRecordTurn_thenNoneStrategyAndNoChunks() {
         // Arrange
         long conversationId = newConversation();
-        TurnOutcome outcome = new TurnOutcome("Kartını kapat [1].", false, List.of(), 63, 9, 1300L, 400L, 1400L, null);
+        TurnOutcome outcome = new TurnOutcome("Kartını kapat [1].", false, List.of(), 63, 9, 1300L, 400L, 1400L, null, AnswerSource.MODEL);
 
         // Act
         long turnId = turnService.recordTurn(llmOnlyDraft(conversationId, 0), outcome);
@@ -238,7 +240,7 @@ class TurnServiceIntegrationTest extends PostgresIntegrationTest {
         long conversationId = newConversation();
         TurnDraft draft = new TurnDraft(conversationId, GenerationMode.LLM_ONLY, "q", "must-not-be-stored",
                 QueryRewriteStatus.DISABLED, null, 0, "qwen3.5:9b", RECEIVED_AT, System.nanoTime(),
-                ContextFixtures.topKContext());
+                ContextFixtures.topKContext(), null, null);
 
         // Act
         long turnId = turnService.recordTurn(draft, successOutcome());
@@ -294,5 +296,57 @@ class TurnServiceIntegrationTest extends PostgresIntegrationTest {
                 + "query_rewrite_status, "
                 + "latency_ms, created_at, completed_at) values (?, 1, 'q', ?, ?, ?, ?, ?, 'm', ?, 'DISABLED', 10, now(), now())",
                 conversationId, searchQuery, mode, strategy, candidates, topK, retrievalLatencyMs);
+    }
+
+    @Test
+    void givenPatternSmallTalkDraft_whenRecordTurn_thenNoneStrategyLabelAndSourceStoredWithoutRetrievalColumns() {
+        // Arrange
+        long conversationId = newConversation();
+        TurnDraft draft = new TurnDraft(conversationId, GenerationMode.RAG, "Selam", null, QueryRewriteStatus.DISABLED,
+                null, 0, "qwen3.5:9b", RECEIVED_AT, System.nanoTime(), null, MessageLabel.GREETING, null);
+        TurnOutcome outcome = new TurnOutcome("Merhaba", false, List.of(), null, null, null, null, 5L, null,
+                AnswerSource.SMALL_TALK);
+
+        // Act
+        long turnId = turnService.recordTurn(draft, outcome);
+
+        // Assert
+        Map<String, Object> turn = jdbc.queryForMap("select * from conversation_turns where id = ?", turnId);
+        assertThat(turn.get("answer_source")).isEqualTo("SMALL_TALK");
+        assertThat(turn.get("message_label")).isEqualTo("GREETING");
+        assertThat(turn.get("message_label_latency_ms")).isNull();
+        assertThat(turn.get("retrieval_strategy")).isEqualTo("NONE");
+        assertThat(turn.get("search_query")).isNull();
+        assertThat(turn.get("candidates")).isNull();
+        assertThat(turn.get("top_k")).isNull();
+        assertThat(turn.get("history_turns")).isEqualTo(0);
+        assertThat(jdbc.queryForObject("select count(*) from turn_chunks where turn_id = ?", Integer.class, turnId))
+                .isZero();
+    }
+
+    @Test
+    void givenBelowThresholdDraftWithCandidates_whenRecordTurn_thenCandidatesStoredWithoutPromptPositionAndLabelLatency() {
+        // Arrange
+        long conversationId = newConversation();
+        TurnDraft draft = new TurnDraft(conversationId, GenerationMode.RAG, "Bana bir şiir yaz", "Bana bir şiir yaz",
+                QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b", RECEIVED_AT, System.nanoTime(),
+                ContextFixtures.rerankContextWithTopScore(-5.0).withoutContextChunks(), MessageLabel.OTHER, 640L);
+        TurnOutcome outcome = new TurnOutcome("Bu konuda rehberimizde bilgi bulamadım.", true, List.of(), null, null,
+                null, null, 700L, null, AnswerSource.BELOW_RERANK_THRESHOLD);
+
+        // Act
+        long turnId = turnService.recordTurn(draft, outcome);
+
+        // Assert
+        Map<String, Object> turn = jdbc.queryForMap("select * from conversation_turns where id = ?", turnId);
+        assertThat(turn.get("answer_source")).isEqualTo("BELOW_RERANK_THRESHOLD");
+        assertThat(turn.get("message_label")).isEqualTo("OTHER");
+        assertThat(turn.get("message_label_latency_ms")).isEqualTo(640);
+        assertThat(turn.get("retrieval_strategy")).isEqualTo("RERANK");
+        assertThat(turn.get("not_found_answer")).isEqualTo(true);
+        assertThat(jdbc.queryForObject("select count(*) from turn_chunks where turn_id = ?", Integer.class, turnId))
+                .isEqualTo(20);
+        assertThat(jdbc.queryForObject("select count(prompt_position) from turn_chunks where turn_id = ?",
+                Integer.class, turnId)).isZero();
     }
 }

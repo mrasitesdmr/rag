@@ -159,8 +159,20 @@ describe('PreviewPage', () => {
     expect(citation).toHaveFocus()
   })
 
-  it('givenOutOfRangeNumberInAnswer_whenDone_thenNoCitationButtonForIt', async () => {
-    servePreview([token('Bak [7] ve [1].'), sources(), done()])
+  it('givenOutOfRangeNumberRemovedByBackend_whenDone_thenOnlyValidCitationButtonAndNoRawMarker', async () => {
+    servePreview([token('Bak [7] ve [1].'), sources(), done({ answer: 'Bak ve [1].' })])
+    renderAppAt('/onizleme')
+
+    await ask(QUESTION)
+
+    expect(await screen.findByRole('button', { name: 'Kaynak 1' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Kaynak 7' })).not.toBeInTheDocument()
+    expect(screen.getByText(/Bak ve/)).toBeInTheDocument()
+    expect(screen.queryByText(/\[7\]/)).not.toBeInTheDocument()
+  })
+
+  it('givenOutOfRangeNumberLeftInDoneAnswer_whenDone_thenShownAsPlainTextWithoutButton', async () => {
+    servePreview([token('Bak [7] ve [1].'), sources(), done({ answer: 'Bak [7] ve [1].' })])
     renderAppAt('/onizleme')
 
     await ask(QUESTION)
@@ -201,19 +213,22 @@ describe('PreviewPage', () => {
     expect(requested).toEqual([153])
   })
 
-  it('givenNotFoundAnswer_whenDone_thenNoSourceButtons', async () => {
+  it('givenNotFoundDoneWithCleanAnswer_whenStreamFinishes_thenShowsSentenceWithoutCitationButtons', async () => {
     servePreview([
-      token('Bu konuda rehberimizde bilgi bulamadım. [1]'),
-      sources({ citations: [1] }),
-      done({ notFoundAnswer: true }),
+      token('Maalesef, bu konuda rehberimizde bilgi bulamadım. [2]'),
+      sources({ citations: [] }),
+      done({ notFoundAnswer: true, answer: 'Bu konuda rehberimizde bilgi bulamadım.' }),
     ])
     renderAppAt('/onizleme')
 
     await ask('Bitcoin alıp satabilir miyim?')
 
-    expect(await screen.findByText(/Bu konuda rehberimizde bilgi bulamadım\./)).toBeInTheDocument()
+    expect(await screen.findByText('Bu konuda rehberimizde bilgi bulamadım.')).toBeInTheDocument()
     await screen.findByRole('heading', { name: 'Son cevapta modele giden parçalar' })
+    expect(screen.queryByText(/Maalesef/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Kaynak 2' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /· s\. \d+/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Temsilciye bağlan' })).toBeInTheDocument()
   })
 
   it('givenEmptyContext_whenDone_thenShowsAddDocumentHint', async () => {
@@ -222,6 +237,8 @@ describe('PreviewPage', () => {
       sources({ contextChunks: [], citations: [] }),
       done({
         notFoundAnswer: true,
+        answer: 'Bu konuda rehberimizde bilgi bulamadım.',
+        answerSource: 'EMPTY_KNOWLEDGE_BASE',
         promptTokens: null,
         completionTokens: null,
         rerankLatencyMs: null,
@@ -752,7 +769,7 @@ describe('PreviewPage', () => {
   })
 
   it('givenHtmlInAnswerToken_whenRendered_thenShownAsText', async () => {
-    servePreview([token('<img src=x onerror=alert(1)>'), sources(), done()])
+    servePreview([token('<img src=x onerror=alert(1)>'), sources(), done({ answer: '<img src=x onerror=alert(1)>' })])
     const { container } = renderAppAt('/onizleme')
 
     await ask(QUESTION)
@@ -826,5 +843,121 @@ describe('PreviewPage', () => {
     const card = (await screen.findByRole('heading', { name: 'Son cevapta modele giden parçalar' })).closest('section') as HTMLElement
     expect(within(card).getByText('✓ atıf yapılan')).toBeInTheDocument()
     expect(card).not.toHaveTextContent('sarı')
+  })
+
+  const GREETING = 'Merhaba, ben Raşit Bankası\'nın dijital asistanıyım. Ne sormak istersin?'
+
+  it('givenPatternSmallTalkDone_whenFinished_thenNoSourceButtonsEmptyKbNoteContextCardOrHandoff', async () => {
+    servePreview([
+      token(GREETING),
+      sources({
+        retrievalStrategy: 'NONE',
+        candidates: null,
+        topK: null,
+        searchQuery: null,
+        queryRewriteStatus: 'DISABLED',
+        contextChunks: [],
+        citations: [],
+      }),
+      done({
+        answer: GREETING,
+        answerSource: 'SMALL_TALK',
+        notFoundAnswer: false,
+        promptTokens: null,
+        completionTokens: null,
+        retrievalLatencyMs: null,
+        rerankLatencyMs: null,
+        generationLatencyMs: null,
+        timeToFirstTokenMs: null,
+      }),
+    ])
+    renderAppAt('/onizleme')
+
+    await ask('Selam')
+
+    expect(await screen.findByText(GREETING)).toBeInTheDocument()
+    expect(screen.queryByText('Bilgi bankasında henüz belge yok.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Son cevapta modele giden parçalar' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Asistan nasıl cevaplıyor?' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Temsilciye bağlan' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Kaynak \d/ })).not.toBeInTheDocument()
+  })
+
+  it('givenLabelSmallTalkDoneWithRetrievalRecorded_whenFinished_thenSameAsPatternRoute', async () => {
+    servePreview([
+      token(GREETING),
+      sources({ contextChunks: [], citations: [], searchQuery: 'Keyifler nasıl?' }),
+      done({ answer: GREETING, answerSource: 'SMALL_TALK', notFoundAnswer: false }),
+    ])
+    renderAppAt('/onizleme')
+
+    await ask('Keyifler nasıl?')
+
+    expect(await screen.findByText(GREETING)).toBeInTheDocument()
+    expect(screen.queryByText('Bilgi bankasında henüz belge yok.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Son cevapta modele giden parçalar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Temsilciye bağlan' })).not.toBeInTheDocument()
+  })
+
+  it('givenBelowThresholdDone_whenFinished_thenThresholdNoteAndNoEmptyKbNoteAndHandoffShown', async () => {
+    servePreview([
+      token('Bu konuda rehberimizde bilgi bulamadım.'),
+      sources({ contextChunks: [], citations: [] }),
+      done({
+        answer: 'Bu konuda rehberimizde bilgi bulamadım.',
+        answerSource: 'BELOW_RERANK_THRESHOLD',
+        notFoundAnswer: true,
+        generationLatencyMs: null,
+      }),
+    ])
+    const { container } = renderAppAt('/onizleme')
+
+    await ask('Bana bir şiir yaz')
+
+    expect(
+      await screen.findByText('Bu turda modele hiçbir parça gitmedi: en iyi parçanın rerank puanı eşiğin altında kaldı.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Bilgi bankasında henüz belge yok.')).not.toBeInTheDocument()
+    expect(screen.queryByText('✓ atıf yapılan')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Temsilciye bağlan' })).toBeInTheDocument()
+    expect(await axe(container)).toHaveNoViolations()
+  })
+
+  it('givenEmptyKnowledgeBaseDone_whenFinished_thenShowsEmptyKbNoteWithLink', async () => {
+    servePreview([
+      token('Bu konuda rehberimizde bilgi bulamadım.'),
+      sources({ contextChunks: [], citations: [] }),
+      done({
+        answer: 'Bu konuda rehberimizde bilgi bulamadım.',
+        answerSource: 'EMPTY_KNOWLEDGE_BASE',
+        notFoundAnswer: true,
+      }),
+    ])
+    renderAppAt('/onizleme')
+
+    await ask(QUESTION)
+
+    expect(await screen.findByText('Bilgi bankasında henüz belge yok.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: "Bilgi kaynakları'ndan belge ekle." })).toBeInTheDocument()
+  })
+
+  it('givenLlmOnlyEmptyContextDone_whenFinished_thenNoEmptyKbNote', async () => {
+    servePreview(llmOnlyAnswer())
+    renderAppAt('/onizleme')
+
+    await ask(QUESTION)
+
+    await screen.findByText(/Kartını kapat/)
+    expect(screen.queryByText('Bilgi bankasında henüz belge yok.')).not.toBeInTheDocument()
+  })
+
+  it('givenAnswerDifferentFromStreamedTokens_whenDone_thenScreenShowsDoneAnswerOnly', async () => {
+    servePreview([token('Ham metin [5]'), sources(), done({ answer: 'Temiz metin [1].' })])
+    renderAppAt('/onizleme')
+
+    await ask(QUESTION)
+
+    expect(await screen.findByText(/Temiz metin/)).toBeInTheDocument()
+    expect(screen.queryByText(/Ham metin/)).not.toBeInTheDocument()
   })
 })

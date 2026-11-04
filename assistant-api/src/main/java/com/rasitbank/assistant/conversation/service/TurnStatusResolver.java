@@ -1,5 +1,6 @@
 package com.rasitbank.assistant.conversation.service;
 
+import com.rasitbank.assistant.conversation.domain.entity.AnswerSource;
 import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.Turn;
 import com.rasitbank.assistant.conversation.domain.entity.TurnStatus;
@@ -7,8 +8,9 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
- * Kayıtlı bir turun durumunu onaylanan kural sırasıyla hesaplar: hata, Sadece LLM, "bulamadım" cevabı (golden set'teki
- * cevap parçası prompt'a girdi mi, girmedi mi, cevap parçası yok mu), "Hayır" geri bildirimi ve alıntı varlığı.
+ * Kayıtlı bir turun durumunu onaylanan kural sırasıyla hesaplar: hata, Sadece LLM, selamlaşma, "bulamadım" cevabı
+ * (golden set'teki cevap parçası prompt'a girdi mi, girmedi mi, cevap parçası yok mu), "Hayır" geri bildirimi ve
+ * alıntı varlığı.
  */
 @Component
 public class TurnStatusResolver {
@@ -19,6 +21,9 @@ public class TurnStatusResolver {
         }
         if (turn.getGenerationMode() == GenerationMode.LLM_ONLY) {
             return TurnStatus.UNGROUNDED;
+        }
+        if (turn.getAnswerSource() == AnswerSource.SMALL_TALK) {
+            return TurnStatus.SMALL_TALK;
         }
         if (turn.isNotFoundAnswer()) {
             return notFoundStatus(turn, answerChunkIds);

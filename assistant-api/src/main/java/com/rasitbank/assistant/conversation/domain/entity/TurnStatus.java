@@ -7,6 +7,7 @@ public enum TurnStatus {
     IN_PROGRESS,
     INCOMPLETE,
     UNGROUNDED,
+    SMALL_TALK,
     DONT_KNOW,
     MISSED,
     GENERATION_ERROR,

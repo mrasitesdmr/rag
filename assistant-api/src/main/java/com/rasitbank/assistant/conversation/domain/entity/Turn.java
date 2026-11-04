@@ -14,6 +14,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import com.rasitbank.assistant.generation.MessageLabel;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,8 +25,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Konuşmanın bir turudur (bir soru ve cevabı); cevabın neye dayandığını sonradan incelemek için üretim modu, arama
- * sorgusu, strateji, aday parçalar, alıntılar, token sayıları, süreler, hata kodu ve müşterinin geri bildirimi bu
- * kayıtta durur.
+ * sorgusu, strateji, aday parçalar, alıntılar, token sayıları, süreler, hata kodu, cevabın geldiği yol, mesaj etiketi
+ * ve müşterinin geri bildirimi bu kayıtta durur.
  */
 @Entity
 @Table(name = "conversation_turns")
@@ -121,6 +122,17 @@ public class Turn {
     @Column(name = "completed_at", nullable = false)
     private Instant completedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "answer_source", nullable = false)
+    private AnswerSource answerSource;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "message_label")
+    private @Nullable MessageLabel messageLabel;
+
+    @Column(name = "message_label_latency_ms")
+    private @Nullable Integer messageLabelLatencyMs;
+
     @OneToMany(mappedBy = "turn", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id.vectorRank")
     private List<TurnChunk> chunks = new ArrayList<>();
@@ -154,6 +166,9 @@ public class Turn {
         this.errorCode = values.errorCode();
         this.createdAt = values.createdAt();
         this.completedAt = values.completedAt();
+        this.answerSource = values.answerSource();
+        this.messageLabel = values.messageLabel();
+        this.messageLabelLatencyMs = values.messageLabelLatencyMs();
     }
 
     public static Turn record(Conversation conversation, int turnNo, TurnValues values, List<TurnChunkValues> chunks) {
@@ -272,6 +287,18 @@ public class Turn {
 
     public Instant getCompletedAt() {
         return completedAt;
+    }
+
+    public AnswerSource getAnswerSource() {
+        return answerSource;
+    }
+
+    public @Nullable MessageLabel getMessageLabel() {
+        return messageLabel;
+    }
+
+    public @Nullable Integer getMessageLabelLatencyMs() {
+        return messageLabelLatencyMs;
     }
 
     public List<TurnChunk> getChunks() {

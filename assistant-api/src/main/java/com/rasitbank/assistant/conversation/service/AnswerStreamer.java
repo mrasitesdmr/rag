@@ -1,6 +1,7 @@
 package com.rasitbank.assistant.conversation.service;
 
 import com.rasitbank.assistant.config.AssistantProperties;
+import com.rasitbank.assistant.conversation.domain.entity.AnswerSource;
 import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
 import com.rasitbank.assistant.conversation.domain.entity.RetrievalStrategy;
@@ -9,8 +10,10 @@ import com.rasitbank.assistant.conversation.domain.event.DoneEvent;
 import com.rasitbank.assistant.conversation.domain.event.SourcesEvent;
 import com.rasitbank.assistant.conversation.domain.event.StreamErrorEvent;
 import com.rasitbank.assistant.conversation.domain.event.TokenEvent;
-import com.rasitbank.assistant.generation.CitationParser;
+import com.rasitbank.assistant.generation.AnswerFinalizer;
+import com.rasitbank.assistant.generation.FinalAnswer;
 import com.rasitbank.assistant.generation.NotFoundAnswerDetector;
+import com.rasitbank.assistant.generation.NotFoundAnswerStreamFilter;
 import com.rasitbank.assistant.retrieval.service.RetrievedChunk;
 import com.rasitbank.assistant.retrieval.service.RetrievedContext;
 import java.io.IOException;
@@ -37,9 +40,10 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 /**
- * Dil modelinin cevabını SSE olayları olarak akıtır (token, sources, done; hata olursa error), istemci koparsa
- * model çağrısını iptal eder ve her turu akış bitince tam bir kez kaydeder. Sadece LLM turunda alıntı ve "bulamadım"
- * tespiti yapılmaz, sources olayı parçasız gider.
+ * Dil modelinin cevabını ya da hazır bir cevabı SSE olayları olarak akıtır (token, sources, done; hata olursa error),
+ * istemci koparsa model çağrısını iptal eder ve her turu akış bitince tam bir kez kaydeder. RAG'de "bulamadım"
+ * cümlesinin başını cümle tamamlanana kadar tutar, sonrasını göndermez ve cevabı tura denetlenmiş haliyle yazar.
+ * Sadece LLM turunda alıntı ve "bulamadım" tespiti yapılmaz, sources olayı parçasız gider.
  */
 @Component
 public class AnswerStreamer {
@@ -56,17 +60,17 @@ public class AnswerStreamer {
     static final String STREAM_CANCELLED = "STREAM_CANCELLED";
 
     private final ChatModel chatModel;
-    private final CitationParser citationParser;
+    private final AnswerFinalizer answerFinalizer;
     private final NotFoundAnswerDetector notFoundAnswerDetector;
     private final TurnService turnService;
     private final ActiveTurnRegistry activeTurnRegistry;
     private final AssistantProperties properties;
 
-    public AnswerStreamer(ChatModel chatModel, CitationParser citationParser,
+    public AnswerStreamer(ChatModel chatModel, AnswerFinalizer answerFinalizer,
             NotFoundAnswerDetector notFoundAnswerDetector, TurnService turnService,
             ActiveTurnRegistry activeTurnRegistry, AssistantProperties properties) {
         this.chatModel = chatModel;
-        this.citationParser = citationParser;
+        this.answerFinalizer = answerFinalizer;
         this.notFoundAnswerDetector = notFoundAnswerDetector;
         this.turnService = turnService;
         this.activeTurnRegistry = activeTurnRegistry;
@@ -74,13 +78,13 @@ public class AnswerStreamer {
     }
 
     public void streamModelAnswer(TurnDraft draft, Prompt prompt, SseEmitter emitter, Set<Long> answerChunkIds) {
-        StreamingTurn turn = new StreamingTurn(draft, emitter, answerChunkIds);
+        StreamingTurn turn = new StreamingTurn(draft, emitter, answerChunkIds, AnswerSource.MODEL);
         turn.registerEmitterCallbacks();
         turn.start(prompt);
     }
 
-    public void streamFixedAnswer(TurnDraft draft, String answer, SseEmitter emitter) {
-        StreamingTurn turn = new StreamingTurn(draft, emitter, Set.of());
+    public void streamFixedAnswer(TurnDraft draft, String answer, AnswerSource answerSource, SseEmitter emitter) {
+        StreamingTurn turn = new StreamingTurn(draft, emitter, Set.of(), answerSource);
         turn.registerEmitterCallbacks();
         turn.completeWithFixedAnswer(answer);
     }
@@ -111,8 +115,10 @@ public class AnswerStreamer {
         private final @Nullable RetrievedContext context;
         private final SseEmitter emitter;
         private final AtomicBoolean finished = new AtomicBoolean();
-        private final StringBuilder sentAnswer = new StringBuilder();
+        private final StringBuilder rawAnswer = new StringBuilder();
         private final Set<Long> answerChunkIds;
+        private final AnswerSource answerSource;
+        private final @Nullable NotFoundAnswerStreamFilter notFoundFilter;
 
         private volatile @Nullable Disposable subscription;
         private @Nullable Long generationStartNanos;
@@ -120,13 +126,16 @@ public class AnswerStreamer {
         private @Nullable Integer promptTokens;
         private @Nullable Integer completionTokens;
 
-        private StreamingTurn(TurnDraft draft, SseEmitter emitter, Set<Long> answerChunkIds) {
+        private StreamingTurn(TurnDraft draft, SseEmitter emitter, Set<Long> answerChunkIds,
+                AnswerSource answerSource) {
             this.draft = draft;
-            this.context = isRag(draft)
-                    ? Objects.requireNonNull(draft.context(), "A RAG turn needs a retrieved context")
-                    : null;
+            this.context = isRag(draft) ? draft.context() : null;
             this.emitter = emitter;
             this.answerChunkIds = Set.copyOf(answerChunkIds);
+            this.answerSource = answerSource;
+            this.notFoundFilter = isRag(draft) && answerSource == AnswerSource.MODEL
+                    ? notFoundAnswerDetector.newStreamFilter()
+                    : null;
         }
 
         private void registerEmitterCallbacks() {
@@ -136,6 +145,9 @@ public class AnswerStreamer {
         }
 
         private void start(Prompt prompt) {
+            if (isRag(draft)) {
+                Objects.requireNonNull(context, "A RAG model answer needs a retrieved context");
+            }
             synchronized (this) {
                 generationStartNanos = System.nanoTime();
             }
@@ -166,22 +178,30 @@ public class AnswerStreamer {
             if (text.isEmpty()) {
                 return;
             }
+            String visibleText;
             synchronized (this) {
                 if (firstTokenNanos == null) {
                     firstTokenNanos = System.nanoTime();
                 }
+                rawAnswer.append(text);
+                visibleText = notFoundFilter == null ? text : notFoundFilter.accept(text);
+            }
+            sendToken(visibleText);
+        }
+
+        private boolean sendToken(String text) {
+            if (text.isEmpty()) {
+                return true;
             }
             try {
                 send(emitter, TOKEN_EVENT, new TokenEvent(text));
+                return true;
             } catch (IOException exception) {
                 cancel();
-                return;
+                return false;
             } catch (RuntimeException exception) {
                 fail(INTERNAL_ERROR, exception);
-                return;
-            }
-            synchronized (this) {
-                sentAnswer.append(text);
+                return false;
             }
         }
 
@@ -199,45 +219,70 @@ public class AnswerStreamer {
         }
 
         private void onModelCompleted() {
-            if (!finished.compareAndSet(false, true)) {
+            if (finished.get()) {
+                return;
+            }
+            String heldText;
+            synchronized (this) {
+                heldText = notFoundFilter == null ? "" : notFoundFilter.finish();
+            }
+            if (!sendToken(heldText) || !finished.compareAndSet(false, true)) {
                 return;
             }
             long endNanos = System.nanoTime();
             TurnOutcome outcome;
             synchronized (this) {
-                String answer = sentAnswer.toString();
+                FinalAnswer finalAnswer = finalAnswer(rawAnswer.toString());
                 outcome = new TurnOutcome(
-                        answer,
-                        isNotFoundAnswer(answer),
-                        citationsOf(answer),
+                        finalAnswer.answer(),
+                        finalAnswer.notFoundAnswer(),
+                        finalAnswer.citations(),
                         promptTokens,
                         completionTokens,
                         generationMs(endNanos),
                         generationMs(firstTokenNanos),
                         elapsedMs(draft.startNanos(), endNanos),
-                        null);
+                        null,
+                        AnswerSource.MODEL);
             }
             finishSuccessfully(outcome);
         }
 
+        private FinalAnswer finalAnswer(String modelText) {
+            if (context == null) {
+                return new FinalAnswer(modelText, false, List.of(), 0);
+            }
+            FinalAnswer finalAnswer = answerFinalizer.finalizeRagAnswer(modelText, context.contextChunks().size());
+            int removedLength = modelText.strip().length() - finalAnswer.answer().length();
+            if (finalAnswer.notFoundAnswer() && removedLength > 0) {
+                log.info("Not found answer normalized conversationId={} removedLength={}", draft.conversationId(),
+                        removedLength);
+            }
+            if (finalAnswer.openerCitationsRemoved() > 0) {
+                log.info("Opener citations removed conversationId={} removedCount={}", draft.conversationId(),
+                        finalAnswer.openerCitationsRemoved());
+            }
+            return finalAnswer;
+        }
+
         private void completeWithFixedAnswer(String answer) {
-            try {
-                send(emitter, TOKEN_EVENT, new TokenEvent(answer));
-            } catch (IOException exception) {
-                cancel();
-                return;
-            } catch (RuntimeException exception) {
-                fail(INTERNAL_ERROR, exception);
+            if (!sendToken(answer)) {
                 return;
             }
             synchronized (this) {
-                sentAnswer.append(answer);
+                rawAnswer.append(answer);
             }
             if (!finished.compareAndSet(false, true)) {
                 return;
             }
             long latencyMs = elapsedMs(draft.startNanos(), System.nanoTime());
-            finishSuccessfully(new TurnOutcome(answer, true, List.of(), null, null, null, null, latencyMs, null));
+            finishSuccessfully(new TurnOutcome(answer, isFixedNotFoundAnswer(), List.of(), null, null, null, null,
+                    latencyMs, null, answerSource));
+        }
+
+        private boolean isFixedNotFoundAnswer() {
+            return answerSource == AnswerSource.EMPTY_KNOWLEDGE_BASE
+                    || answerSource == AnswerSource.BELOW_RERANK_THRESHOLD;
         }
 
         private void finishSuccessfully(TurnOutcome outcome) {
@@ -289,22 +334,15 @@ public class AnswerStreamer {
             }
         }
 
-        private boolean isNotFoundAnswer(String answer) {
-            return context != null && notFoundAnswerDetector.isNotFoundAnswer(answer);
-        }
-
-        private List<Integer> citationsOf(String answer) {
-            if (context == null) {
-                return List.of();
-            }
-            return citationParser.parseCitations(answer, context.contextChunks().size());
-        }
-
         private synchronized TurnOutcome interruptedOutcome(String errorCode) {
             long endNanos = System.nanoTime();
-            String answer = sentAnswer.isEmpty() ? null : sentAnswer.toString();
-            return TurnOutcome.failed(answer, errorCode, generationMs(endNanos), generationMs(firstTokenNanos),
-                    elapsedMs(draft.startNanos(), endNanos));
+            String answer = rawAnswer.isEmpty() ? null : rawAnswer.toString();
+            if (answerSource == AnswerSource.MODEL) {
+                return TurnOutcome.failed(answer, errorCode, generationMs(endNanos), generationMs(firstTokenNanos),
+                        elapsedMs(draft.startNanos(), endNanos));
+            }
+            return new TurnOutcome(answer, isFixedNotFoundAnswer(), List.of(), null, null, null, null,
+                    elapsedMs(draft.startNanos(), endNanos), errorCode, answerSource);
         }
 
         private synchronized @Nullable Long generationMs(@Nullable Long endNanos) {
@@ -341,7 +379,7 @@ public class AnswerStreamer {
 
         private SourcesEvent sourcesEvent(List<Integer> citations) {
             if (context == null) {
-                return new SourcesEvent(GenerationMode.LLM_ONLY, RetrievalStrategy.NONE, null, null, null,
+                return new SourcesEvent(draft.generationMode(), RetrievalStrategy.NONE, null, null, null,
                         QueryRewriteStatus.DISABLED, List.of(), List.of());
             }
             List<RetrievedChunk> contextChunks = context.contextChunks();
@@ -370,6 +408,8 @@ public class AnswerStreamer {
             return new DoneEvent(
                     turnId,
                     outcome.notFoundAnswer(),
+                    Objects.requireNonNullElse(outcome.answer(), ""),
+                    outcome.answerSource(),
                     draft.chatModel(),
                     outcome.promptTokens(),
                     outcome.completionTokens(),

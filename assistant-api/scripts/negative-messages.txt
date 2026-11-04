@@ -1,0 +1,103 @@
+# TASK-031 measurement list: messages whose answer must not carry a citation.
+# Format: category | text. A follow-up line "A >> B" sends A then B in the same conversation; only B is evaluated.
+# Lines starting with # and empty lines are ignored.
+
+# Not in the guide (docs/rehber/rehberde-olmayan-konular.md, 9 topics x 3 example questions).
+# personal-info: topics 1, 2, 5; other-banks: topic 4; investment-advice: topic 8 (targeted opener, plan D2);
+# not-in-guide: topics 3, 6, 7, 9.
+personal-info | Hesabımdaki bakiyeyi söyler misin?
+personal-info | Vadesiz hesabımda ne kadar param var?
+personal-info | Kumbara hesabımda kaç lira birikti?
+personal-info | Dün hesabıma gelen para ne kadardı?
+personal-info | Geçen ay kime para gönderdim?
+personal-info | Son 5 işlemimi gösterir misin?
+not-in-guide | Bitcoin alıp satabilir miyim?
+not-in-guide | Kripto para hesabı açabilir miyim?
+not-in-guide | Kripto borsasına para gönderebilir miyim?
+other-banks | X Bankası'nın konut kredisi faizi kaç?
+other-banks | Başka bankanın kartı sizinkinden daha mı avantajlı?
+other-banks | Diğer bankalar EFT için ne kadar ücret alıyor?
+personal-info | Kredi kartı limitim ne kadar?
+personal-info | Başvurum ne durumda?
+personal-info | Bu ayki kart borcum ne kadar?
+not-in-guide | İşletme kredisi faiz oranınız ne kadar?
+not-in-guide | Şirketim için POS cihazı alabilir miyim?
+not-in-guide | Çek karnesi nasıl alırım?
+not-in-guide | Raşit Bankası'nın genel müdürü kim?
+not-in-guide | Bankanız ne zaman kuruldu?
+not-in-guide | Bankanın sahibi kim?
+investment-advice | Dolar yarın yükselir mi?
+investment-advice | Şimdi altın almalı mıyım?
+investment-advice | Hangi fonu almamı önerirsiniz?
+not-in-guide | BES'te devlet katkısı yüzde kaç?
+not-in-guide | BES fon dağılımımı kaç kez değiştirebilirim?
+not-in-guide | Hasar bildirimini bankaya mı yapıyorum?
+
+# Small talk covered by the phrase list
+small-talk-listed | Selam
+small-talk-listed | Merhaba
+small-talk-listed | Günaydın
+small-talk-listed | Teşekkürler
+small-talk-listed | Sağ ol
+small-talk-listed | Görüşürüz
+small-talk-listed | İyi günler
+small-talk-listed | selamün aleyküm
+small-talk-listed | eyv
+small-talk-listed | Naber dostum, ne var ne yok
+small-talk-listed | selaaam
+small-talk-listed | tesekkurler
+small-talk-listed | Teşekkürler, iyi günler
+
+# Small talk deliberately not in the phrase list (label path)
+small-talk-unlisted | Selamlar herkese
+small-talk-unlisted | Keyifler nasıl?
+small-talk-unlisted | Çok makbule geçti
+small-talk-unlisted | Görüşmek dileğiyle
+small-talk-unlisted | Merhabalar efendim, hayırlı işler
+
+# Off topic
+off-topic | Bugün hava nasıl?
+off-topic | Bana bir şiir yaz
+off-topic | En sevdiğin film ne?
+off-topic | 2 artı 2 kaç eder?
+off-topic | İstanbul'un nüfusu kaç?
+
+# Gibberish
+gibberish | asdfgh
+gibberish | qwerty 123
+gibberish | ???
+gibberish | lorem ipsum dolor
+
+# Follow-up: thanks after an answered question
+follow-up | Gold kart aidatı ne kadar? >> Teşekkürler
+
+# Follow-up small talk after an answered question (not in the phrase list; plan correction round 2)
+follow-up-small-talk | Gold kart aidatı ne kadar? >> Çok makbule geçti
+follow-up-small-talk | Kartımı kaybettim, ne yapmalıyım? >> Çok makbule geçti, sağ olun
+follow-up-small-talk | Gold kart aidatı ne kadar? >> Çok işime yaradı sağ olun
+follow-up-small-talk | Gold kart aidatı ne kadar? >> Allah razı olsun
+follow-up-small-talk | Gold kart aidatı ne kadar? >> Yardımların için minnettarım
+follow-up-small-talk | Gold kart aidatı ne kadar? >> Harikasınız, eyvallah
+follow-up-small-talk | Kartımı kaybettim, ne yapmalıyım? >> Merhaba tekrar
+follow-up-small-talk | Gold kart aidatı ne kadar? >> Her şey için sağ olun, iyi akşamlar
+follow-up-small-talk | Kartımı kaybettim, ne yapmalıyım? >> Tamamdır, kolay gelsin
+follow-up-small-talk | Gold kart aidatı ne kadar? >> Size de iyi çalışmalar
+
+# Short real follow-up questions (must not be labeled small talk)
+follow-up-question | Gold kart aidatı ne kadar? >> Peki Platinum?
+follow-up-question | Gold kart aidatı ne kadar? >> ya kredi kartında
+follow-up-question | Kartımı kaybettim, ne yapmalıyım? >> Ya yurt dışında
+follow-up-question | Kartımı kaybettim, ne yapmalıyım? >> Yenisi kaç günde gelir
+follow-up-question | Kartımı kaybettim, ne yapmalıyım? >> Peki ücreti var mı
+follow-up-question | Kartımı kaybettim, ne yapmalıyım? >> Mobil uygulamadan da olur
+follow-up-question | Gold kart aidatı ne kadar? >> Ek kart için de aynı mı
+follow-up-question | Gold kart aidatı ne kadar? >> Hangi kartlarda yok
+
+# Longer real follow-up questions, 7-10 words, no question mark (must not be labeled small talk)
+follow-up-question-long | Gold kart aidatı ne kadar? >> Platinum kartın aidatı bundan daha mı yüksek
+follow-up-question-long | Gold kart aidatı ne kadar? >> Peki bunu mobil uygulamadan da ödeyebilir miyim acaba
+follow-up-question-long | Gold kart aidatı ne kadar? >> Aidatı ilk yıl için kaldırmanın bir yolu var mı
+follow-up-question-long | Gold kart aidatı ne kadar? >> Ek kart alırsam onun için de ayrıca ücret ödüyor muyum
+follow-up-question-long | Kartımı kaybettim, ne yapmalıyım? >> Kartı kapattıktan sonra bulursam tekrar açabilir miyim acaba
+follow-up-question-long | Kartımı kaybettim, ne yapmalıyım? >> Kayıp bildirimini yurt dışındayken nasıl yapacağımı da söyler misin
+follow-up-question-long | Kartımı kaybettim, ne yapmalıyım? >> Yeni kart adresime mi gelir yoksa şubeden mi almam gerekir

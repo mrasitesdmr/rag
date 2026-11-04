@@ -9,6 +9,7 @@ import com.rasitbank.assistant.conversation.domain.dto.ConversationResponse;
 import com.rasitbank.assistant.conversation.domain.dto.CreateConversationRequest;
 import com.rasitbank.assistant.conversation.domain.entity.Channel;
 import com.rasitbank.assistant.conversation.domain.entity.Conversation;
+import com.rasitbank.assistant.conversation.domain.entity.AnswerSource;
 import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.RetrievalStrategy;
 import com.rasitbank.assistant.conversation.domain.entity.Turn;
@@ -70,9 +71,9 @@ class ConversationPersistenceIntegrationTest extends PostgresIntegrationTest {
         TurnDraft draft = new TurnDraft(conversationId, GenerationMode.RAG, "Kartımı kaybettim", "Kartımı kaybettim",
                 QueryRewriteStatus.NO_HISTORY, null, 0, "qwen3.5:9b",
                 Instant.parse("2026-11-01T10:00:00Z"), System.nanoTime(),
-                ContextFixtures.rerankContext(7, 2, 15, 1, 3));
+                ContextFixtures.rerankContext(7, 2, 15, 1, 3), null, null);
         long turnId = turnService.recordTurn(draft,
-                new TurnOutcome("Kapat [1]", false, List.of(1, 3), 2154, 61, 3920L, 900L, 4730L, null));
+                new TurnOutcome("Kapat [1]", false, List.of(1, 3), 2154, 61, 3920L, 900L, 4730L, null, AnswerSource.MODEL));
 
         transactions.executeWithoutResult(status -> {
             Turn turn = turnRepository.findById(turnId).orElseThrow();

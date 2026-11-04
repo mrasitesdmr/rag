@@ -10,6 +10,7 @@ describe('turnStatus', () => {
     ['DONT_KNOW', 'BİLMİYOR'],
     ['WRONG', 'HATALI'],
     ['GROUNDED', 'DAYANAKLI'],
+    ['SMALL_TALK', 'SOHBET'],
   ] as const)('givenStatus_whenLabelled_thenLabText %s', (status, label) => {
     // Act
     const text = TURN_STATUS_LABELS[status]
@@ -25,6 +26,7 @@ describe('turnStatus', () => {
     ['WRONG', 'bad'],
     ['IN_PROGRESS', 'run'],
     ['INCOMPLETE', 'neutral'],
+    ['SMALL_TALK', 'neutral'],
   ] as const)('givenStatus_whenToneRequested_thenLabTone %s', (status, tone) => {
     expect(turnStatusTone(status)).toBe(tone)
   })

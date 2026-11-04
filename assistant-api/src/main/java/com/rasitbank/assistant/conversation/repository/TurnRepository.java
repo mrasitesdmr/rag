@@ -21,7 +21,9 @@ public interface TurnRepository extends JpaRepository<Turn, Long> {
     int findMaxTurnNo(@Param("conversationId") long conversationId);
 
     @Query("select t from Turn t where t.conversation.id = :conversationId and t.errorCode is null "
-            + "and t.answer is not null order by t.turnNo desc")
+            + "and t.answer is not null "
+            + "and t.answerSource <> com.rasitbank.assistant.conversation.domain.entity.AnswerSource.SMALL_TALK "
+            + "order by t.turnNo desc")
     List<Turn> findAnsweredTurns(@Param("conversationId") long conversationId, Pageable pageable);
 
     @Query("select t from Turn t where t.id = :turnId and t.conversation.id = :conversationId")

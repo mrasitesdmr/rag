@@ -1,0 +1,60 @@
+{
+  "negative": {
+    "total": 15,
+    "withCitations": 3,
+    "untargetedWithCitations": 0,
+    "targetedOk": 15,
+    "targetedTotal": 15,
+    "categories": {
+      "personal-info": {
+        "total": 9,
+        "withCitations": 0,
+        "notFound": 1,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 8,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 8,
+        "targetedOk": 9,
+        "maxTopRerankScore": 4.0647172927856445
+      },
+      "other-banks": {
+        "total": 3,
+        "withCitations": 1,
+        "notFound": 0,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 3,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 3,
+        "targetedOk": 3,
+        "maxTopRerankScore": 1.8863999843597412
+      },
+      "investment-advice": {
+        "total": 3,
+        "withCitations": 2,
+        "notFound": 1,
+        "smallTalkPattern": 0,
+        "smallTalkLabel": 0,
+        "errors": 0,
+        "startsWithOpener": 2,
+        "openerHasCitation": 0,
+        "openerTrailingCitation": 0,
+        "streamedOpenerHasCitation": 2,
+        "targetedOk": 3,
+        "maxTopRerankScore": -1.5726033449172974
+      }
+    },
+    "topRerankScore": {
+      "min": -3.10207200050354,
+      "median": -1.5726033449172974,
+      "max": 4.0647172927856445,
+      "count": 13
+    }
+  },
+  "secondPersonSelfReference": 0
+}

@@ -39,7 +39,11 @@ public class PromptBuilder {
         this.systemText = PromptTemplate.builder()
                 .resource(systemTemplate)
                 .build()
-                .render(Map.of("notFoundAnswer", properties.generation().notFoundAnswer()));
+                .render(Map.of(
+                        "notFoundAnswer", properties.generation().notFoundAnswer(),
+                        "personalInfoOpener", properties.generation().personalInfoOpener(),
+                        "otherBanksOpener", properties.generation().otherBanksOpener(),
+                        "investmentAdviceOpener", properties.generation().investmentAdviceOpener()));
         this.userTemplate = PromptTemplate.builder().resource(userTemplate).build();
         this.llmOnlySystemText = readText(llmOnlySystemTemplate);
     }

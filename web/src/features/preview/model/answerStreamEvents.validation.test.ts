@@ -91,4 +91,27 @@ describe('toAnswerStreamEvent payload rules', () => {
 
     expect(event?.type).toBe('done')
   })
+
+  it.each([
+    ['answer missing', { answer: undefined }],
+    ['answer as number', { answer: 5 }],
+    ['answerSource missing', { answerSource: undefined }],
+    ['answerSource unknown', { answerSource: 'OTHER' }],
+  ])('givenDoneWith_%s_whenConverted_thenSkipped', (_name, patch) => {
+    expect(done({ ...doneEvent(), ...patch })).toBeNull()
+  })
+
+  it.each(['MODEL', 'EMPTY_KNOWLEDGE_BASE', 'BELOW_RERANK_THRESHOLD', 'SMALL_TALK'] as const)(
+    'givenDoneWithAnswerSource_%s_whenConverted_thenNarrowedWithAnswer',
+    (answerSource) => {
+      expect(done(doneEvent({ answer: 'Merhaba', answerSource }))).toEqual({
+        type: 'done',
+        data: doneEvent({ answer: 'Merhaba', answerSource }),
+      })
+    },
+  )
+
+  it('givenDoneWithEmptyAnswerString_whenConverted_thenAccepted', () => {
+    expect(done(doneEvent({ answer: '' }))?.type).toBe('done')
+  })
 })

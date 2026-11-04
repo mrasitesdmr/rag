@@ -2,6 +2,7 @@ package com.rasitbank.assistant.config;
 
 import com.rasitbank.assistant.conversation.domain.entity.GenerationMode;
 import com.rasitbank.assistant.conversation.domain.entity.RetrievalStrategy;
+import com.rasitbank.assistant.generation.MessageLabel;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
@@ -11,14 +12,15 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.Duration;
+import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 /**
  * Asistanın sunucu ayarlarını taşır: çalışma alanı, üretim modu, retrieval-api ve reranker adresleri, reranker sağlık
- * kontrolü, retrieval stratejisi, sorgu yeniden yazma, konuşma geçmişi sınırı, temsilci kuyruğu, zaman aşımları ve
- * sabit "bulamadım" cümlesi.
+ * kontrolü, retrieval stratejisi ve reranker puan eşiği, sorgu yeniden yazma, konuşma geçmişi sınırı, temsilci kuyruğu,
+ * selamlaşma karşılıkları, zaman aşımları, sabit "bulamadım" cümlesi ve hedefli soruların giriş cümleleri.
  */
 @Validated
 @ConfigurationProperties("assistant")
@@ -31,7 +33,8 @@ public record AssistantProperties(
         @Valid @NotNull Generation generation,
         @Valid @NotNull QueryRewrite queryRewrite,
         @Valid @NotNull History history,
-        @Valid @NotNull Handoff handoff) {
+        @Valid @NotNull Handoff handoff,
+        @Valid @NotNull SmallTalk smallTalk) {
 
     public AssistantProperties {
         hostLabel = hostLabel == null || hostLabel.isBlank() ? null : hostLabel.strip();
@@ -43,7 +46,8 @@ public record AssistantProperties(
     public record Retrieval(
             @NotNull @Pattern(regexp = "top5|rerank", message = "must be one of top5, rerank") String strategy,
             @Min(1) @Max(50) int candidates,
-            @Min(1) int topK) {
+            @Min(1) int topK,
+            @Nullable Double minRerankScore) {
 
         public RetrievalStrategy configuredStrategy() {
             return "top5".equals(strategy) ? RetrievalStrategy.TOP_K : RetrievalStrategy.RERANK;
@@ -69,7 +73,14 @@ public record AssistantProperties(
             @NotBlank String notFoundAnswer,
             @NotNull Duration firstTokenTimeout,
             @NotNull Duration tokenIdleTimeout,
-            @NotNull Duration streamTimeout) {
+            @NotNull Duration streamTimeout,
+            @NotBlank String personalInfoOpener,
+            @NotBlank String otherBanksOpener,
+            @NotBlank String investmentAdviceOpener) {
+
+        public List<String> targetedOpeners() {
+            return List.of(personalInfoOpener, otherBanksOpener, investmentAdviceOpener);
+        }
 
         public GenerationMode configuredMode() {
             return "llm".equals(mode) ? GenerationMode.LLM_ONLY : GenerationMode.RAG;
@@ -83,5 +94,21 @@ public record AssistantProperties(
     }
 
     public record Handoff(@NotBlank @Size(max = 40) String queue) {
+    }
+
+    public record SmallTalk(
+            @NotBlank String greetingAnswer,
+            @NotBlank String thanksAnswer,
+            @NotBlank String farewellAnswer,
+            @NotNull Duration labelTimeout) {
+
+        public String answerFor(MessageLabel label) {
+            return switch (label) {
+                case GREETING -> greetingAnswer;
+                case THANKS -> thanksAnswer;
+                case FAREWELL -> farewellAnswer;
+                case OTHER -> throw new IllegalArgumentException("No small talk answer for label " + label);
+            };
+        }
     }
 }

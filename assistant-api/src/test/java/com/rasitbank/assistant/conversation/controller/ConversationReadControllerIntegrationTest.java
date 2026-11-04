@@ -333,4 +333,56 @@ class ConversationReadControllerIntegrationTest extends PostgresIntegrationTest 
         assertThat(result).hasStatus(404);
         assertThat(result).bodyJson().extractingPath("$.errorCode").isEqualTo("CONVERSATION_NOT_FOUND");
     }
+
+    @Test
+    void givenSmallTalkTurn_whenGetConversationDetail_thenStatusSmallTalkAndNoChunks() {
+        // Arrange
+        long conversationId = turns.conversation();
+        turns.smallTalkTurn(conversationId, "Selam", "GREETING");
+
+        // Act
+        var result = detail(conversationId);
+
+        // Assert
+        assertThat(result).hasStatus(200);
+        assertThat(result).bodyJson().extractingPath("$.turns[0].status").isEqualTo("SMALL_TALK");
+        assertThat(result).bodyJson().extractingPath("$.turns[0].searchQuery").isNull();
+        assertThat(result).bodyJson().extractingPath("$.turns[0].contextChunks").asList().isEmpty();
+        assertThat(result).bodyJson().extractingPath("$.turns[0].retrievalStrategy").isEqualTo("NONE");
+        assertThat(result).bodyJson().extractingPath("$.turns[0].cited").asList().isEmpty();
+    }
+
+    @Test
+    void givenSmallTalkTurnInList_whenListConversations_thenLastTurnStatusSmallTalk() {
+        // Arrange
+        long conversationId = turns.conversation();
+        turns.answeredTurn(conversationId);
+        turns.smallTalkTurn(conversationId, "Teşekkürler", "THANKS");
+
+        // Act
+        var result = mvc.get().uri(LIST).exchange();
+
+        // Assert
+        assertThat(result).hasStatus(200);
+        assertThat(result).bodyJson().extractingPath("$.content[0].lastTurnStatus").isEqualTo("SMALL_TALK");
+    }
+
+    @Test
+    void givenBelowThresholdTurnWithCandidateChunks_whenGetConversationDetail_thenNoContextChunksAndNotMissedWithoutGoldenSet() {
+        // Arrange
+        long conversationId = turns.conversation();
+        long turnId = turns.belowThresholdTurn(conversationId, "Bana bir şiir yaz");
+        for (int rank = 1; rank <= 20; rank++) {
+            turns.addChunk(turnId, rank, 200 + rank, null, 0.5, -5.0 - rank / 10.0);
+        }
+
+        // Act
+        var result = detail(conversationId);
+
+        // Assert
+        assertThat(result).hasStatus(200);
+        assertThat(result).bodyJson().extractingPath("$.turns[0].status").isEqualTo("DONT_KNOW");
+        assertThat(result).bodyJson().extractingPath("$.turns[0].contextChunks").asList().isEmpty();
+        assertThat(result).bodyJson().extractingPath("$.turns[0].candidates").isEqualTo(20);
+    }
 }

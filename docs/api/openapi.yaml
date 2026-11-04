@@ -31,6 +31,10 @@
 #   "cevabın geçtiği cümle" (`answerText`) ile işaretlidir; parça kimliği saklanmaz. Cümleyi içeren parçaları retrieval-api bulur
 #   (POST /api/workspaces/{workspaceId}/chunk-matches; çağıran assistant-api). Soru golden set'teyse (normalize tam metin) tur
 #   parçalarında `containsAnswer` dolar ve "bulamadım" turu `MISSED` / `GENERATION_ERROR` olur (TurnStatus; SSE `ContextChunk` de).
+#   TASK-031: sendMessage kalıp listesindeki selamlaşma mesajına (selam / teşekkür / veda) arama yapmadan hazır karşılık verir;
+#   rerank stratejisinde ilk parçanın puanı `assistant.retrieval.min-rerank-score`'un altındaysa dil modeline sadece etiket sorar
+#   (selamlaşmaysa hazır karşılık, değilse "bulamadım"; cevap yazdırılmaz);
+#   "bulamadım" cevabı alıntısız ve tek cümle kaydedilir. TurnStatus'a `SMALL_TALK` (SOHBET) eklendi. Olay alanları docs/api/sse.md.
 # Bilgi bankasına hiçbir belge kendiliğinden girmez: retrieval-api açılışta kaynak, sürüm, parça ya da iş oluşturmaz (TASK-027).
 #   Belgeler sadece POST .../sources ile girer. Yeni sürüm yükleme ucu yoktur (kapsam dışı).
 # Ortak davranış (TASK-002): iki serviste de tanımsız bir path'e gelen her istek 404 + application/problem+json + errorCode NOT_FOUND döner
@@ -204,8 +208,8 @@ paths:
         token by token, citation parsing, turn record.
 
         Query rewrite (TASK-010): when `assistant.query-rewrite.enabled` is true and the conversation has at least one
-        earlier answered turn (no `errorCode`), the chat model turns the question and the last
-        `assistant.history.max-turns` answered turns into a standalone search query. The first turn of a conversation is
+        earlier answered turn (no `errorCode`; small talk turns do not count, TASK-031), the chat model turns the question
+        and the last `assistant.history.max-turns` answered turns into a standalone search query. The first turn of a conversation is
         never rewritten. A failed, timed-out, empty or too long rewrite never fails the request: the search uses the
         question as typed and the turn records the outcome (`queryRewriteStatus` in the `sources` event).
 
@@ -217,6 +221,41 @@ paths:
         never occurs in this mode and an empty knowledge base does not change the answer. The mode is server
         configuration; changing it needs a restart.
 
+        Small talk by phrase list (TASK-031, `rag` mode only): when the whole message (normalized like the suggestion
+        texts, Turkish letters folded to ASCII, repeated letters collapsed) consists only of greeting, thanks or farewell
+        phrases (`assistant-api` resources `small-talk/*.txt`), there is no query rewrite, no retrieval-api search, no
+        rerank and no chat model call. The answer is the fixed reply `assistant.small-talk.greeting-answer` /
+        `thanks-answer` / `farewell-answer` (a thanks phrase anywhere wins over farewell, farewell over greeting). The turn
+        is recorded with `generationMode` `RAG`, `retrievalStrategy` `NONE`, no search query, no chunks, `answerSource`
+        `SMALL_TALK`. Because nothing is retrieved, `RETRIEVAL_UNAVAILABLE` never occurs for such a message.
+
+        Rerank score threshold (TASK-031, `rag` mode, strategy `rerank` only): when `assistant.retrieval.min-rerank-score`
+        is set and the highest rerank score among the candidates is below it, the chat model is not asked for an answer.
+        Instead it is asked only for a label of the customer's own message (prompt `message-label.st`; no chunks, no
+        history; timeout `assistant.small-talk.label-timeout`). Label greeting / thanks / farewell → the fixed small talk
+        reply, `answerSource` `SMALL_TALK`. Label other, a failed or timed-out call or an unknown output → the fixed "not
+        found" sentence, `answerSource` `BELOW_RERANK_THRESHOLD`. In both cases no chunk goes into the prompt (the
+        candidates and their scores are still recorded). The label call never fails the request. No threshold and no label
+        call for `top5` or when the reranker failed (`RERANK_FALLBACK`). An empty property disables the threshold.
+
+        Small talk before rewrite (TASK-031 fix round 2, `rag` mode): when the phrase list does not match, the
+        conversation has an earlier answered turn that is not small talk, and the message is short (at most 6 words after
+        normalization and no `?`), the chat model is asked only for a label of the customer's own message before the query
+        rewrite. Label greeting / thanks / farewell → the fixed small talk reply, no rewrite, no search
+        (`retrievalStrategy` `NONE`, `answerSource` `SMALL_TALK`). Label other, a failed or timed-out call or an unknown
+        output → the normal path continues; if the rerank score threshold then stops the model, the label is not asked
+        again and the answer is the fixed "not found" sentence.
+
+        Small talk turns (all ways) do not enter the history of later turns.
+
+        "Not found" answer (TASK-031): when the model's answer contains the fixed "not found" sentence, or a sentence in
+        which "rehberimizde" is followed by "bulamadım" (Turkish lower case, before the next `.`, `!`, `?` or line break),
+        the recorded answer is exactly the fixed sentence (any number or other text the model added is dropped) and `cited` is empty. Citation
+        markers outside 1..`contextChunks.length` are removed from a recorded `RAG` answer. When the answer starts with
+        one of the three fixed opener sentences (`assistant.generation.*-opener`: own account data, other banks,
+        investment advice), the citation markers inside that sentence and directly after it are removed too, and `cited`
+        is computed from the cleaned answer.
+
         The response is `200 text/event-stream`. Events, their order and payloads are defined in `docs/api/sse.md`
         (`token`* → `sources` → `done`; `error` ends the stream). The stream is opened only after the query rewrite and
         the retrieval (and rerank) steps have finished, so every error listed below is returned before any event. An
@@ -225,8 +264,9 @@ paths:
 
         The client must send `Accept: text/event-stream, application/problem+json` so that error responses can be written.
 
-        Check order: 400 → 404 (`CONVERSATION_NOT_FOUND`) → 409 (`TURN_IN_PROGRESS`) → query rewrite (no error) →
-        503 (`RETRIEVAL_UNAVAILABLE`) → 200 stream. In `llm` mode: 400 → 404 → 409 → 200 stream.
+        Check order: 400 → 404 (`CONVERSATION_NOT_FOUND`) → 409 (`TURN_IN_PROGRESS`) → small talk by phrase list (200
+        stream, TASK-031) → small talk before rewrite (200 stream, fix round 2) → query rewrite (no error) → 503 (`RETRIEVAL_UNAVAILABLE`) → rerank score threshold and label (200 stream,
+        TASK-031) → 200 stream. In `llm` mode: 400 → 404 → 409 → 200 stream.
         A `RETRIEVAL_UNAVAILABLE` turn is recorded with that error code (and the search query and rewrite outcome); 400,
         404 and 409 record nothing.
 
@@ -1541,20 +1581,25 @@ components:
         2. `INCOMPLETE` (TAMAMLANMADI): the turn record has an `errorCode` (`RETRIEVAL_UNAVAILABLE`, `CHAT_MODEL_UNAVAILABLE`,
            `STREAM_CANCELLED`, `INTERNAL_ERROR`).
         3. `UNGROUNDED` (DAYANAKSIZ): `generationMode` `LLM_ONLY` (no chunk went to the model).
-        4. `RAG`, the answer is the fixed "not found" sentence (`notFoundAnswer` true):
+        3a. `SMALL_TALK` (SOHBET, TASK-031): `RAG`, the message was a greeting, thanks or farewell and got the fixed reply
+           (`answer_source` `SMALL_TALK`), recognized by the phrase list or by the label call before the query rewrite
+           (nothing retrieved), or by the label call below the rerank score threshold (retrieved, nothing sent to the
+           model).
+        4. `RAG`, the answer is the fixed "not found" sentence (`notFoundAnswer` true; also when the rerank score
+           threshold stopped the model, TASK-031, in which case no chunk went into the prompt):
            - `GENERATION_ERROR` (ÜRETİM HATASI): the turn has answer chunks and at least one of them went into the prompt;
            - `MISSED` (KAÇIRDI): the turn has answer chunks and none of them went into the prompt;
            - `DONT_KNOW` (BİLMİYOR): the turn has no answer chunks.
         5. `WRONG` (HATALI): `RAG`, not "not found", and the customer's feedback is "Hayır" (`helpful` false).
         6. `GROUNDED` (DAYANAKLI): `RAG`, at least one valid citation (`cited` not empty).
         7. `UNGROUNDED` (DAYANAKSIZ): `RAG` answer without any valid citation.
-      enum: [IN_PROGRESS, INCOMPLETE, UNGROUNDED, DONT_KNOW, MISSED, GENERATION_ERROR, WRONG, GROUNDED]
+      enum: [IN_PROGRESS, INCOMPLETE, UNGROUNDED, SMALL_TALK, DONT_KNOW, MISSED, GENERATION_ERROR, WRONG, GROUNDED]
     RetrievalStrategy:
       type: string
       description: |
         Retrieval strategy recorded on a turn. `TOP_K`: top-k by vector order; `RERANK`: `candidates` by vector order,
         reranked, first `topK` sent; `RERANK_FALLBACK`: rerank strategy but the reranker failed, first `topK` in vector
-        order sent (shown as "reranker DOWN"); `NONE`: Sadece LLM, no retrieval.
+        order sent (shown as "reranker DOWN"); `NONE`: Sadece LLM or a small talk turn recognized without search (phrase list or label before rewrite, TASK-031), no retrieval.
       enum: [TOP_K, RERANK, RERANK_FALLBACK, NONE]
     TurnErrorCode:
       type: string
@@ -1684,11 +1729,11 @@ components:
           example: Yenisi kaç günde gelir?
         searchQuery:
           type: [string, 'null']
-          description: The query sent to retrieval-api (the rewritten standalone query for a follow-up); null for `LLM_ONLY`. The web shows "Arama sorgusu" only when it differs from `question`.
+          description: The query sent to retrieval-api (the rewritten standalone query for a follow-up); null for `LLM_ONLY` and for a small talk turn recognized without search (TASK-031). The web shows "Arama sorgusu" only when it differs from `question`.
           example: Kaybolan kartın yenisi kaç günde gelir?
         answer:
           type: [string, 'null']
-          description: The answer as streamed, with `[n]` citations; partial for interrupted turns; null when no token was produced
+          description: The recorded answer, with `[n]` citations (same text as the SSE `done.answer`, TASK-031; exactly the "not found" sentence for a "not found" turn); partial for interrupted turns; null when no token was produced
         generationMode:
           $ref: '#/components/schemas/GenerationMode'
         retrievalStrategy:
@@ -1696,16 +1741,16 @@ components:
         candidates:
           type: [integer, 'null']
           format: int32
-          description: Number of chunks requested from retrieval-api; null for `LLM_ONLY`
+          description: Number of chunks requested from retrieval-api; null for `LLM_ONLY` and for a small talk turn recognized without search
           example: 20
         topK:
           type: [integer, 'null']
           format: int32
-          description: Number of chunks meant for the prompt; null for `LLM_ONLY`
+          description: Number of chunks meant for the prompt; null for `LLM_ONLY` and for a small talk turn recognized without search
           example: 5
         cited:
           type: array
-          description: Valid citation numbers found in the answer (1..`contextChunks.length`), in order of first appearance, without repeats
+          description: Valid citation numbers found in the answer (1..`contextChunks.length`), in order of first appearance, without repeats; always empty for a "not found" turn (TASK-031)
           items:
             type: integer
             format: int32
@@ -1740,7 +1785,7 @@ components:
           description: When the turn ended (answered, failed or cancelled)
         contextChunks:
           type: array
-          description: Chunks sent to the model, ordered by prompt position `n`; empty for `LLM_ONLY` and when nothing was retrieved
+          description: Chunks sent to the model, ordered by prompt position `n`; empty for `LLM_ONLY`, when nothing was retrieved, for a small talk turn and when the rerank score threshold stopped the model (TASK-031)
           items:
             $ref: '#/components/schemas/TurnChunkResponse'
     TurnChunkResponse:

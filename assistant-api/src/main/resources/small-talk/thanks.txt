@@ -1,0 +1,30 @@
+# TASK-031. One phrase per line (at most 4 words); lines starting with # are comments.
+# Spelling is free: case, punctuation, Turkish letters vs ASCII and repeated letters are normalized on load.
+# Thanks phrases. A thanks phrase anywhere in the message wins over farewell and greeting.
+teşekkürler
+teşekkür
+teşekkür ederim
+teşekkür ederiz
+çok teşekkürler
+çok teşekkür ederim
+tşk
+tşkler
+tşkrler
+sağ ol
+sağol
+saol
+sağ olun
+sağolun
+sağ olasın
+sağolasın
+çok sağ ol
+eyvallah
+eyv
+eyw
+mersi
+merci
+eline sağlık
+elinize sağlık
+thanks
+thank you
+thx

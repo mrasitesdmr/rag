@@ -24,8 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Cevap akışı bitince turu aday parçalarıyla birlikte tek bir kısa transaction'da kaydeder; Sadece LLM turunu
- * stratejisiz ve parçasız yazar. İçinde dış çağrı yapılmaz.
+ * Cevap akışı bitince turu aday parçalarıyla birlikte tek bir kısa transaction'da kaydeder; Sadece LLM turunu ve kalıp
+ * listesiyle tanınan selamlaşma turunu stratejisiz ve parçasız yazar. İçinde dış çağrı yapılmaz.
  */
 @Service
 public class TurnService {
@@ -51,18 +51,18 @@ public class TurnService {
     public long recordTurn(TurnDraft draft, TurnOutcome outcome) {
         Conversation conversation = conversationRepository.getReferenceById(draft.conversationId());
         int turnNo = turnRepository.findMaxTurnNo(draft.conversationId()) + 1;
-        boolean rag = draft.generationMode() == GenerationMode.RAG;
-        RetrievedContext context = rag ? draft.context() : null;
+        boolean searched = isSearched(draft);
+        RetrievedContext context = searched ? draft.context() : null;
         TurnValues values = new TurnValues(
                 draft.question(),
-                rag ? draft.searchQuery() : null,
+                searched ? draft.searchQuery() : null,
                 draft.queryRewriteStatus(),
                 toIntMs(draft.queryRewriteLatencyMs()),
                 draft.historyTurns(),
                 draft.generationMode(),
                 retrievalStrategy(draft, context),
-                rag ? candidates(context) : null,
-                rag ? topK(context) : null,
+                searched ? candidates(context) : null,
+                searched ? topK(context) : null,
                 draft.chatModel(),
                 outcome.answer(),
                 outcome.notFoundAnswer(),
@@ -76,15 +76,22 @@ public class TurnService {
                 Math.toIntExact(outcome.latencyMs()),
                 outcome.errorCode(),
                 draft.receivedAt(),
-                Instant.now(clock));
+                Instant.now(clock),
+                outcome.answerSource(),
+                draft.messageLabel(),
+                toIntMs(draft.messageLabelLatencyMs()));
         Turn turn = turnRepository.save(Turn.record(conversation, turnNo, values, chunkValues(context)));
         long turnId = Objects.requireNonNull(turn.getId());
         logRecordedTurn(draft, outcome, turnId);
         return turnId;
     }
 
+    private static boolean isSearched(TurnDraft draft) {
+        return draft.generationMode() == GenerationMode.RAG && draft.searchQuery() != null;
+    }
+
     private RetrievalStrategy retrievalStrategy(TurnDraft draft, @Nullable RetrievedContext context) {
-        if (draft.generationMode() == GenerationMode.LLM_ONLY) {
+        if (!isSearched(draft)) {
             return RetrievalStrategy.NONE;
         }
         return context != null ? context.strategy() : retrievalSettings.configuredStrategy();
@@ -128,11 +135,12 @@ public class TurnService {
             RetrievedContext context = draft.context();
             RetrievalStrategy strategy = context == null ? RetrievalStrategy.NONE : context.strategy();
             log.info("Turn completed conversationId={} turnId={} mode={} strategy={} questionLength={} answerLength={} "
-                            + "promptTokens={} completionTokens={} citedCount={} notFoundAnswer={} latencyMs={}",
+                            + "promptTokens={} completionTokens={} citedCount={} notFoundAnswer={} answerSource={} "
+                            + "messageLabel={} latencyMs={}",
                     draft.conversationId(), turnId, draft.generationMode(), strategy, draft.question().length(),
                     answerLength,
                     outcome.promptTokens(), outcome.completionTokens(), outcome.citations().size(),
-                    outcome.notFoundAnswer(), outcome.latencyMs());
+                    outcome.notFoundAnswer(), outcome.answerSource(), draft.messageLabel(), outcome.latencyMs());
         } else if (STREAM_CANCELLED.equals(outcome.errorCode())) {
             log.info("Turn cancelled conversationId={} turnId={} answerLength={}", draft.conversationId(), turnId,
                     answerLength);

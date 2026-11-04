@@ -107,6 +107,7 @@ describe('ConversationListPage', () => {
     ['DONT_KNOW', 'BİLMİYOR'],
     ['WRONG', 'HATALI'],
     ['GROUNDED', 'DAYANAKLI'],
+    ['SMALL_TALK', 'SOHBET'],
   ] as const)('givenLastTurnStatus_whenRendered_thenChipShowsLabel %s', async (status, label) => {
     serveConversations([conversationSummary({ lastTurnStatus: status })])
 

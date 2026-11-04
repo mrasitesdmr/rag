@@ -1,8 +1,9 @@
 import type { ServerSentEvent } from '../../../shared/api/eventStream.ts'
 import { GENERATION_MODES } from '../../../shared/liveConfig/types.ts'
 import type { GenerationMode } from '../../../shared/liveConfig/types.ts'
-import { QUERY_REWRITE_STATUSES, RETRIEVAL_STRATEGIES } from './types.ts'
+import { ANSWER_SOURCES, QUERY_REWRITE_STATUSES, RETRIEVAL_STRATEGIES } from './types.ts'
 import type {
+  AnswerSource,
   AnswerStreamEvent,
   ContextChunk,
   DoneEvent,
@@ -75,6 +76,10 @@ function isQueryRewriteStatus(value: unknown): value is QueryRewriteStatus {
   return typeof value === 'string' && (QUERY_REWRITE_STATUSES as readonly string[]).includes(value)
 }
 
+function isAnswerSource(value: unknown): value is AnswerSource {
+  return typeof value === 'string' && (ANSWER_SOURCES as readonly string[]).includes(value)
+}
+
 function isTokenEvent(data: JsonObject): data is TokenEvent {
   return typeof data.text === 'string'
 }
@@ -116,6 +121,8 @@ function isDoneEvent(data: JsonObject): data is DoneEvent {
   return (
     isInteger(data.turnId) &&
     typeof data.notFoundAnswer === 'boolean' &&
+    typeof data.answer === 'string' &&
+    isAnswerSource(data.answerSource) &&
     typeof data.chatModel === 'string' &&
     isNullableInteger(data.promptTokens) &&
     isNullableInteger(data.completionTokens) &&

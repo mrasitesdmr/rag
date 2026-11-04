@@ -169,6 +169,7 @@ describe('ConversationDetailPage', () => {
     ['GENERATION_ERROR', 'ÜRETİM HATASI'],
     ['WRONG', 'HATALI'],
     ['GROUNDED', 'DAYANAKLI'],
+    ['SMALL_TALK', 'SOHBET'],
   ] as const)('givenTurnStatus_whenRendered_thenChipShowsLabel %s', async (status, label) => {
     await renderDetail(conversationDetail({ turns: [turn({ status })] }))
 

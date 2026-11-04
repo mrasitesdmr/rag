@@ -21,4 +21,9 @@ public record RetrievedContext(
         candidateChunks = List.copyOf(candidateChunks);
         contextChunks = List.copyOf(contextChunks);
     }
+
+    public RetrievedContext withoutContextChunks() {
+        return new RetrievedContext(strategy, candidates, topK, candidateChunks, List.of(), retrievalLatencyMs,
+                rerankLatencyMs);
+    }
 }

@@ -6,7 +6,7 @@ import type { HandoffControls } from '../hooks/useHandoffRequests.ts'
 import type { FeedbackControls } from '../hooks/useTurnFeedback.ts'
 import { citedChunks, contextChunkOf, sourceButtonLabel, sourceButtonTitle } from '../model/citations.ts'
 import { MESSAGE_RULE_MESSAGE } from '../model/messageRules.ts'
-import type { PreviewTurn, SourcesEvent } from '../model/types.ts'
+import type { PreviewTurn } from '../model/types.ts'
 import styles from './AnswerMessage.module.css'
 import { HandoffAction } from './HandoffAction.tsx'
 import message from './message.module.css'
@@ -77,7 +77,7 @@ export function AnswerMessage({ turn, feedback, handoff, onCitationOpen }: Answe
           ))}
         </div>
       ) : null}
-      {doneSources !== null && isEmptyKnowledgeBase(doneSources) ? (
+      {done?.answerSource === 'EMPTY_KNOWLEDGE_BASE' ? (
         <div className={styles.note}>
           <span>Bilgi bankasında henüz belge yok.</span>
           <Link to="/kaynaklar" className={styles.noteLink}>
@@ -100,8 +100,4 @@ export function AnswerMessage({ turn, feedback, handoff, onCitationOpen }: Answe
       ) : null}
     </div>
   )
-}
-
-function isEmptyKnowledgeBase(sources: SourcesEvent): boolean {
-  return sources.generationMode === 'RAG' && sources.contextChunks.length === 0
 }

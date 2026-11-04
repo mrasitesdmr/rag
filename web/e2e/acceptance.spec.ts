@@ -184,10 +184,24 @@ test('givenOffTopicQuestion_whenAsked_thenNotFoundSentenceAndHandoffQueued', asy
   await waitUntilAnswerDone()
 
   const messages = page.getByRole('region', { name: 'Mesajlar' })
-  await expect(messages.getByText(NOT_FOUND_SENTENCE)).toBeVisible()
+  await expect(messages.getByText(NOT_FOUND_SENTENCE, { exact: true })).toBeVisible()
   await expect(messages.getByRole('button', { name: /· s\. \d+$/ })).toHaveCount(0)
+  await expect(messages.getByRole('button', { name: /^Kaynak \d+$/ })).toHaveCount(0)
   await page.getByRole('button', { name: 'Temsilciye bağlan' }).click()
   await expect(page.getByText('Temsilci kuyruğundasın')).toBeVisible()
+})
+
+test('givenGreeting_whenSent_thenFixedReplyWithoutCitation', async () => {
+  await openNewPreview()
+
+  await sendQuestion('Selam')
+  await waitUntilAnswerDone()
+
+  const messages = page.getByRole('region', { name: 'Mesajlar' })
+  await expect(messages.getByText(/dijital asistanıyım/)).toBeVisible()
+  await expect(messages.getByRole('button', { name: /^Kaynak \d+$/ })).toHaveCount(0)
+  await expect(messages.getByRole('button', { name: /· s\. \d+$/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Temsilciye bağlan' })).toHaveCount(0)
 })
 
 test('givenLostCardAnswered_whenFollowUpAsked_thenSideCardShowsRewrittenSearchQuery', async () => {
