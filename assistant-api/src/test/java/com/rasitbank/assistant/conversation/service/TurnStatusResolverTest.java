@@ -161,6 +161,21 @@ class TurnStatusResolverTest {
     }
 
     @Test
+    void givenNoWordsTurn_whenResolve_thenDontKnow() {
+        // Arrange
+        Turn turn = mock(Turn.class);
+        given(turn.getGenerationMode()).willReturn(GenerationMode.RAG);
+        given(turn.getAnswerSource()).willReturn(AnswerSource.NO_WORDS);
+        given(turn.isNotFoundAnswer()).willReturn(true);
+
+        // Act
+        TurnStatus status = resolver.resolve(turn, Set.of());
+
+        // Assert
+        assertThat(status).isEqualTo(TurnStatus.DONT_KNOW);
+    }
+
+    @Test
     void givenSmallTalkTurnWithErrorCode_whenResolve_thenIncompleteWins() {
         // Arrange
         Turn turn = mock(Turn.class);

@@ -24,15 +24,15 @@ import reactor.core.Exceptions;
 import reactor.core.publisher.Flux;
 
 /**
- * Takip sorusunu konuşma geçmişiyle birlikte dil modeline verip tek başına anlaşılır bir arama sorgusuna çevirir;
- * başarısız olursa aramanın müşterinin sorusuyla yapılmasını sağlar.
+ * Takip sorusunu müşterinin önceki sorularıyla (asistanın cevapları olmadan) dil modeline verip tek başına
+ * anlaşılır bir arama sorgusuna çevirir; başarısız olursa aramanın müşterinin sorusuyla yapılmasını sağlar.
  */
 @Service
 public class QueryRewriter {
 
     private static final Logger log = LoggerFactory.getLogger(QueryRewriter.class);
 
-    private static final Pattern STANDALONE_QUERY_LABEL = Pattern.compile("^(?i)standalone query:");
+    private static final Pattern STANDALONE_QUERY_LABEL = Pattern.compile("^(?i)(standalone query|arama sorusu):");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
     private static final String TOO_LONG_REASON = "TooLong";
     private static final String EMPTY_REASON = "Empty";
@@ -99,7 +99,7 @@ public class QueryRewriter {
 
     private static String historyText(List<HistoryTurn> history) {
         return history.stream()
-                .map(turn -> "USER: " + turn.question() + "\nASSISTANT: " + turn.answer())
+                .map(turn -> "- " + turn.question())
                 .collect(Collectors.joining("\n"));
     }
 

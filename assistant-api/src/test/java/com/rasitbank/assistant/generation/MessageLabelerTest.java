@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import com.rasitbank.assistant.config.AssistantProperties;
 import com.rasitbank.assistant.support.ChatResponses;
 import com.rasitbank.assistant.support.TestProperties;
+import com.rasitbank.assistant.suggestion.domain.dto.SuggestionTextNormalizer;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -153,21 +154,56 @@ class MessageLabelerTest {
     }
 
     @Test
-    void givenLabelPromptAndMeasurementList_whenCompared_thenNoMeasurementMessageOverlapsAnExample() throws IOException {
+    void givenMessage_whenLabelMessage_thenSystemMessageTreatsSelfIntroductionAsGreeting() {
+        // Arrange
+        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.text("SELAM")));
+
+        // Act
+        labeler(TestProperties.defaults()).labelMessage("Ahmet");
+
+        // Assert
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.captor();
+        org.mockito.BDDMockito.then(chatModel).should().stream(prompt.capture());
+        List<Message> messages = prompt.getValue().getInstructions();
+        assertThat(messages.get(0).getText()).contains("kendini tanıtma ya da sadece adını yazma",
+                "Ben Zeynep → SELAM");
+        assertThat(messages.get(1).getText()).isEqualTo("Ahmet");
+    }
+
+    @Test
+    void givenMessage_whenLabelMessage_thenSystemMessageContainsAbbreviatedGreetingExamples() {
+        // Arrange
+        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.text("SELAM")));
+
+        // Act
+        labeler(TestProperties.defaults()).labelMessage("Mrhb");
+
+        // Assert
+        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.captor();
+        org.mockito.BDDMockito.then(chatModel).should().stream(prompt.capture());
+        String system = prompt.getValue().getInstructions().get(0).getText();
+        assertThat(system).contains("Mrhb → SELAM", "Nbr kanka → SELAM", "Tşkkrler → TESEKKUR", "Grşrz → VEDA");
+        assertThat(system.lines().filter(line -> line.startsWith("Nber → ")).toList()).isEmpty();
+    }
+
+    @Test
+    void givenLabelPromptMeasurementListAndGoldenSet_whenCompared_thenNoMessageOverlapsAnExample() throws IOException {
         // Arrange
         String promptText = Files.readString(Path.of("src/main/resources/prompts/message-label.st"),
                 StandardCharsets.UTF_8);
         List<String> exampleKeys = promptText.lines()
                 .filter(line -> line.contains(" → "))
-                .map(line -> SmallTalkDetector.phraseKey(line.substring(0, line.indexOf(" → "))))
+                .map(line -> phraseKey(line.substring(0, line.indexOf(" → "))))
                 .toList();
         List<String> measuredKeys = Files.readAllLines(Path.of("scripts/negative-messages.txt"), StandardCharsets.UTF_8)
                 .stream()
                 .filter(line -> !line.startsWith("#") && line.contains(" | "))
                 .map(line -> line.substring(line.indexOf(" | ") + 3))
                 .flatMap(text -> java.util.Arrays.stream(text.split(" >> ")))
-                .map(SmallTalkDetector::phraseKey)
-                .toList();
+                .map(MessageLabelerTest::phraseKey)
+                .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+        List<String> goldenKeys = goldenQuestions().stream().map(MessageLabelerTest::phraseKey).toList();
+        measuredKeys.addAll(goldenKeys);
 
         // Act
         List<String> leaked = exampleKeys.stream().filter(measuredKeys::contains).toList();
@@ -177,13 +213,32 @@ class MessageLabelerTest {
                 .toList();
 
         // Assert
-        assertThat(exampleKeys).hasSizeGreaterThanOrEqualTo(14);
-        assertThat(measuredKeys).contains(SmallTalkDetector.phraseKey("Çok makbule geçti"),
-                SmallTalkDetector.phraseKey("Selamlar herkese"), SmallTalkDetector.phraseKey("Keyifler nasıl?"),
-                SmallTalkDetector.phraseKey("Görüşmek dileğiyle"),
-                SmallTalkDetector.phraseKey("Merhabalar efendim, hayırlı işler"));
+        assertThat(exampleKeys).hasSizeGreaterThanOrEqualTo(28);
+        assertThat(goldenKeys).hasSize(100);
+        assertThat(measuredKeys).contains(phraseKey("Nber"), phraseKey("Ahmet"), phraseKey("Ben Ayşe"),
+                phraseKey("Adım Mehmet"), phraseKey("Nasılsın?"), phraseKey("Merhaba, iyi misin?"),
+                phraseKey("Çok makbule geçti"),
+                phraseKey("Selamlar herkese"), phraseKey("Keyifler nasıl?"),
+                phraseKey("Görüşmek dileğiyle"),
+                phraseKey("Merhabalar efendim, hayırlı işler"));
         assertThat(leaked).isEmpty();
         assertThat(contained).isEmpty();
+    }
+
+    private static List<String> goldenQuestions() throws IOException {
+        tools.jackson.databind.JsonNode root = new tools.jackson.databind.json.JsonMapper()
+                .readTree(Files.readString(Path.of("../docs/rehber/golden/rehber-golden-v1.json"),
+                        StandardCharsets.UTF_8));
+        List<String> questions = new java.util.ArrayList<>();
+        root.get("questions").forEach(node -> questions.add(node.get("text").asString()));
+        return questions;
+    }
+
+    private static String phraseKey(String text) {
+        String folded = SuggestionTextNormalizer.normalize(text)
+                .replace('ç', 'c').replace('ğ', 'g').replace('ı', 'i').replace('ö', 'o').replace('ş', 's')
+                .replace('ü', 'u').replace('â', 'a').replace('î', 'i').replace('û', 'u');
+        return folded.replaceAll("(.)\\1+", "$1");
     }
 
     private static boolean overlapsAtWordBoundary(String example, String measured) {

@@ -136,17 +136,74 @@ class AnswerFinalizerTest {
         assertThat(result.openerCitationsRemoved()).isEqualTo(expectedRemoved);
     }
 
-    @Test
-    void givenOpenerNotAtStart_whenFinalize_thenCitationsUnchanged() {
+    static Stream<Arguments> misplacedOpenerAnswers() {
+        return Stream.of(
+                Arguments.of("Ek kartın yıllık aidatı yoktur [1]. Hesabına özel bilgileri (bakiye, limit, borç, "
+                        + "başvuru durumu, hesap hareketleri) göremiyorum. Kredi kartında aidat 750 TL'dir [2].",
+                        "Ek kartın yıllık aidatı yoktur [1]. Kredi kartında aidat 750 TL'dir [2].", List.of(1, 2), 1),
+                Arguments.of("Aidat 750 TL'dir [1]. Hesabınıza özel bilgileri (bakiye, limit, borç, başvuru durumu, "
+                        + "hesap hareketleri) göremiyorum [3].", "Aidat 750 TL'dir [1].", List.of(1), 1),
+                Arguments.of("Aidat 750 TL'dir [1]. Başka bankaların ürünleri ve koşulları hakkında bilgi "
+                        + "veremiyorum.", "Aidat 750 TL'dir [1].", List.of(1), 1),
+                Arguments.of("Altın hesabı Raşit Mobil'den açılır [1]! Yatırım tavsiyesi ya da piyasa tahmini "
+                        + "veremiyorum. [2]", "Altın hesabı Raşit Mobil'den açılır [1]!", List.of(1), 1),
+                Arguments.of("Altın hesabı açılır [2]. Yatırım tavsiyesi ya da piyasa tahmini veremiyorum. [9]",
+                        "Altın hesabı açılır [2].", List.of(2), 1));
+    }
+
+    @ParameterizedTest
+    @MethodSource("misplacedOpenerAnswers")
+    void givenOpenerAfterFirstSentence_whenFinalize_thenOpenerSentenceRemovedAndCitationsRecomputed(String modelText,
+            String expectedAnswer, List<Integer> expectedCitations, int expectedRemoved) {
         // Act
-        FinalAnswer result = finalizer.finalizeRagAnswer("Kart limitin gelirine göre belirlenir [1]. Hesabına özel "
-                + "bilgileri (bakiye, limit, borç, başvuru durumu, hesap hareketleri) göremiyorum. [2]", FIVE_CHUNKS);
+        FinalAnswer result = finalizer.finalizeRagAnswer(modelText, FIVE_CHUNKS);
 
         // Assert
-        assertThat(result.answer()).isEqualTo("Kart limitin gelirine göre belirlenir [1]. Hesabına özel bilgileri "
-                + "(bakiye, limit, borç, başvuru durumu, hesap hareketleri) göremiyorum. [2]");
-        assertThat(result.citations()).containsExactly(1, 2);
-        assertThat(result.openerCitationsRemoved()).isZero();
+        assertThat(result.answer()).isEqualTo(expectedAnswer);
+        assertThat(result.citations()).isEqualTo(expectedCitations);
+        assertThat(result.misplacedOpenersRemoved()).isEqualTo(expectedRemoved);
+        assertThat(result.notFoundAnswer()).isFalse();
+    }
+
+    static Stream<Arguments> keptAnswers() {
+        return Stream.of(
+                Arguments.of("Hesabına özel bilgileri (bakiye, limit, borç, başvuru durumu, hesap hareketleri) "
+                        + "göremiyorum. Limitini Raşit Mobil'de Kartlarım > Limit işlemleri'nden artırabilirsin [1].",
+                        List.of(1)),
+                Arguments.of("Kartını kapat [1]. Bakiyeni Raşit Mobil'de görebilirsin [2].", List.of(1, 2)));
+    }
+
+    @ParameterizedTest
+    @MethodSource("keptAnswers")
+    void givenOpenerAsFirstSentenceOrSentenceMentioningBalance_whenFinalize_thenKept(String modelText,
+            List<Integer> expectedCitations) {
+        // Act
+        FinalAnswer result = finalizer.finalizeRagAnswer(modelText, FIVE_CHUNKS);
+
+        // Assert
+        assertThat(result.answer()).isEqualTo(modelText);
+        assertThat(result.citations()).isEqualTo(expectedCitations);
+        assertThat(result.misplacedOpenersRemoved()).isZero();
+    }
+
+    @Test
+    void givenSingleWordOpenerInConfiguration_whenFinalize_thenNoSentenceRemoved() {
+        // Arrange
+        AssistantProperties custom = new AssistantProperties(42, null, properties.retrievalApi(),
+                properties.retrieval(), properties.reranker(),
+                new AssistantProperties.Generation("rag", "Yok.", java.time.Duration.ofSeconds(1),
+                        java.time.Duration.ofSeconds(1), java.time.Duration.ofSeconds(1), "Hayır.", "İkinci cümle.",
+                        "Üçüncü cümle."),
+                properties.queryRewrite(), properties.history(), properties.handoff(), properties.smallTalk());
+        AnswerFinalizer singleWord = new AnswerFinalizer(new NotFoundAnswerDetector(custom), new CitationParser(),
+                custom);
+
+        // Act
+        FinalAnswer result = singleWord.finalizeRagAnswer("Kartını kapat [1]. Yenisi gelir [2].", FIVE_CHUNKS);
+
+        // Assert
+        assertThat(result.answer()).isEqualTo("Kartını kapat [1]. Yenisi gelir [2].");
+        assertThat(result.misplacedOpenersRemoved()).isZero();
     }
 
     @ParameterizedTest
@@ -159,17 +216,5 @@ class AnswerFinalizerTest {
         assertThat(result.answer()).isEqualTo(modelText.strip());
         assertThat(result.notFoundAnswer()).isFalse();
         assertThat(result.openerCitationsRemoved()).isZero();
-    }
-
-    @Test
-    void givenOpenerCitationOutsideRangeAndOpenerNotFirstSentence_whenFinalize_thenOnlyOutOfRangeRemoved() {
-        // Act
-        FinalAnswer result = finalizer.finalizeRagAnswer("Altın hesabı açılır [2]. Yatırım tavsiyesi ya da piyasa "
-                + "tahmini veremiyorum. [9]", FIVE_CHUNKS);
-
-        // Assert
-        assertThat(result.answer()).isEqualTo("Altın hesabı açılır [2]. Yatırım tavsiyesi ya da piyasa tahmini "
-                + "veremiyorum.");
-        assertThat(result.citations()).containsExactly(2);
     }
 }

@@ -24,8 +24,9 @@ import org.springframework.stereotype.Service;
 import reactor.core.Exceptions;
 
 /**
- * Reranker puanı eşiğin altında kalan mesajın selamlaşma olup olmadığını dil modeline sadece etiket olarak sorar;
- * modele cevap yazdırmaz, parça ve geçmiş vermez. Hata, zaman aşımı ya da tanımsız çıktı "diğer" sayılır.
+ * Mesajın selamlaşma, teşekkür ya da veda olup olmadığını dil modeline sadece etiket olarak sorar (kısa mesajda
+ * aramadan önce, uzun mesajda reranker puanı eşiğin altındaysa); modele cevap yazdırmaz, parça ve geçmiş vermez.
+ * Hata, zaman aşımı ya da tanımsız çıktı "diğer" sayılır.
  */
 @Service
 public class MessageLabeler {
@@ -66,8 +67,33 @@ public class MessageLabeler {
 
     public static MessageLabel parseLabel(String output) {
         String word = EDGE_NON_WORD.matcher(output.strip()).replaceAll("");
-        String key = SmallTalkDetector.foldTurkishLetters(word).toUpperCase(Locale.ROOT);
+        String key = foldTurkishLetters(word).toUpperCase(Locale.ROOT);
         return LABELS.getOrDefault(key, MessageLabel.OTHER);
+    }
+
+    private static String foldTurkishLetters(String text) {
+        StringBuilder folded = new StringBuilder(text.length());
+        for (int i = 0; i < text.length(); i++) {
+            folded.append(switch (text.charAt(i)) {
+                case 'ç' -> 'c';
+                case 'Ç' -> 'C';
+                case 'ğ' -> 'g';
+                case 'Ğ' -> 'G';
+                case 'ı' -> 'i';
+                case 'İ' -> 'I';
+                case 'ö' -> 'o';
+                case 'Ö' -> 'O';
+                case 'ş' -> 's';
+                case 'Ş' -> 'S';
+                case 'ü' -> 'u';
+                case 'Ü' -> 'U';
+                case 'â' -> 'a';
+                case 'î' -> 'i';
+                case 'û' -> 'u';
+                default -> text.charAt(i);
+            });
+        }
+        return folded.toString();
     }
 
     private String callModel(Prompt prompt) {

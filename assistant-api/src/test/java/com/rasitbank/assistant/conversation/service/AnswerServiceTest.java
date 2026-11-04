@@ -26,7 +26,7 @@ import com.rasitbank.assistant.generation.MessageLabel;
 import com.rasitbank.assistant.generation.MessageLabelResult;
 import com.rasitbank.assistant.generation.MessageLabeler;
 import com.rasitbank.assistant.generation.PromptBuilder;
-import com.rasitbank.assistant.generation.SmallTalkDetector;
+import com.rasitbank.assistant.generation.ShortMessageDetector;
 import com.rasitbank.assistant.retrieval.service.RerankScoreGate;
 import com.rasitbank.assistant.conversation.domain.entity.QueryRewriteStatus;
 import com.rasitbank.assistant.generation.HistoryTurn;
@@ -57,6 +57,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 class AnswerServiceTest {
 
     private static final long CONVERSATION_ID = 7L;
+    private static final String LONG_GREETING = "merhaba ben bugün çok keyifli hissediyorum sizin nasıl geçiyor günleriniz acaba";
 
     private final ConversationService conversationService = mock(ConversationService.class);
     private final ActiveTurnRegistry registry = new ActiveTurnRegistry();
@@ -66,20 +67,20 @@ class AnswerServiceTest {
     private final TurnService turnService = mock(TurnService.class);
     private final GoldenAnswerLocator goldenAnswerLocator = mock(GoldenAnswerLocator.class);
     private final MessageLabeler messageLabeler = mock(MessageLabeler.class);
-    private final SmallTalkDetector smallTalkDetector = new SmallTalkDetector(
-            new ClassPathResource("small-talk/greeting.txt"), new ClassPathResource("small-talk/thanks.txt"),
-            new ClassPathResource("small-talk/farewell.txt"), new ClassPathResource("small-talk/address.txt"));
+    private final ShortMessageDetector shortMessageDetector = new ShortMessageDetector();
     private final PromptBuilder promptBuilder = new PromptBuilder(new ClassPathResource("prompts/rag-system.st"),
             new ClassPathResource("prompts/rag-user.st"), new ClassPathResource("prompts/llm-only-system.st"), TestProperties.defaults());
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-01T10:00:00Z"), ZoneOffset.UTC);
 
     private final AnswerService service = new AnswerService(conversationService, registry, queryRewriter, contextRetriever,
             promptBuilder, answerStreamer, turnService, goldenAnswerLocator,
-            smallTalkDetector, new RerankScoreGate(TestProperties.defaults()), messageLabeler,
+            shortMessageDetector, new RerankScoreGate(TestProperties.defaults()), messageLabeler,
             TestProperties.defaults(), "qwen3.5:9b", clock);
 
     @BeforeEach
-    void stubFirstTurnRewrite() {
+    void stubFirstTurnRewriteAndOtherLabel() {
+        given(messageLabeler.labelMessage(anyString()))
+                .willReturn(new MessageLabelResult(MessageLabel.OTHER, 300L, false));
         given(queryRewriter.rewriteQuery(anyString(), any())).willAnswer(invocation -> new QueryRewriteResult(
                 QueryRewriteStatus.NO_HISTORY, invocation.getArgument(0), null));
     }
@@ -101,7 +102,7 @@ class AnswerServiceTest {
         verify(answerStreamer).streamFixedAnswer(draft.capture(), org.mockito.ArgumentMatchers.eq(
                 "Bu konuda rehberimizde bilgi bulamadım."), org.mockito.ArgumentMatchers.eq(
                 AnswerSource.EMPTY_KNOWLEDGE_BASE), org.mockito.ArgumentMatchers.same(emitter));
-        verifyNoInteractions(messageLabeler);
+        verify(messageLabeler, times(1)).labelMessage("Kartımı kaybettim");
         verify(answerStreamer, never()).streamModelAnswer(any(), any(), any(), any());
         assertThat(draft.getValue().conversationId()).isEqualTo(CONVERSATION_ID);
         assertThat(draft.getValue().chatModel()).isEqualTo("qwen3.5:9b");
@@ -310,7 +311,7 @@ class AnswerServiceTest {
 
     private AnswerService llmOnlyService() {
         return new AnswerService(conversationService, registry, queryRewriter, contextRetriever, promptBuilder,
-                answerStreamer, turnService, goldenAnswerLocator, smallTalkDetector,
+                answerStreamer, turnService, goldenAnswerLocator, shortMessageDetector,
                 new RerankScoreGate(TestProperties.withMode("llm", "rerank")), messageLabeler,
                 TestProperties.withMode("llm", "rerank"), "qwen3.5:9b", clock);
     }
@@ -455,24 +456,27 @@ class AnswerServiceTest {
                 org.mockito.ArgumentMatchers.eq(java.util.Set.of()));
     }
 
+    private void givenLabel(String message, MessageLabel label) {
+        given(messageLabeler.labelMessage(message)).willReturn(new MessageLabelResult(label, 450L, false));
+    }
+
     @Test
-    void givenGreeting_whenSendMessage_thenFixedReplyWithoutRewriteRetrievalLabelOrModel() {
+    void givenFirstShortMessageLabeledGreeting_whenSendMessage_thenFixedReplyWithoutRewriteOrRetrieval() {
         // Arrange
         given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        givenLabel("Selam", MessageLabel.GREETING);
 
         // Act
         SseEmitter emitter = service.sendMessage(CONVERSATION_ID, request("Selam"));
 
         // Assert
-        verifyNoInteractions(contextRetriever, messageLabeler, goldenAnswerLocator);
-        verify(queryRewriter, never()).rewriteQuery(anyString(), any());
+        verifyNoInteractions(contextRetriever, queryRewriter, goldenAnswerLocator);
         ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
-        verify(answerStreamer).streamFixedAnswer(draft.capture(),
-                org.mockito.ArgumentMatchers.eq(TestProperties.GREETING_ANSWER),
+        verify(answerStreamer).streamFixedAnswer(draft.capture(), org.mockito.ArgumentMatchers.eq(TestProperties.GREETING_ANSWER),
                 org.mockito.ArgumentMatchers.eq(AnswerSource.SMALL_TALK), org.mockito.ArgumentMatchers.same(emitter));
         verify(answerStreamer, never()).streamModelAnswer(any(), any(), any(), any());
         assertThat(draft.getValue().messageLabel()).isEqualTo(MessageLabel.GREETING);
-        assertThat(draft.getValue().messageLabelLatencyMs()).isNull();
+        assertThat(draft.getValue().messageLabelLatencyMs()).isEqualTo(450L);
         assertThat(draft.getValue().searchQuery()).isNull();
         assertThat(draft.getValue().queryRewriteStatus()).isEqualTo(QueryRewriteStatus.DISABLED);
         assertThat(draft.getValue().context()).isNull();
@@ -480,9 +484,28 @@ class AnswerServiceTest {
     }
 
     @Test
-    void givenThanksAndFarewell_whenSendMessage_thenEachGetsItsOwnFixedReply() {
+    void givenHistoryAndShortThanks_whenSendMessage_thenFixedThanksWithoutRewriteOrRetrieval() {
+        // Arrange
+        givenConversationWithHistory();
+        givenLabel("Teşekkürler", MessageLabel.THANKS);
+
+        // Act
+        service.sendMessage(CONVERSATION_ID, request("Teşekkürler"));
+
+        // Assert
+        verifyNoInteractions(contextRetriever, queryRewriter, goldenAnswerLocator);
+        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
+        verify(answerStreamer).streamFixedAnswer(draft.capture(), org.mockito.ArgumentMatchers.eq(TestProperties.THANKS_ANSWER),
+                org.mockito.ArgumentMatchers.eq(AnswerSource.SMALL_TALK), any(SseEmitter.class));
+        assertThat(draft.getValue().messageLabel()).isEqualTo(MessageLabel.THANKS);
+    }
+
+    @Test
+    void givenShortThanksAndFarewell_whenSendMessage_thenEachGetsItsOwnFixedReply() {
         // Arrange
         given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        givenLabel("Teşekkürler", MessageLabel.THANKS);
+        givenLabel("Görüşürüz", MessageLabel.FAREWELL);
 
         // Act
         service.sendMessage(CONVERSATION_ID, request("Teşekkürler"));
@@ -497,11 +520,50 @@ class AnswerServiceTest {
     }
 
     @Test
-    void givenRetrievalDownAndThanks_whenSendMessage_thenStreamsThanksReplyNot503() {
+    void givenShortMessageLabeledOther_whenSendMessage_thenNormalPathAndLabelAskedOnce() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        givenLabel("Kredi limitim ne kadar", MessageLabel.OTHER);
+        given(contextRetriever.retrieveContext("Kredi limitim ne kadar"))
+                .willReturn(ContextFixtures.rerankContextWithTopScore(1.0));
+
+        // Act
+        service.sendMessage(CONVERSATION_ID, request("Kredi limitim ne kadar"));
+
+        // Assert
+        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
+        verify(answerStreamer).streamModelAnswer(draft.capture(), any(), any(SseEmitter.class), any());
+        verify(messageLabeler, times(1)).labelMessage(anyString());
+        assertThat(draft.getValue().messageLabel()).isEqualTo(MessageLabel.OTHER);
+        assertThat(draft.getValue().messageLabelLatencyMs()).isEqualTo(450L);
+    }
+
+    @Test
+    void givenShortMessageLabeledOtherBelowThreshold_whenSendMessage_thenNotFoundWithoutSecondLabel() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        givenLabel("jjkbjknlk", MessageLabel.OTHER);
+        given(contextRetriever.retrieveContext("jjkbjknlk"))
+                .willReturn(ContextFixtures.rerankContextWithTopScore(-6.0));
+
+        // Act
+        service.sendMessage(CONVERSATION_ID, request("jjkbjknlk"));
+
+        // Assert
+        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
+        verify(answerStreamer).streamFixedAnswer(draft.capture(), org.mockito.ArgumentMatchers.eq(TestProperties.NOT_FOUND_ANSWER),
+                org.mockito.ArgumentMatchers.eq(AnswerSource.BELOW_RERANK_THRESHOLD), any(SseEmitter.class));
+        verify(messageLabeler, times(1)).labelMessage(anyString());
+        assertThat(draft.getValue().messageLabel()).isEqualTo(MessageLabel.OTHER);
+    }
+
+    @Test
+    void givenRetrievalDownAndShortThanks_whenSendMessage_thenThanksReplyNot503() {
         // Arrange
         given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
         given(contextRetriever.retrieveContext(anyString()))
                 .willThrow(new ServiceUnavailableException("RETRIEVAL_UNAVAILABLE", "down"));
+        givenLabel("Teşekkür ederim", MessageLabel.THANKS);
 
         // Act
         Throwable thrown = org.assertj.core.api.Assertions
@@ -511,9 +573,116 @@ class AnswerServiceTest {
         assertThat(thrown).isNull();
         verify(answerStreamer).streamFixedAnswer(any(), org.mockito.ArgumentMatchers.eq(TestProperties.THANKS_ANSWER),
                 org.mockito.ArgumentMatchers.eq(AnswerSource.SMALL_TALK), any(SseEmitter.class));
+        verifyNoInteractions(contextRetriever);
         verify(turnService, never()).recordTurn(any(), any());
     }
 
+    @Test
+    void givenLongMessage_whenSendMessage_thenNoLabelBeforeSearch() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        given(contextRetriever.retrieveContext(anyString())).willReturn(ContextFixtures.rerankContextWithTopScore(5.0));
+        String eleven = "bir iki üç dört beş altı yedi sekiz dokuz on onbir";
+
+        // Act
+        service.sendMessage(CONVERSATION_ID, request(eleven));
+        registry.finish(CONVERSATION_ID);
+        service.sendMessage(CONVERSATION_ID, request("Bir iki üç dört beş altı?"));
+
+        // Assert
+        verifyNoInteractions(messageLabeler);
+        verify(queryRewriter, times(2)).rewriteQuery(anyString(), any());
+    }
+
+    @Test
+    void givenLongMessageBelowThreshold_whenSendMessage_thenLabelAskedAfterRetrievalOnce() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        given(contextRetriever.retrieveContext(anyString())).willReturn(ContextFixtures.rerankContextWithTopScore(-6.0));
+        String eleven = "bir iki üç dört beş altı yedi sekiz dokuz on onbir";
+        given(messageLabeler.labelMessage(eleven)).willReturn(new MessageLabelResult(MessageLabel.GREETING, 500L, false));
+
+        // Act
+        service.sendMessage(CONVERSATION_ID, request(eleven));
+
+        // Assert
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(contextRetriever, messageLabeler);
+        order.verify(contextRetriever).retrieveContext(anyString());
+        order.verify(messageLabeler).labelMessage(eleven);
+        verify(answerStreamer).streamFixedAnswer(any(), org.mockito.ArgumentMatchers.eq(TestProperties.GREETING_ANSWER),
+                org.mockito.ArgumentMatchers.eq(AnswerSource.SMALL_TALK), any(SseEmitter.class));
+    }
+
+    @Test
+    void givenShortMessageAndLabelFailure_whenSendMessage_thenNormalPathWithoutError() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        given(messageLabeler.labelMessage("Allah razı olsun"))
+                .willReturn(new MessageLabelResult(MessageLabel.OTHER, 10_000L, true));
+        given(contextRetriever.retrieveContext(anyString())).willReturn(ContextFixtures.rerankContextWithTopScore(5.0));
+
+        // Act
+        Throwable thrown = org.assertj.core.api.Assertions
+                .catchThrowable(() -> service.sendMessage(CONVERSATION_ID, request("Allah razı olsun")));
+
+        // Assert
+        assertThat(thrown).isNull();
+        verify(contextRetriever).retrieveContext(anyString());
+        verify(answerStreamer).streamModelAnswer(any(), any(), any(SseEmitter.class), any());
+    }
+
+    @Test
+    void givenMessageWithoutWords_whenSendMessage_thenNotFoundWithoutLabelRewriteRetrievalOrModel() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+
+        // Act
+        SseEmitter emitter = service.sendMessage(CONVERSATION_ID, request("???"));
+
+        // Assert
+        verifyNoInteractions(messageLabeler, contextRetriever, goldenAnswerLocator);
+        verify(queryRewriter, never()).rewriteQuery(anyString(), any());
+        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
+        verify(answerStreamer).streamFixedAnswer(draft.capture(), org.mockito.ArgumentMatchers.eq(TestProperties.NOT_FOUND_ANSWER),
+                org.mockito.ArgumentMatchers.eq(AnswerSource.NO_WORDS), org.mockito.ArgumentMatchers.same(emitter));
+        verify(answerStreamer, never()).streamModelAnswer(any(), any(), any(), any());
+        assertThat(draft.getValue().searchQuery()).isNull();
+        assertThat(draft.getValue().messageLabel()).isNull();
+        assertThat(draft.getValue().messageLabelLatencyMs()).isNull();
+        assertThat(draft.getValue().queryRewriteStatus()).isEqualTo(QueryRewriteStatus.DISABLED);
+        assertThat(draft.getValue().context()).isNull();
+    }
+
+    @Test
+    void givenRetrievalDownAndMessageWithoutWords_whenSendMessage_thenNotFoundNot503() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+        given(contextRetriever.retrieveContext(anyString()))
+                .willThrow(new ServiceUnavailableException("RETRIEVAL_UNAVAILABLE", "down"));
+
+        // Act
+        Throwable thrown = org.assertj.core.api.Assertions
+                .catchThrowable(() -> service.sendMessage(CONVERSATION_ID, request("🙂")));
+
+        // Assert
+        assertThat(thrown).isNull();
+        verify(answerStreamer).streamFixedAnswer(any(), org.mockito.ArgumentMatchers.eq(TestProperties.NOT_FOUND_ANSWER),
+                org.mockito.ArgumentMatchers.eq(AnswerSource.NO_WORDS), any(SseEmitter.class));
+    }
+
+    @Test
+    void givenLlmOnlyModeAndMessageWithoutWords_whenSendMessage_thenModelCalled() {
+        // Arrange
+        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
+
+        // Act
+        llmOnlyService().sendMessage(CONVERSATION_ID, request("???"));
+
+        // Assert
+        verify(answerStreamer).streamModelAnswer(any(), any(), any(SseEmitter.class), any());
+        verify(answerStreamer, never()).streamFixedAnswer(any(), any(), any(), any());
+        verifyNoInteractions(messageLabeler);
+    }
     @Test
     void givenBelowThresholdAndLabelOther_whenSendMessage_thenNotFoundSentenceWithRetrievalRecordedAndNoModelAnswer() {
         // Arrange
@@ -541,16 +710,16 @@ class AnswerServiceTest {
     }
 
     @Test
-    void givenBelowThresholdAndLabelGreeting_whenSendMessage_thenGreetingReplyAsSmallTalk() {
+    void givenLongMessageBelowThresholdAndLabelGreeting_whenSendMessage_thenGreetingReplyAsSmallTalk() {
         // Arrange
         given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
-        given(contextRetriever.retrieveContext("Keyifler nasıl?"))
+        given(contextRetriever.retrieveContext(LONG_GREETING))
                 .willReturn(ContextFixtures.rerankContextWithTopScore(-8.4));
-        given(messageLabeler.labelMessage("Keyifler nasıl?"))
+        given(messageLabeler.labelMessage(LONG_GREETING))
                 .willReturn(new MessageLabelResult(MessageLabel.GREETING, 700L, false));
 
         // Act
-        service.sendMessage(CONVERSATION_ID, request("Keyifler nasıl?"));
+        service.sendMessage(CONVERSATION_ID, request(LONG_GREETING));
 
         // Assert
         ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
@@ -559,7 +728,7 @@ class AnswerServiceTest {
                 org.mockito.ArgumentMatchers.eq(AnswerSource.SMALL_TALK), any(SseEmitter.class));
         assertThat(draft.getValue().messageLabel()).isEqualTo(MessageLabel.GREETING);
         assertThat(draft.getValue().context().contextChunks()).isEmpty();
-        assertThat(draft.getValue().searchQuery()).isEqualTo("Keyifler nasıl?");
+        assertThat(draft.getValue().searchQuery()).isEqualTo(LONG_GREETING);
     }
 
     @Test
@@ -583,7 +752,7 @@ class AnswerServiceTest {
     }
 
     @Test
-    void givenTopKFallbackOrAboveThreshold_whenSendMessage_thenLabelerNotCalled() {
+    void givenTopKFallbackOrAboveThreshold_whenSendMessage_thenLabelAskedOnlyBeforeSearch() {
         // Arrange
         given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
         given(contextRetriever.retrieveContext("top"))
@@ -597,7 +766,7 @@ class AnswerServiceTest {
         service.sendMessage(CONVERSATION_ID, request("ust"));
 
         // Assert
-        verifyNoInteractions(messageLabeler);
+        verify(messageLabeler, times(2)).labelMessage(anyString());
         verify(answerStreamer, times(2)).streamModelAnswer(any(), any(), any(SseEmitter.class), any());
     }
 
@@ -643,142 +812,7 @@ class AnswerServiceTest {
     }
 
     @Test
-    void givenHistoryAndShortThanks_whenSendMessage_thenFixedThanksWithoutRewriteOrRetrieval() {
-        // Arrange
-        givenConversationWithHistory();
-        given(messageLabeler.labelMessage("Allah razı olsun"))
-                .willReturn(new MessageLabelResult(MessageLabel.THANKS, 450L, false));
-
-        // Act
-        SseEmitter emitter = service.sendMessage(CONVERSATION_ID, request("Allah razı olsun"));
-
-        // Assert
-        verifyNoInteractions(contextRetriever, queryRewriter, goldenAnswerLocator);
-        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
-        verify(answerStreamer).streamFixedAnswer(draft.capture(),
-                org.mockito.ArgumentMatchers.eq(TestProperties.THANKS_ANSWER),
-                org.mockito.ArgumentMatchers.eq(AnswerSource.SMALL_TALK), org.mockito.ArgumentMatchers.same(emitter));
-        assertThat(draft.getValue().messageLabel()).isEqualTo(MessageLabel.THANKS);
-        assertThat(draft.getValue().messageLabelLatencyMs()).isEqualTo(450L);
-        assertThat(draft.getValue().searchQuery()).isNull();
-        assertThat(draft.getValue().queryRewriteStatus()).isEqualTo(QueryRewriteStatus.DISABLED);
-        assertThat(draft.getValue().context()).isNull();
-    }
-
-    @Test
-    void givenHistoryAndShortOtherMessage_whenSendMessage_thenNormalPathAndLabelAskedOnce() {
-        // Arrange
-        givenConversationWithHistory();
-        given(messageLabeler.labelMessage("ya kredi kartında"))
-                .willReturn(new MessageLabelResult(MessageLabel.OTHER, 500L, false));
-        given(queryRewriter.rewriteQuery("ya kredi kartında", ONE_TURN)).willReturn(new QueryRewriteResult(
-                QueryRewriteStatus.REWRITTEN, "Kredi kartı aidatı ne kadar?", 200L));
-        given(contextRetriever.retrieveContext("Kredi kartı aidatı ne kadar?"))
-                .willReturn(ContextFixtures.rerankContextWithTopScore(-6.0));
-
-        // Act
-        service.sendMessage(CONVERSATION_ID, request("ya kredi kartında"));
-
-        // Assert
-        verify(messageLabeler, times(1)).labelMessage(anyString());
-        verify(queryRewriter).rewriteQuery("ya kredi kartında", ONE_TURN);
-        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
-        verify(answerStreamer).streamFixedAnswer(draft.capture(),
-                org.mockito.ArgumentMatchers.eq(TestProperties.NOT_FOUND_ANSWER),
-                org.mockito.ArgumentMatchers.eq(AnswerSource.BELOW_RERANK_THRESHOLD), any(SseEmitter.class));
-        assertThat(draft.getValue().messageLabel()).isEqualTo(MessageLabel.OTHER);
-        assertThat(draft.getValue().messageLabelLatencyMs()).isEqualTo(500L);
-    }
-
-    @Test
-    void givenHistoryAndShortOtherMessageAboveThreshold_whenSendMessage_thenModelAnswersAndLabelRecorded() {
-        // Arrange
-        givenConversationWithHistory();
-        given(messageLabeler.labelMessage("Ya yurt dışında"))
-                .willReturn(new MessageLabelResult(MessageLabel.OTHER, 480L, false));
-        given(contextRetriever.retrieveContext(anyString())).willReturn(ContextFixtures.rerankContextWithTopScore(5.0));
-
-        // Act
-        service.sendMessage(CONVERSATION_ID, request("Ya yurt dışında"));
-
-        // Assert
-        ArgumentCaptor<TurnDraft> draft = ArgumentCaptor.captor();
-        verify(answerStreamer).streamModelAnswer(draft.capture(), any(), any(SseEmitter.class), any());
-        verify(messageLabeler, times(1)).labelMessage(anyString());
-        assertThat(draft.getValue().messageLabel()).isEqualTo(MessageLabel.OTHER);
-        assertThat(draft.getValue().messageLabelLatencyMs()).isEqualTo(480L);
-    }
-
-    @Test
-    void givenNoHistoryAndShortMessage_whenSendMessage_thenNoLabelBeforeRetrieval() {
-        // Arrange
-        given(conversationService.getConversation(CONVERSATION_ID)).willReturn(mock(Conversation.class));
-        given(contextRetriever.retrieveContext("Teşekkür niyetine bir şey")).willReturn(
-                ContextFixtures.rerankContextWithTopScore(5.0));
-
-        // Act
-        service.sendMessage(CONVERSATION_ID, request("Teşekkür niyetine bir şey"));
-
-        // Assert
-        verifyNoInteractions(messageLabeler);
-        verify(contextRetriever).retrieveContext("Teşekkür niyetine bir şey");
-    }
-
-    @Test
-    void givenHistoryAndLongOrQuestionMarkMessage_whenSendMessage_thenNoLabelBeforeRewrite() {
-        // Arrange
-        givenConversationWithHistory();
-        given(contextRetriever.retrieveContext(anyString())).willReturn(ContextFixtures.rerankContextWithTopScore(5.0));
-        String eleven = "bir iki üç dört beş altı yedi sekiz dokuz on onbir";
-
-        // Act
-        service.sendMessage(CONVERSATION_ID, request("Peki Platinum?"));
-        registry.finish(CONVERSATION_ID);
-        service.sendMessage(CONVERSATION_ID, request(eleven));
-
-        // Assert
-        verifyNoInteractions(messageLabeler);
-        verify(queryRewriter, times(2)).rewriteQuery(anyString(), any());
-    }
-
-    @Test
-    void givenHistoryAndMessageOfTenWords_whenSendMessage_thenLabelAskedBeforeRewrite() {
-        // Arrange
-        givenConversationWithHistory();
-        given(messageLabeler.labelMessage(anyString()))
-                .willReturn(new MessageLabelResult(MessageLabel.FAREWELL, 300L, false));
-
-        // Act
-        service.sendMessage(CONVERSATION_ID, request("bir iki üç dört beş altı yedi sekiz dokuz on"));
-
-        // Assert
-        verify(messageLabeler).labelMessage("bir iki üç dört beş altı yedi sekiz dokuz on");
-        verifyNoInteractions(queryRewriter, contextRetriever);
-        verify(answerStreamer).streamFixedAnswer(any(), org.mockito.ArgumentMatchers.eq(TestProperties.FAREWELL_ANSWER),
-                org.mockito.ArgumentMatchers.eq(AnswerSource.SMALL_TALK), any(SseEmitter.class));
-    }
-
-    @Test
-    void givenHistoryAndLabelFailure_whenSendMessage_thenNormalPathWithoutError() {
-        // Arrange
-        givenConversationWithHistory();
-        given(messageLabeler.labelMessage("Allah razı olsun"))
-                .willReturn(new MessageLabelResult(MessageLabel.OTHER, 10_000L, true));
-        given(contextRetriever.retrieveContext(anyString())).willReturn(ContextFixtures.rerankContextWithTopScore(5.0));
-
-        // Act
-        Throwable thrown = org.assertj.core.api.Assertions
-                .catchThrowable(() -> service.sendMessage(CONVERSATION_ID, request("Allah razı olsun")));
-
-        // Assert
-        assertThat(thrown).isNull();
-        verify(queryRewriter).rewriteQuery("Allah razı olsun", ONE_TURN);
-        verify(contextRetriever).retrieveContext(anyString());
-        verify(answerStreamer).streamModelAnswer(any(), any(), any(SseEmitter.class), any());
-    }
-
-    @Test
-    void givenHistoryAndLlmOnlyMode_whenShortThanks_thenNoPreRewriteLabel() {
+    void givenLlmOnlyModeAndShortGreeting_whenSendMessage_thenModelCalledAndLabelerNotCalled() {
         // Arrange
         givenConversationWithHistory();
 
@@ -787,5 +821,6 @@ class AnswerServiceTest {
 
         // Assert
         verifyNoInteractions(messageLabeler);
+        verify(answerStreamer).streamModelAnswer(any(), any(), any(SseEmitter.class), any());
     }
 }

@@ -899,6 +899,43 @@ describe('PreviewPage', () => {
     expect(screen.queryByRole('button', { name: 'Temsilciye bağlan' })).not.toBeInTheDocument()
   })
 
+  it('givenNoWordsDone_whenFinished_thenNotFoundSentenceWithoutContextCard', async () => {
+    const notFound = 'Bu konuda rehberimizde bilgi bulamadım.'
+    servePreview([
+      token(notFound),
+      sources({
+        retrievalStrategy: 'NONE',
+        candidates: null,
+        topK: null,
+        searchQuery: null,
+        queryRewriteStatus: 'DISABLED',
+        contextChunks: [],
+        citations: [],
+      }),
+      done({
+        answer: notFound,
+        answerSource: 'NO_WORDS',
+        notFoundAnswer: true,
+        promptTokens: null,
+        completionTokens: null,
+        retrievalLatencyMs: null,
+        rerankLatencyMs: null,
+        generationLatencyMs: null,
+        timeToFirstTokenMs: null,
+      }),
+    ])
+    renderAppAt('/onizleme')
+
+    await ask('???')
+
+    expect(await screen.findByText(notFound)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Son cevapta modele giden parçalar' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Bilgi bankasında henüz belge yok.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Kaynak \d/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Temsilciye bağlan' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Asistan nasıl cevaplıyor?' })).toBeInTheDocument()
+  })
+
   it('givenBelowThresholdDone_whenFinished_thenThresholdNoteAndNoEmptyKbNoteAndHandoffShown', async () => {
     servePreview([
       token('Bu konuda rehberimizde bilgi bulamadım.'),

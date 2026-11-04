@@ -25,17 +25,24 @@ class PromptBuilderTest {
             + "Müşterilerin sorularını Türkçe, kısa ve net cevaplarsın. Kendinden birinci tekil şahısla söz edersin, "
             + "örneğin \"asistanıyım\", \"yardımcı olabilirim\".\n"
             + "1. Sadece <parcalar> içindeki bilgiyle cevap ver; kendi bilgini ekleme.\n"
-            + "2. Her cümlenin sonuna dayandığı parçanın numarasını yaz, örneğin [1]. "
-            + "Hiçbir parçaya dayanmayan cümle yazma.\n"
-            + "3. Cevap parçalarda yoksa sadece \"Bu konuda rehberimizde bilgi bulamadım.\" yaz; "
-            + "bu cümleye numara ya da başka bir şey ekleme.\n"
-            + "4. Müşteri kendi hesabına özel bir bilgi (bakiye, limit, borç, başvuru durumu, hesap hareketleri) "
-            + "sorarsa cevaba tam olarak \"" + TestProperties.PERSONAL_INFO_OPENER + "\" cümlesiyle başla. "
-            + "Başka bir bankanın ürününü ya da koşulunu sorarsa \"" + TestProperties.OTHER_BANKS_OPENER
-            + "\" cümlesiyle, yatırım tavsiyesi ya da piyasa tahmini isterse \""
-            + TestProperties.INVESTMENT_ADVICE_OPENER + "\" cümlesiyle başla. "
-            + "Bu ilk cümleye numara yazma. <parcalar> içinde konuyla ilgili genel bilgi varsa ardından kural 2'ye "
-            + "göre numarasıyla ekle; yoksa başka bir şey yazma. Bu kural kural 3'ten önce gelir.";
+            + "2. <parcalar> içindeki bir bilgiye dayanan her cümlenin sonuna o parçanın numarasını yaz, örneğin [1]. "
+            + "Hiçbir parçaya dayanmayan cümleye numara yazma; selamlaşma, teşekkür ya da müşterinin kendini "
+            + "tanıtması gibi mesajlara yazdığın cümlelere de numara yazma.\n"
+            + "3. Sorunun cevabı <parcalar> içinde yoksa sadece \"Bu konuda rehberimizde bilgi bulamadım.\" yaz; "
+            + "bu cümleye numara ya da başka bir şey ekleme. Hava durumu, şiir, sohbet, genel kültür, kripto para "
+            + "gibi rehberde olmayan her konu ve anlamsız mesajlar bu kurala girer.\n"
+            + "4. Sadece şu üç konuda kural 3 yerine bu kural uygulanır; başka hiçbir mesajda bu üç cümleyi "
+            + "kullanma:\n"
+            + "- Müşteri kendi hesabına özel bir bilgiyi (kendi bakiyesi, limiti, borcu, başvurusunun durumu, hesap "
+            + "hareketleri) soruyorsa cevaba tam olarak \"" + TestProperties.PERSONAL_INFO_OPENER
+            + "\" cümlesiyle başla.\n"
+            + "- Müşteri başka bir bankanın ürününü ya da koşulunu soruyorsa \"" + TestProperties.OTHER_BANKS_OPENER
+            + "\" cümlesiyle başla.\n"
+            + "- Müşteri yatırım tavsiyesi ya da piyasa tahmini istiyorsa \""
+            + TestProperties.INVESTMENT_ADVICE_OPENER + "\" cümlesiyle başla.\n"
+            + "Bu ilk cümleye numara yazma. <parcalar> içinde konuyla ilgili genel bir bilgi varsa (bu bilginin "
+            + "nasıl belirlendiği, nereden görüleceği, nasıl değiştirileceği, hangi kanaldan yapılacağı) cevabı bu "
+            + "ilk cümleyle bitirme, ardından o bilgiyi kural 2'ye göre numarasıyla ekle; yoksa başka bir şey yazma.";
 
     private final PromptBuilder builder = new PromptBuilder(new ClassPathResource("prompts/rag-system.st"),
             new ClassPathResource("prompts/rag-user.st"), new ClassPathResource("prompts/llm-only-system.st"), TestProperties.defaults());
@@ -150,19 +157,21 @@ class PromptBuilderTest {
         Prompt prompt = builder.buildPrompt("Soru?", List.of(), List.of(chunk(1, "H1", "İçerik")));
 
         assertThat(prompt.getInstructions().get(0).getText())
-                .contains("Kendinden birinci tekil şahısla söz edersin", "Hiçbir parçaya dayanmayan cümle yazma",
+                .contains("Kendinden birinci tekil şahısla söz edersin", "Hiçbir parçaya dayanmayan cümleye numara yazma",
                         "bu cümleye numara ya da başka bir şey ekleme", TestProperties.NOT_FOUND_ANSWER)
-                .doesNotContain("asistanısınız");
+                .doesNotContain("asistanısınız", "Hiçbir parçaya dayanmayan cümle yazma");
     }
 
     @Test
-    void givenRagPrompt_whenBuild_thenSystemMessageHasTargetedOpenersBeforeNotFoundRule() {
+    void givenRagPrompt_whenBuild_thenOpenersLimitedToTheirTopicsAndUncitedSentencesAllowed() {
         Prompt prompt = builder.buildPrompt("Soru?", List.of(), List.of(chunk(1, "H1", "İçerik")));
 
         String system = prompt.getInstructions().get(0).getText();
         assertThat(system).contains(TestProperties.PERSONAL_INFO_OPENER, TestProperties.OTHER_BANKS_OPENER,
                 TestProperties.INVESTMENT_ADVICE_OPENER, "Bu ilk cümleye numara yazma",
-                "Bu kural kural 3'ten önce gelir");
+                "başka hiçbir mesajda bu üç cümleyi kullanma", "Hava durumu, şiir, sohbet",
+                "cevabı bu ilk cümleyle bitirme");
+        assertThat(system).doesNotContain("Bu kural kural 3'ten önce gelir");
         assertThat(system).doesNotContain("{personalInfoOpener}", "{otherBanksOpener}", "{investmentAdviceOpener}",
                 "{notFoundAnswer}");
     }

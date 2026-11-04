@@ -250,7 +250,7 @@ public class AnswerStreamer {
 
         private FinalAnswer finalAnswer(String modelText) {
             if (context == null) {
-                return new FinalAnswer(modelText, false, List.of(), 0);
+                return new FinalAnswer(modelText, false, List.of(), 0, 0);
             }
             FinalAnswer finalAnswer = answerFinalizer.finalizeRagAnswer(modelText, context.contextChunks().size());
             int removedLength = modelText.strip().length() - finalAnswer.answer().length();
@@ -261,6 +261,10 @@ public class AnswerStreamer {
             if (finalAnswer.openerCitationsRemoved() > 0) {
                 log.info("Opener citations removed conversationId={} removedCount={}", draft.conversationId(),
                         finalAnswer.openerCitationsRemoved());
+            }
+            if (finalAnswer.misplacedOpenersRemoved() > 0) {
+                log.info("Misplaced opener removed conversationId={} removedCount={}", draft.conversationId(),
+                        finalAnswer.misplacedOpenersRemoved());
             }
             return finalAnswer;
         }
@@ -282,7 +286,8 @@ public class AnswerStreamer {
 
         private boolean isFixedNotFoundAnswer() {
             return answerSource == AnswerSource.EMPTY_KNOWLEDGE_BASE
-                    || answerSource == AnswerSource.BELOW_RERANK_THRESHOLD;
+                    || answerSource == AnswerSource.BELOW_RERANK_THRESHOLD
+                    || answerSource == AnswerSource.NO_WORDS;
         }
 
         private void finishSuccessfully(TurnOutcome outcome) {

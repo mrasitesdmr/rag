@@ -1,5 +1,8 @@
-# TASK-031 measurement list: messages whose answer must not carry a citation.
+# TASK-031 / TASK-032 measurement list: messages whose answer must not carry a citation, plus follow-up and
+# personal-info questions that must still be answered from the guide.
 # Format: category | text. A follow-up line "A >> B" sends A then B in the same conversation; only B is evaluated.
+# TASK-032 removed the phrase list: every short message is labeled by the chat model before search. The category
+# names small-talk-listed / small-talk-unlisted are kept so results stay comparable with TASK-031 measurements.
 # Lines starting with # and empty lines are ignored.
 
 # Not in the guide (docs/rehber/rehberde-olmayan-konular.md, 9 topics x 3 example questions).
@@ -32,8 +35,16 @@ investment-advice | Hangi fonu almamı önerirsiniz?
 not-in-guide | BES'te devlet katkısı yüzde kaç?
 not-in-guide | BES fon dağılımımı kaç kez değiştirebilirim?
 not-in-guide | Hasar bildirimini bankaya mı yapıyorum?
+not-in-guide | Bitcoin alabilir miyim?
 
-# Small talk covered by the phrase list
+# Personal information questions whose general answer is in the guide (2.6 card limit, 4.6 overdraft account): opener plus
+# cited information (TASK-032 qa correction: variants added)
+personal-info-with-info | Kredi limitim ne kadar
+personal-info-with-info | Kredi kartı limitim ne kadar?
+personal-info-with-info | Kart limitim kaç?
+personal-info-with-info | Ek hesap limitim ne kadar?
+
+# Small talk that was covered by the TASK-031 phrase list (now labeled before search)
 small-talk-listed | Selam
 small-talk-listed | Merhaba
 small-talk-listed | Günaydın
@@ -48,12 +59,29 @@ small-talk-listed | selaaam
 small-talk-listed | tesekkurler
 small-talk-listed | Teşekkürler, iyi günler
 
-# Small talk deliberately not in the phrase list (label path)
+# Small talk that was not in the TASK-031 phrase list
 small-talk-unlisted | Selamlar herkese
 small-talk-unlisted | Keyifler nasıl?
 small-talk-unlisted | Çok makbule geçti
 small-talk-unlisted | Görüşmek dileğiyle
 small-talk-unlisted | Merhabalar efendim, hayırlı işler
+
+# Small talk with a question mark (TASK-032: short when at most 5 words)
+small-talk-question | Nasılsın?
+small-talk-question | Merhaba, iyi misin?
+small-talk-question | Selam, nasıl gidiyor?
+small-talk-question | Naber, iyi misin?
+small-talk-question | İyi akşamlar, nasılsınız?
+
+# Short small talk from the TASK-032 scenarios
+small-talk-short | Nber
+small-talk-short | Slm
+small-talk-short | Teşekkür ederim
+
+# Name or self introduction (TASK-032 card question 4: answered with the greeting reply)
+name | Ahmet
+name | Ben Ayşe
+name | Adım Mehmet
 
 # Off topic
 off-topic | Bugün hava nasıl?
@@ -61,12 +89,14 @@ off-topic | Bana bir şiir yaz
 off-topic | En sevdiğin film ne?
 off-topic | 2 artı 2 kaç eder?
 off-topic | İstanbul'un nüfusu kaç?
+off-topic | Hava durumunu verir misin?
 
-# Gibberish
+# Gibberish ("???" has no letters or digits: answered NO_WORDS without search or model, TASK-032 correction round 1)
 gibberish | asdfgh
 gibberish | qwerty 123
 gibberish | ???
 gibberish | lorem ipsum dolor
+gibberish | jjkbjknlk
 
 # Follow-up: thanks after an answered question
 follow-up | Gold kart aidatı ne kadar? >> Teşekkürler
@@ -92,6 +122,12 @@ follow-up-question | Kartımı kaybettim, ne yapmalıyım? >> Peki ücreti var m
 follow-up-question | Kartımı kaybettim, ne yapmalıyım? >> Mobil uygulamadan da olur
 follow-up-question | Gold kart aidatı ne kadar? >> Ek kart için de aynı mı
 follow-up-question | Gold kart aidatı ne kadar? >> Hangi kartlarda yok
+follow-up-question | Ek kart nasıl alabilirim >> Peki ücretli mi
+
+# Independent off-topic question after an earlier turn (must stay off-topic: not found, no opener)
+follow-up-independent | Selam >> Hava durumunu verir misin?
+follow-up-independent | Ek kart nasıl alabilirim >> Hava durumunu verir misin?
+follow-up-independent | Kartımı kaybettim, ne yapmalıyım? >> Bana bir şiir yaz
 
 # Longer real follow-up questions, 7-10 words, no question mark (must not be labeled small talk)
 follow-up-question-long | Gold kart aidatı ne kadar? >> Platinum kartın aidatı bundan daha mı yüksek

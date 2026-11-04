@@ -2,6 +2,7 @@ package com.rasitbank.assistant.conversation.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -58,6 +59,7 @@ import tools.jackson.databind.json.JsonMapper;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class SendMessageGroundedAnswerIntegrationTest extends PostgresIntegrationTest {
 
+    private static final String LONG_GREETING = "merhaba ben bugün çok keyifli hissediyorum sizin nasıl geçiyor günleriniz acaba";
     private static final String LABEL_PROMPT_START = "Bir bankanın dijital asistanına gelen müşteri mesajını";
     private static final String QUESTION = "Kartımı kaybettim, ne yapmalıyım?";
     private static final String NOT_FOUND = TestProperties.NOT_FOUND_ANSWER;
@@ -192,6 +194,14 @@ class SendMessageGroundedAnswerIntegrationTest extends PostgresIntegrationTest {
         return events.stream().map(SseEvent::name).toList();
     }
 
+    private long labelCalls() {
+        synchronized (prompts) {
+            return prompts.stream()
+                    .filter(prompt -> prompt.getInstructions().getFirst().getText().startsWith(LABEL_PROMPT_START))
+                    .count();
+        }
+    }
+
     private int modelCalls() {
         synchronized (prompts) {
             return prompts.size();
@@ -236,14 +246,14 @@ class SendMessageGroundedAnswerIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void givenBelowThresholdAndLabelGreeting_whenSendMessage_thenGreetingReplyWithRetrievalRecorded() {
+    void givenLongMessageBelowThresholdAndLabelGreeting_whenSendMessage_thenGreetingReplyWithRetrievalRecorded() {
         // Arrange
         stubSearchWithTopScore(BELOW_THRESHOLD_SCORE);
         labelOutput.set(Flux.just(ChatResponses.text("SELAM")));
         long conversationId = createConversation();
 
         // Act
-        List<SseEvent> events = send(conversationId, "Keyifler nasıl?");
+        List<SseEvent> events = send(conversationId, LONG_GREETING);
 
         // Assert
         assertThat(names(events)).containsExactly("token", "sources", "done");
@@ -251,7 +261,7 @@ class SendMessageGroundedAnswerIntegrationTest extends PostgresIntegrationTest {
                 .startsWith("Merhaba, ben Raşit Bankası'nın dijital asistanıyım.");
         JsonNode sources = events.get(1).data();
         assertThat(sources.get("retrievalStrategy").asString()).isEqualTo("RERANK");
-        assertThat(sources.get("searchQuery").asString()).isEqualTo("Keyifler nasıl?");
+        assertThat(sources.get("searchQuery").asString()).isEqualTo(LONG_GREETING);
         assertThat(sources.get("contextChunks")).isEmpty();
         JsonNode done = events.get(2).data();
         assertThat(done.get("answerSource").asString()).isEqualTo("SMALL_TALK");
@@ -308,7 +318,8 @@ class SendMessageGroundedAnswerIntegrationTest extends PostgresIntegrationTest {
         assertThat(citedText(conversationId, 1)).isEqualTo("{}");
         assertThat(turn.get("not_found_answer")).isEqualTo(true);
         assertThat(turn.get("completion_tokens")).isEqualTo(9);
-        assertThat(modelCalls()).as("no label call above the threshold").isEqualTo(1);
+        assertThat(labelCalls()).as("short message labeled once before search").isEqualTo(1);
+        assertThat(modelCalls()).as("label call plus answer call").isEqualTo(2);
     }
 
     @Test
@@ -390,6 +401,7 @@ class SendMessageGroundedAnswerIntegrationTest extends PostgresIntegrationTest {
         long conversationId = createConversation();
         send(conversationId, QUESTION);
         int callsAfterFirstTurn = modelCalls();
+        labelOutput.set(Flux.just(ChatResponses.text("TESEKKUR")));
 
         // Act
         List<SseEvent> events = send(conversationId, "Teşekkürler");
@@ -410,8 +422,8 @@ class SendMessageGroundedAnswerIntegrationTest extends PostgresIntegrationTest {
         assertThat(turn.get("search_query")).isNull();
         assertThat(citedText(conversationId, 2)).isEqualTo("{}");
         assertThat(turn.get("message_label")).isEqualTo("THANKS");
-        assertThat(turn.get("message_label_latency_ms")).isNull();
-        assertThat(modelCalls()).as("the second turn never reached the model").isEqualTo(callsAfterFirstTurn);
+        assertThat(turn.get("message_label_latency_ms")).isNotNull();
+        assertThat(modelCalls()).as("the second turn only reached the label call").isEqualTo(callsAfterFirstTurn + 1);
         verify(retrievalClient, times(1)).search(anyString(), eq(20));
     }
 
@@ -422,7 +434,9 @@ class SendMessageGroundedAnswerIntegrationTest extends PostgresIntegrationTest {
         answerWith(ChatResponses.text("Kartını hemen kapat [1]."));
         long conversationId = createConversation();
         send(conversationId, QUESTION);
+        labelOutput.set(Flux.just(ChatResponses.text("TESEKKUR")));
         send(conversationId, "Teşekkürler");
+        labelOutput.set(Flux.just(ChatResponses.text("DIGER")));
         answerWith(ChatResponses.text("Ek kartı şubeden alabilirsin [2]."));
         int callsBefore = modelCalls();
 
@@ -432,35 +446,42 @@ class SendMessageGroundedAnswerIntegrationTest extends PostgresIntegrationTest {
         // Assert
         Prompt rewritePrompt;
         synchronized (prompts) {
-            rewritePrompt = prompts.get(callsBefore);
+            rewritePrompt = prompts.subList(callsBefore, prompts.size()).stream()
+                    .filter(prompt -> prompt.getInstructions().getLast().getText().contains("Arama sorusu:"))
+                    .findFirst().orElseThrow();
         }
         String rewriteText = rewritePrompt.getInstructions().getLast().getText();
-        assertThat(rewriteText).contains(QUESTION).contains("Kartını hemen kapat").doesNotContain("Teşekkürler")
-                .doesNotContain("Rica ederim");
+        assertThat(rewriteText).contains("- " + QUESTION).doesNotContain("Kartını hemen kapat")
+                .doesNotContain("Teşekkürler").doesNotContain("Rica ederim");
         assertThat(turn(conversationId, 3).get("history_turns")).isEqualTo(1);
     }
 
     @Test
-    void givenSmallTalkAndThresholdTurns_whenLogsCaptured_thenNoMessageOrAnswerText(CapturedOutput output) {
+    void givenPreSearchLabelTurn_whenLogsCaptured_thenRouteLoggedWithoutMessageText(CapturedOutput output) {
         // Arrange
         stubSearchWithTopScore(BELOW_THRESHOLD_SCORE);
         long conversationId = createConversation();
 
         // Act
+        labelOutput.set(Flux.just(ChatResponses.text("SELAM")));
         send(conversationId, "Selam");
+        labelOutput.set(Flux.just(ChatResponses.text("DIGER")));
         send(conversationId, "Bana bir şiir yaz");
 
         // Assert
-        assertThat(output.getAll()).contains("Small talk answered conversationId=" + conversationId
-                        + " label=GREETING route=PATTERN")
+        assertThat(output.getAll()).contains("Message labeled before search conversationId=" + conversationId
+                        + " label=GREETING")
+                .contains("Small talk answered conversationId=" + conversationId
+                        + " label=GREETING route=PRE_SEARCH_LABEL")
                 .contains("Answer stopped by rerank threshold conversationId=" + conversationId + " topRerankScore=-5.0")
-                .contains("Message labeled conversationId=" + conversationId + " label=OTHER")
+                .contains("Message labeled before search conversationId=" + conversationId + " label=OTHER")
+                .doesNotContain("route=PATTERN")
                 .doesNotContain("Bana bir şiir yaz").doesNotContain("Selam").doesNotContain("dijital asistanıyım")
                 .doesNotContain("DIGER");
     }
 
     @Test
-    void givenEmptyKnowledgeBase_whenSendMessage_thenAnswerSourceEmptyKnowledgeBaseAndNoLabelCall() {
+    void givenEmptyKnowledgeBase_whenSendMessage_thenAnswerSourceEmptyKnowledgeBaseAndNoAnswerModelCall() {
         // Arrange
         given(retrievalClient.search(anyString(), eq(20))).willReturn(List.of());
         long conversationId = createConversation();
@@ -473,7 +494,8 @@ class SendMessageGroundedAnswerIntegrationTest extends PostgresIntegrationTest {
         assertThat(done.get("answerSource").asString()).isEqualTo("EMPTY_KNOWLEDGE_BASE");
         assertThat(done.get("notFoundAnswer").asBoolean()).isTrue();
         assertThat(done.get("answer").asString()).isEqualTo(NOT_FOUND);
-        assertThat(modelCalls()).isZero();
+        assertThat(modelCalls()).as("only the label call").isEqualTo(1);
+        assertThat(labelCalls()).isEqualTo(1);
         assertThat(turn(conversationId, 1).get("answer_source")).isEqualTo("EMPTY_KNOWLEDGE_BASE");
     }
 
@@ -519,6 +541,7 @@ class SendMessageGroundedAnswerIntegrationTest extends PostgresIntegrationTest {
         answerWith(ChatResponses.text("Kartını hemen kapat [1]."));
         long conversationId = createConversation();
         send(conversationId, QUESTION);
+        long labelCallsBefore = labelCalls();
 
         // Act
         List<SseEvent> events = send(conversationId, "Ya yurt dışında");
@@ -528,11 +551,94 @@ class SendMessageGroundedAnswerIntegrationTest extends PostgresIntegrationTest {
         Map<String, Object> turn = turn(conversationId, 2);
         assertThat(turn.get("message_label")).isEqualTo("OTHER");
         assertThat(turn.get("retrieval_strategy")).isEqualTo("RERANK");
-        synchronized (prompts) {
-            long labelCalls = prompts.stream()
-                    .filter(prompt -> prompt.getInstructions().getFirst().getText().startsWith(LABEL_PROMPT_START))
-                    .count();
-            assertThat(labelCalls).isEqualTo(1);
-        }
+        assertThat(labelCalls() - labelCallsBefore).isEqualTo(1);
+    }
+
+    @Test
+    void givenFirstMessageGreeting_whenSendMessage_thenLabelThenFixedReplyWithoutSearch() {
+        // Arrange
+        stubGroundedSearch();
+        labelOutput.set(Flux.just(ChatResponses.text("SELAM")));
+        long conversationId = createConversation();
+
+        // Act
+        List<SseEvent> events = send(conversationId, "Selam");
+
+        // Assert
+        assertThat(names(events)).containsExactly("token", "sources", "done");
+        assertThat(events.get(0).data().get("text").asString())
+                .startsWith("Merhaba, ben Raşit Bankası'nın dijital asistanıyım.");
+        JsonNode sources = events.get(1).data();
+        assertThat(sources.get("retrievalStrategy").asString()).isEqualTo("NONE");
+        assertThat(sources.get("searchQuery").isNull()).isTrue();
+        assertThat(sources.get("queryRewriteStatus").asString()).isEqualTo("DISABLED");
+        assertThat(sources.get("contextChunks")).isEmpty();
+        assertThat(sources.get("citations")).isEmpty();
+        JsonNode done = events.get(2).data();
+        assertThat(done.get("answerSource").asString()).isEqualTo("SMALL_TALK");
+        assertThat(done.get("notFoundAnswer").asBoolean()).isFalse();
+        Map<String, Object> turn = turn(conversationId, 1);
+        assertThat(turn.get("message_label")).isEqualTo("GREETING");
+        assertThat(turn.get("message_label_latency_ms")).isNotNull();
+        assertThat(turn.get("retrieval_strategy")).isEqualTo("NONE");
+        assertThat(modelCalls()).as("only the label call").isEqualTo(1);
+        verify(retrievalClient, never()).search(anyString(), anyInt());
+    }
+
+    @Test
+    void givenShortPersonalQuestionLabeledOther_whenSendMessage_thenOpenerAndCitedInfo() {
+        // Arrange
+        stubGroundedSearch();
+        answerWith(ChatResponses.text(TestProperties.PERSONAL_INFO_OPENER + " "),
+                ChatResponses.text("Limitini Raşit Mobil'de Kartlarım > Limit işlemleri'nden artırabilirsin [1]."));
+        long conversationId = createConversation();
+
+        // Act
+        List<SseEvent> events = send(conversationId, "Kredi limitim ne kadar");
+
+        // Assert
+        JsonNode sources = events.get(events.size() - 2).data();
+        assertThat(sources.get("citations").toString()).isEqualTo("[1]");
+        JsonNode done = events.get(events.size() - 1).data();
+        assertThat(done.get("answer").asString()).isEqualTo(TestProperties.PERSONAL_INFO_OPENER
+                + " Limitini Raşit Mobil'de Kartlarım > Limit işlemleri'nden artırabilirsin [1].");
+        assertThat(done.get("answerSource").asString()).isEqualTo("MODEL");
+        Map<String, Object> turn = turn(conversationId, 1);
+        assertThat(turn.get("message_label")).isEqualTo("OTHER");
+        assertThat(citedText(conversationId, 1)).isEqualTo("{1}");
+    }
+
+    @Test
+    void givenMessageWithoutWords_whenSendMessage_thenSingleNotFoundTokenAndNoWordsTurn() {
+        // Arrange
+        stubGroundedSearch();
+        long conversationId = createConversation();
+
+        // Act
+        List<SseEvent> events = send(conversationId, "???");
+
+        // Assert
+        assertThat(names(events)).containsExactly("token", "sources", "done");
+        assertThat(events.get(0).data().get("text").asString()).isEqualTo(NOT_FOUND);
+        JsonNode sources = events.get(1).data();
+        assertThat(sources.get("retrievalStrategy").asString()).isEqualTo("NONE");
+        assertThat(sources.get("searchQuery").isNull()).isTrue();
+        assertThat(sources.get("queryRewriteStatus").asString()).isEqualTo("DISABLED");
+        assertThat(sources.get("contextChunks")).isEmpty();
+        assertThat(sources.get("citations")).isEmpty();
+        JsonNode done = events.get(2).data();
+        assertThat(done.get("notFoundAnswer").asBoolean()).isTrue();
+        assertThat(done.get("answerSource").asString()).isEqualTo("NO_WORDS");
+        assertThat(done.get("answer").asString()).isEqualTo(NOT_FOUND);
+        assertThat(done.get("generationLatencyMs").isNull()).isTrue();
+        assertThat(done.get("promptTokens").isNull()).isTrue();
+        Map<String, Object> turn = turn(conversationId, 1);
+        assertThat(turn.get("answer_source")).isEqualTo("NO_WORDS");
+        assertThat(turn.get("retrieval_strategy")).isEqualTo("NONE");
+        assertThat(turn.get("not_found_answer")).isEqualTo(true);
+        assertThat(turn.get("message_label")).isNull();
+        assertThat(citedText(conversationId, 1)).isEqualTo("{}");
+        assertThat(modelCalls()).isZero();
+        verify(retrievalClient, never()).search(anyString(), anyInt());
     }
 }

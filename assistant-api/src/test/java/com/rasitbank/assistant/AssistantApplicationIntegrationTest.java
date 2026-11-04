@@ -31,8 +31,8 @@ class AssistantApplicationIntegrationTest extends PostgresIntegrationTest {
     private int port;
 
     @Test
-    void givenEmptyDatabase_whenContextStarts_thenFlywayAppliesAllEightMigrations() {
-        assertThat(flyway.info().applied()).hasSize(8);
+    void givenEmptyDatabase_whenContextStarts_thenFlywayAppliesAllNineMigrations() {
+        assertThat(flyway.info().applied()).hasSize(9);
         assertThat(flyway.info().applied()[0].getVersion().getVersion()).isEqualTo("1");
         assertThat(flyway.info().applied()[1].getVersion().getVersion()).isEqualTo("2");
         assertThat(flyway.info().applied()[2].getVersion().getVersion()).isEqualTo("3");
@@ -41,6 +41,7 @@ class AssistantApplicationIntegrationTest extends PostgresIntegrationTest {
         assertThat(flyway.info().applied()[5].getVersion().getVersion()).isEqualTo("6");
         assertThat(flyway.info().applied()[6].getVersion().getVersion()).isEqualTo("7");
         assertThat(flyway.info().applied()[7].getVersion().getVersion()).isEqualTo("8");
+        assertThat(flyway.info().applied()[8].getVersion().getVersion()).isEqualTo("9");
         assertThat(flyway.info().applied()[4].getState().isApplied()).isTrue();
         assertThat(flyway.info().pending()).isEmpty();
     }

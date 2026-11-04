@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import com.rasitbank.assistant.exception.ServiceUnavailableException;
 import com.rasitbank.assistant.retrieval.client.RerankClient;
 import com.rasitbank.assistant.retrieval.client.RetrievalClient;
+import com.rasitbank.assistant.support.ChatModelStubs;
 import com.rasitbank.assistant.support.ChatResponses;
 import com.rasitbank.assistant.support.PostgresIntegrationTest;
 import com.rasitbank.assistant.support.SearchHitFixtures;
@@ -101,7 +102,7 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
         scores[0] = 6.0;
         scores[2] = 5.0;
         given(rerankClient.rerankChunks(anyString(), anyList())).willReturn(List.of(scores));
-        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.just(ChatResponses.text("Kartını "),
+        ChatModelStubs.stub(chatModel, Flux.just(ChatResponses.text("Kartını "),
                 ChatResponses.textWithUsage("kapat [1].", 2154, 61)));
     }
 
@@ -263,6 +264,7 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
     @Test
     void givenEmptyKnowledgeBase_whenSendMessage_thenNotFoundSentenceStreamedWithoutModelCall() {
         given(retrievalClient.search(anyString(), anyInt())).willReturn(List.of());
+        ChatModelStubs.stub(chatModel);
         long conversationId = createConversation();
 
         HttpResponse<String> response = sendMessage(conversationId, "Bitcoin alıp satabilir miyim?");
@@ -272,10 +274,36 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
         assertThat(events.get(0).data().get("text").asString()).isEqualTo("Bu konuda rehberimizde bilgi bulamadım.");
         assertThat(events.get(1).data().get("contextChunks")).isEmpty();
         assertThat(events.get(2).data().get("notFoundAnswer").asBoolean()).isTrue();
-        verify(chatModel, never()).stream(any(Prompt.class));
+        assertThat(ChatModelStubs.nonLabelPrompts(chatModel)).isEmpty();
         verify(rerankClient, never()).rerankChunks(anyString(), anyList());
         assertThat(jdbc.queryForObject("select not_found_answer from conversation_turns where conversation_id = ?",
                 Boolean.class, conversationId)).isTrue();
+    }
+
+    @Test
+    void givenModelWritesOpenerMidAnswer_whenSendMessage_thenDoneAnswerAndRecordWithoutOpener() {
+        // Arrange
+        stubHappyPath();
+        ChatModelStubs.stub(chatModel, Flux.just(
+                ChatResponses.text("Kredi kartının yıllık aidatı 750 TL'dir [1]. "),
+                ChatResponses.text("Hesabına özel bilgileri (bakiye, limit, borç, başvuru durumu, hesap hareketleri) "
+                        + "göremiyorum. [2]")));
+        long conversationId = createConversation();
+
+        // Act
+        List<SseEvent> events = parseEvents(sendMessage(conversationId, "Kredi kartı aidatı ne kadar?").body());
+
+        // Assert
+        assertThat(events).extracting(SseEvent::name).containsExactly("token", "token", "sources", "done");
+        assertThat(events.get(1).data().get("text").asString()).contains("göremiyorum. [2]");
+        assertThat(events.get(2).data().get("citations").toString()).isEqualTo("[1]");
+        assertThat(events.get(3).data().get("answer").asString())
+                .isEqualTo("Kredi kartının yıllık aidatı 750 TL'dir [1].");
+        Map<String, Object> turn = jdbc.queryForMap(
+                "select answer, cited::text as cited from conversation_turns where conversation_id = ?",
+                conversationId);
+        assertThat(turn.get("answer")).isEqualTo("Kredi kartının yıllık aidatı 750 TL'dir [1].");
+        assertThat(turn.get("cited")).isEqualTo("{1}");
     }
 
     @Test
@@ -334,6 +362,7 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
     void givenRetrievalDown_whenSendMessage_thenProblemJson503() {
         given(retrievalClient.search(anyString(), anyInt()))
                 .willThrow(new ServiceUnavailableException("RETRIEVAL_UNAVAILABLE", "down"));
+        ChatModelStubs.stub(chatModel);
         long conversationId = createConversation();
 
         HttpResponse<String> response = sendMessage(conversationId, QUESTION);
@@ -345,13 +374,13 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
                 "select error_code, answer from conversation_turns where conversation_id = ?", conversationId);
         assertThat(turn.get("error_code")).isEqualTo("RETRIEVAL_UNAVAILABLE");
         assertThat(turn.get("answer")).isNull();
-        verify(chatModel, never()).stream(any(Prompt.class));
+        assertThat(ChatModelStubs.nonLabelPrompts(chatModel)).isEmpty();
     }
 
     @Test
     void givenModelDown_whenSendMessage_thenStreamHasOnlyErrorEventAndTurnRecorded() {
         stubHappyPath();
-        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.error(new IllegalStateException("refused")));
+        ChatModelStubs.stub(chatModel, Flux.error(new IllegalStateException("refused")));
         long conversationId = createConversation();
 
         HttpResponse<String> response = sendMessage(conversationId, QUESTION);
@@ -401,7 +430,7 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
         given(rerankClient.rerankChunks(anyString(), anyList())).willReturn(List.of(scores));
         Sinks.Many<ChatResponse> sink = Sinks.many().unicast().onBackpressureBuffer();
         AtomicBoolean modelCancelled = new AtomicBoolean();
-        given(chatModel.stream(any(Prompt.class))).willReturn(sink.asFlux().doOnCancel(() -> modelCancelled.set(true)));
+        ChatModelStubs.stub(chatModel, sink.asFlux().doOnCancel(() -> modelCancelled.set(true)));
         long conversationId = createConversation();
 
         CompletableFuture<HttpResponse<InputStream>> first = http.sendAsync(
@@ -412,7 +441,7 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
                                 StandardCharsets.UTF_8)).build(),
                 HttpResponse.BodyHandlers.ofInputStream());
         await().atMost(Duration.ofSeconds(10)).until(() -> {
-            verify(chatModel).stream(any(Prompt.class));
+            verify(chatModel, org.mockito.Mockito.times(2)).stream(any(Prompt.class));
             return true;
         });
         sink.tryEmitNext(ChatResponses.text("Kartını "));
@@ -444,7 +473,7 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
         stubHappyPath();
         long conversationId = createConversation();
         List<SseEvent> first = parseEvents(sendMessage(conversationId, QUESTION).body());
-        given(chatModel.stream(any(Prompt.class))).willReturn(
+        ChatModelStubs.stub(chatModel, 
                 Flux.just(ChatResponses.text("Kaybolan kartın yenisi kaç günde gelir?")),
                 Flux.just(ChatResponses.text("3 iş günü [1].")));
 
@@ -475,7 +504,7 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
         stubHappyPath();
         long conversationId = createConversation();
         sendMessage(conversationId, QUESTION);
-        given(chatModel.stream(any(Prompt.class))).willReturn(Flux.error(new IllegalStateException("refused")),
+        ChatModelStubs.stub(chatModel, Flux.error(new IllegalStateException("refused")),
                 Flux.just(ChatResponses.text("3 iş günü [1].")));
 
         List<SseEvent> events = parseEvents(sendMessage(conversationId, "Yenisi kaç günde gelir?").body());
@@ -493,7 +522,7 @@ class SendMessageIntegrationTest extends PostgresIntegrationTest {
         stubHappyPath();
         long conversationId = createConversation();
         sendMessage(conversationId, QUESTION);
-        given(chatModel.stream(any(Prompt.class))).willReturn(
+        ChatModelStubs.stub(chatModel, 
                 Flux.just(ChatResponses.text("Kaybolan kartın yenisi kaç günde gelir?")),
                 Flux.just(ChatResponses.text("3 iş günü [1].")));
 

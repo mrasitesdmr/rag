@@ -13,7 +13,7 @@ import com.rasitbank.assistant.generation.MessageLabel;
 import com.rasitbank.assistant.generation.MessageLabelResult;
 import com.rasitbank.assistant.generation.MessageLabeler;
 import com.rasitbank.assistant.generation.PromptBuilder;
-import com.rasitbank.assistant.generation.SmallTalkDetector;
+import com.rasitbank.assistant.generation.ShortMessageDetector;
 import com.rasitbank.assistant.retrieval.service.ContextRetriever;
 import com.rasitbank.assistant.retrieval.service.QueryRewriteResult;
 import com.rasitbank.assistant.retrieval.service.QueryRewriter;
@@ -24,7 +24,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -35,8 +34,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * Müşterinin sorusunu yapılandırılan üretim moduna göre cevaplar: akış açılmadan önce konuşmayı ve süren turu
- * denetler, geçmişi okur; RAG'de selamlaşmaya hazır karşılık verir (cevaplı bir turdan sonra gelen kısa mesajı
- * aramadan önce dil modeline etiket olarak sorar), takip sorusunu arama sorgusuna çevirip
+ * denetler, geçmişi okur; RAG'de harf ve rakam içermeyen mesaja aramadan bulamadım der, kısa mesajı aramadan
+ * önce dil modeline etiket olarak sorup selamlaşmaya hazır karşılık verir, takip sorusunu arama sorgusuna çevirip
  * retrieval'ı yapar, en iyi parçanın reranker puanı eşiğin altındaysa cevap modelini çağırmaz; Sadece LLM'de bu
  * adımları atlar; soru golden set'teyse cevabın geçtiği parçaları bulur; sonra cevabı SSE akışı olarak başlatır.
  * Model çağrıları sırasında transaction açık tutmaz.
@@ -46,9 +45,8 @@ public class AnswerService {
 
     private static final Logger log = LoggerFactory.getLogger(AnswerService.class);
 
-    private static final String PATTERN_ROUTE = "PATTERN";
     private static final String LABEL_ROUTE = "LABEL";
-    private static final String PRE_REWRITE_LABEL_ROUTE = "PRE_REWRITE_LABEL";
+    private static final String PRE_SEARCH_LABEL_ROUTE = "PRE_SEARCH_LABEL";
 
     private final ConversationService conversationService;
     private final ActiveTurnRegistry activeTurnRegistry;
@@ -58,7 +56,7 @@ public class AnswerService {
     private final AnswerStreamer answerStreamer;
     private final TurnService turnService;
     private final GoldenAnswerLocator goldenAnswerLocator;
-    private final SmallTalkDetector smallTalkDetector;
+    private final ShortMessageDetector shortMessageDetector;
     private final RerankScoreGate rerankScoreGate;
     private final MessageLabeler messageLabeler;
     private final AssistantProperties properties;
@@ -68,7 +66,8 @@ public class AnswerService {
     public AnswerService(ConversationService conversationService, ActiveTurnRegistry activeTurnRegistry,
             QueryRewriter queryRewriter, ContextRetriever contextRetriever, PromptBuilder promptBuilder,
             AnswerStreamer answerStreamer,
-            TurnService turnService, GoldenAnswerLocator goldenAnswerLocator, SmallTalkDetector smallTalkDetector,
+            TurnService turnService, GoldenAnswerLocator goldenAnswerLocator,
+            ShortMessageDetector shortMessageDetector,
             RerankScoreGate rerankScoreGate, MessageLabeler messageLabeler, AssistantProperties properties,
             @Value("${spring.ai.ollama.chat.model}") String chatModelName, Clock clock) {
         this.conversationService = conversationService;
@@ -79,7 +78,7 @@ public class AnswerService {
         this.answerStreamer = answerStreamer;
         this.turnService = turnService;
         this.goldenAnswerLocator = goldenAnswerLocator;
-        this.smallTalkDetector = smallTalkDetector;
+        this.shortMessageDetector = shortMessageDetector;
         this.rerankScoreGate = rerankScoreGate;
         this.messageLabeler = messageLabeler;
         this.properties = properties;
@@ -126,17 +125,16 @@ public class AnswerService {
 
     private SseEmitter answerWithRetrieval(long conversationId, String question, List<HistoryTurn> history,
             Instant receivedAt, long startNanos) {
-        Optional<MessageLabel> smallTalk = smallTalkDetector.detect(question);
-        if (smallTalk.isPresent()) {
-            return answerSmallTalkByPattern(conversationId, question, smallTalk.get(), receivedAt, startNanos);
+        if (shortMessageDetector.hasNoWords(question)) {
+            return answerWithoutWords(conversationId, question, receivedAt, startNanos);
         }
-        @Nullable MessageLabelResult preRewriteLabel = null;
-        if (!history.isEmpty() && smallTalkDetector.isShortMessage(question)) {
-            preRewriteLabel = messageLabeler.labelMessage(question);
-            log.info("Message labeled before rewrite conversationId={} label={} durationMs={} failed={}",
-                    conversationId, preRewriteLabel.label(), preRewriteLabel.latencyMs(), preRewriteLabel.failed());
-            if (preRewriteLabel.label().isSmallTalk()) {
-                return answerSmallTalkWithoutSearch(conversationId, question, preRewriteLabel, receivedAt,
+        @Nullable MessageLabelResult preSearchLabel = null;
+        if (shortMessageDetector.isShortMessage(question)) {
+            preSearchLabel = messageLabeler.labelMessage(question);
+            log.info("Message labeled before search conversationId={} label={} durationMs={} failed={}",
+                    conversationId, preSearchLabel.label(), preSearchLabel.latencyMs(), preSearchLabel.failed());
+            if (preSearchLabel.label().isSmallTalk()) {
+                return answerSmallTalkWithoutSearch(conversationId, question, preSearchLabel, receivedAt,
                         startNanos);
             }
         }
@@ -147,15 +145,15 @@ public class AnswerService {
         SseEmitter emitter = new SseEmitter(properties.generation().streamTimeout().toMillis());
         if (context.contextChunks().isEmpty()) {
             TurnDraft draft = draft(conversationId, question, rewrite, history.size(), receivedAt, startNanos,
-                    context, labelOf(preRewriteLabel), latencyOf(preRewriteLabel));
+                    context, labelOf(preSearchLabel), latencyOf(preSearchLabel));
             answerStreamer.streamFixedAnswer(draft, properties.generation().notFoundAnswer(),
                     AnswerSource.EMPTY_KNOWLEDGE_BASE, emitter);
         } else if (rerankScoreGate.isBelowThreshold(context)) {
             answerBelowThreshold(conversationId, question, rewrite, history.size(), receivedAt, startNanos, context,
-                    preRewriteLabel, emitter);
+                    preSearchLabel, emitter);
         } else {
             TurnDraft draft = draft(conversationId, question, rewrite, history.size(), receivedAt, startNanos,
-                    context, labelOf(preRewriteLabel), latencyOf(preRewriteLabel));
+                    context, labelOf(preSearchLabel), latencyOf(preSearchLabel));
             Set<Long> answerChunkIds = locateAnswerChunks(question);
             answerStreamer.streamModelAnswer(draft,
                     promptBuilder.buildPrompt(question, history, context.contextChunks()), emitter, answerChunkIds);
@@ -163,13 +161,14 @@ public class AnswerService {
         return emitter;
     }
 
-    private SseEmitter answerSmallTalkByPattern(long conversationId, String question, MessageLabel label,
-            Instant receivedAt, long startNanos) {
-        log.info("Small talk answered conversationId={} label={} route={}", conversationId, label, PATTERN_ROUTE);
+    private SseEmitter answerWithoutWords(long conversationId, String question, Instant receivedAt,
+            long startNanos) {
+        log.info("Message without words answered conversationId={} questionLength={}", conversationId,
+                question.length());
         TurnDraft draft = new TurnDraft(conversationId, GenerationMode.RAG, question, null,
-                QueryRewriteStatus.DISABLED, null, 0, chatModelName, receivedAt, startNanos, null, label, null);
+                QueryRewriteStatus.DISABLED, null, 0, chatModelName, receivedAt, startNanos, null, null, null);
         SseEmitter emitter = new SseEmitter(properties.generation().streamTimeout().toMillis());
-        answerStreamer.streamFixedAnswer(draft, properties.smallTalk().answerFor(label), AnswerSource.SMALL_TALK,
+        answerStreamer.streamFixedAnswer(draft, properties.generation().notFoundAnswer(), AnswerSource.NO_WORDS,
                 emitter);
         return emitter;
     }
@@ -178,7 +177,7 @@ public class AnswerService {
             MessageLabelResult labelResult, Instant receivedAt, long startNanos) {
         MessageLabel label = labelResult.label();
         log.info("Small talk answered conversationId={} label={} route={}", conversationId, label,
-                PRE_REWRITE_LABEL_ROUTE);
+                PRE_SEARCH_LABEL_ROUTE);
         TurnDraft draft = new TurnDraft(conversationId, GenerationMode.RAG, question, null,
                 QueryRewriteStatus.DISABLED, null, 0, chatModelName, receivedAt, startNanos, null, label,
                 labelResult.latencyMs());
@@ -190,10 +189,10 @@ public class AnswerService {
 
     private void answerBelowThreshold(long conversationId, String question, QueryRewriteResult rewrite,
             int historyTurns, Instant receivedAt, long startNanos, RetrievedContext context,
-            @Nullable MessageLabelResult preRewriteLabel, SseEmitter emitter) {
+            @Nullable MessageLabelResult preSearchLabel, SseEmitter emitter) {
         log.info("Answer stopped by rerank threshold conversationId={} topRerankScore={} minRerankScore={}",
                 conversationId, context.contextChunks().getFirst().rerankScore(), rerankScoreGate.minRerankScore());
-        @Nullable MessageLabelResult labelResult = preRewriteLabel;
+        @Nullable MessageLabelResult labelResult = preSearchLabel;
         if (labelResult == null) {
             labelResult = messageLabeler.labelMessage(question);
             log.info("Message labeled conversationId={} label={} durationMs={} failed={}", conversationId,

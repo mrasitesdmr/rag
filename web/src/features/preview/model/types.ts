@@ -19,7 +19,7 @@ export type RetrievalStrategy = (typeof RETRIEVAL_STRATEGIES)[number]
 export const QUERY_REWRITE_STATUSES = ['DISABLED', 'NO_HISTORY', 'REWRITTEN', 'FAILED', 'EMPTY'] as const
 export type QueryRewriteStatus = (typeof QUERY_REWRITE_STATUSES)[number]
 
-export const ANSWER_SOURCES = ['MODEL', 'EMPTY_KNOWLEDGE_BASE', 'BELOW_RERANK_THRESHOLD', 'SMALL_TALK'] as const
+export const ANSWER_SOURCES = ['MODEL', 'EMPTY_KNOWLEDGE_BASE', 'BELOW_RERANK_THRESHOLD', 'SMALL_TALK', 'NO_WORDS'] as const
 export type AnswerSource = (typeof ANSWER_SOURCES)[number]
 
 export type ContextChunk = {

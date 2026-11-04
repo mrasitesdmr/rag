@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Measure answers and citations against a running assistant-api (TASK-031).
+"""Measure answers and citations against a running assistant-api (TASK-031, TASK-032).
 
 Sends every golden set question and every negative message to a fresh conversation, parses the SSE stream and
 writes one row per evaluated message plus a summary to a JSON file. Standard library only.
 
 Prerequisites: guide 2026.10 ingested (DONE), golden set PUT, RETRIEVAL_STRATEGY=rerank, QUERY_REWRITE_ENABLED=true.
+With --threshold-candidates (run with the threshold disabled: RETRIEVAL_MIN_RERANK_SCORE=) the summary gets a
+thresholdTable: for every candidate c, how many golden, off-topic and targeted messages score below c.
 """
 
 import argparse
 import json
+import math
 import re
 import statistics
 import sys
@@ -22,12 +25,26 @@ CITATION = re.compile(r"\[\d+]")
 FIRST_SENTENCE_END = re.compile(r"[.!?]")
 LEADING_CITATION = re.compile(r"\s*\[\d+]")
 WHITESPACE = re.compile(r"\s+")
+NON_WORD = re.compile(r"[^\w\s]|_")
+SHORT_MESSAGE_MAX_WORDS = 10
+SHORT_QUESTION_MAX_WORDS = 5
 REQUEST_TIMEOUT_SECONDS = 330
-ANSWER_LISTED_CATEGORIES = {"follow-up-small-talk", "follow-up-question", "follow-up-question-long"}
+ANSWER_LISTED_CATEGORIES = {"follow-up-small-talk", "follow-up-question", "follow-up-question-long",
+                            "follow-up-independent", "name", "personal-info-with-info"}
+PERSONAL_INFO_OPENER = ("Hesabına özel bilgileri (bakiye, limit, borç, başvuru durumu, hesap hareketleri) "
+                        "göremiyorum.")
 OPENERS = {
-    "personal-info": "Hesabına özel bilgileri (bakiye, limit, borç, başvuru durumu, hesap hareketleri) göremiyorum.",
+    "personal-info": PERSONAL_INFO_OPENER,
+    "personal-info-with-info": PERSONAL_INFO_OPENER,
     "other-banks": "Başka bankaların ürünleri ve koşulları hakkında bilgi veremiyorum.",
     "investment-advice": "Yatırım tavsiyesi ya da piyasa tahmini veremiyorum.",
+}
+OFF_TOPIC_CATEGORIES = {"not-in-guide", "off-topic", "gibberish", "follow-up-independent"}
+# Distinctive core of each opener; matched anywhere in the answer so reworded variants ("Ancak hesabınıza ...") count.
+OPENER_CORES = {
+    OPENERS["personal-info"]: "özel bilgileri bakiye limit borç başvuru durumu hesap hareketleri göremiyorum",
+    OPENERS["other-banks"]: "bankaların ürünleri ve koşulları hakkında bilgi veremiyorum",
+    OPENERS["investment-advice"]: "yatırım tavsiyesi ya da piyasa tahmini veremiyorum",
 }
 
 
@@ -40,8 +57,39 @@ def normalize(text):
 
 
 def starts_with_any_opener(answer):
+    return opener_of(answer) is not None
+
+
+def opener_of(answer):
     normalized = normalize(answer)
-    return any(normalized.startswith(normalize(opener)) for opener in OPENERS.values())
+    return next((opener for opener in OPENERS.values() if normalized.startswith(normalize(opener))), None)
+
+
+def wrong_opener(category, answer):
+    used = opener_of(answer)
+    return used is not None and used != OPENERS.get(category)
+
+
+def words_of(text):
+    return WHITESPACE.sub(" ", NON_WORD.sub(" ", turkish_lower(text or ""))).strip()
+
+
+def openers_anywhere(answer):
+    words = f" {words_of(answer)} "
+    return [opener for opener, core in OPENER_CORES.items() if f" {core} " in words]
+
+
+def opener_anywhere(category, answer):
+    own = OPENERS.get(category)
+    return any(opener != own for opener in openers_anywhere(answer))
+
+
+def is_short_message(text):
+    words = WHITESPACE.sub(" ", NON_WORD.sub(" ", turkish_lower(text))).strip()
+    if not words:
+        return False
+    limit = SHORT_QUESTION_MAX_WORDS if "?" in text else SHORT_MESSAGE_MAX_WORDS
+    return len(words.split(" ")) <= limit
 
 
 def first_sentence_has_citation(answer):
@@ -117,6 +165,8 @@ def send_message(base_url, conversation_id, text):
 
 
 def route_of(sources, answer_source):
+    if answer_source == "NO_WORDS":
+        return "NO_WORDS"
     if answer_source != "SMALL_TALK" or sources is None:
         return None
     return "NO_SEARCH" if sources.get("retrievalStrategy") == "NONE" else "LABEL"
@@ -151,11 +201,18 @@ def evaluate(set_name, category, text, events, elapsed_seconds):
         "answerSource": answer_source,
         "route": route_of(sources, answer_source),
         "retrievalStrategy": sources.get("retrievalStrategy") if sources else None,
+        "searchQuery": sources.get("searchQuery") if sources else None,
+        "queryRewriteStatus": sources.get("queryRewriteStatus") if sources else None,
+        "shortMessage": is_short_message(text.split(">>")[-1].strip()),
         "notFoundAnswer": not_found,
         "citations": len(citations),
         "citedContainsAnswer": cited_contains_answer,
         "citedChunks": cited_chunks,
+        "citedHeadings": [chunk["heading"] for chunk in cited_chunks],
         "startsWithOpener": starts_with_opener,
+        "wrongOpener": wrong_opener(category, answer),
+        "openerAnywhere": opener_anywhere(category, answer),
+        "openerWithCitedInfo": bool(opener and starts_with_opener and citations),
         "openerHasCitation": has_opener_citation,
         "openerTrailingCitation": opener_trailing_citation(answer),
         "streamedOpenerHasCitation": opener_has_citation("".join(tokens)),
@@ -223,6 +280,12 @@ def summarize(rows):
             "paraphrasedNotFound": sum(1 for row in golden if row["paraphrasedNotFound"]),
             "goldenStartsWithOpener": sum(1 for row in golden if row["startsWithOpener"]),
             "goldenStartsWithOpenerTexts": [row["text"] for row in golden if row["startsWithOpener"]],
+            "fallen": sum(1 for row in golden if is_fallen(row)),
+            "fallenTexts": [{"text": row["text"], "answerSource": row["answerSource"],
+                             "topRerankScore": row["topRerankScore"]} for row in golden if is_fallen(row)],
+            "wrongOpener": sum(1 for row in golden if row["wrongOpener"]),
+            "openerAnywhere": sum(1 for row in golden if row["openerAnywhere"]),
+            "openerAnywhereTexts": [row["text"] for row in golden if row["openerAnywhere"]],
             "topRerankScore": score_stats([row["topRerankScore"] for row in golden]),
         }
     if negative:
@@ -231,18 +294,23 @@ def summarize(rows):
             entry = categories.setdefault(row["category"], {
                 "total": 0, "withCitations": 0, "notFound": 0, "smallTalkNoSearch": 0, "smallTalkLabel": 0,
                 "errors": 0, "startsWithOpener": 0, "openerHasCitation": 0, "openerTrailingCitation": 0,
-                "streamedOpenerHasCitation": 0, "targetedOk": 0, "scores": []})
+                "streamedOpenerHasCitation": 0, "targetedOk": 0, "wrongOpener": 0, "openerAnywhere": 0, "openerWithCitedInfo": 0, "smallTalk": 0, "noWords": 0, "scores": []})
             entry["total"] += 1
             entry["withCitations"] += row["citations"] > 0
             entry["notFound"] += bool(row["notFoundAnswer"])
             entry["smallTalkNoSearch"] += row["route"] == "NO_SEARCH"
             entry["smallTalkLabel"] += row["route"] == "LABEL"
             entry["errors"] += bool(row["errorCode"])
-            entry["smallTalk"] = entry.get("smallTalk", 0) + (row["answerSource"] == "SMALL_TALK")
+            entry["smallTalk"] += row["answerSource"] == "SMALL_TALK"
+            entry["wrongOpener"] += bool(row["wrongOpener"])
+            entry["noWords"] += row["answerSource"] == "NO_WORDS"
+            entry["openerAnywhere"] += bool(row["openerAnywhere"])
+            entry["openerWithCitedInfo"] += bool(row["openerWithCitedInfo"])
             if row["category"] in ANSWER_LISTED_CATEGORIES:
                 entry.setdefault("answers", []).append(
                     {"text": row["text"], "answerSource": row["answerSource"], "route": row["route"],
-                     "notFoundAnswer": row["notFoundAnswer"], "citations": row["citations"], "answer": row["answer"]})
+                     "searchQuery": row["searchQuery"], "notFoundAnswer": row["notFoundAnswer"],
+                     "citations": row["citations"], "citedHeadings": row["citedHeadings"], "answer": row["answer"]})
             entry["startsWithOpener"] += bool(row["startsWithOpener"])
             entry["openerHasCitation"] += bool(row["openerHasCitation"])
             entry["openerTrailingCitation"] += bool(row["openerTrailingCitation"])
@@ -258,11 +326,96 @@ def summarize(rows):
                 1 for row in negative if row["category"] not in OPENERS and row["citations"] > 0),
             "targetedOk": sum(1 for row in negative if row["targetedOk"]),
             "targetedTotal": sum(1 for row in negative if row["category"] in OPENERS),
+            "wrongOpener": sum(1 for row in negative if row["wrongOpener"]),
+            "openerAnywhere": sum(1 for row in negative if row["openerAnywhere"]),
+            "openerAnywhereTexts": [row["text"] for row in negative if row["openerAnywhere"]],
             "categories": categories,
             "topRerankScore": score_stats([row["topRerankScore"] for row in negative]),
         }
     summary["secondPersonSelfReference"] = sum(1 for row in rows if row["secondPersonSelfReference"])
+    short_latencies = [row["latencyMs"] for row in rows if row["shortMessage"] and row["latencyMs"] is not None]
+    summary["shortMessageLatencyMs"] = {
+        "count": len(short_latencies),
+        "median": statistics.median(short_latencies) if short_latencies else None,
+        "smallTalkMedian": median_or_none([row["latencyMs"] for row in rows if row["shortMessage"]
+                                           and row["answerSource"] == "SMALL_TALK"]),
+        "otherMedian": median_or_none([row["latencyMs"] for row in rows if row["shortMessage"]
+                                       and row["answerSource"] != "SMALL_TALK"]),
+    }
     return summary
+
+
+def median_or_none(values):
+    present = [value for value in values if value is not None]
+    return statistics.median(present) if present else None
+
+
+def is_fallen(row):
+    return bool(row["notFoundAnswer"]) or row["answerSource"] == "SMALL_TALK"
+
+
+def floor_to_half(value):
+    return math.floor(value * 2) / 2
+
+
+def below(rows, candidate):
+    return [row for row in rows if row["topRerankScore"] is not None and row["topRerankScore"] < candidate]
+
+
+def scored_texts(rows, reverse):
+    scored = sorted((row for row in rows if row["topRerankScore"] is not None),
+                    key=lambda row: row["topRerankScore"], reverse=reverse)
+    return [{"text": row["text"], "category": row["category"], "topRerankScore": row["topRerankScore"]}
+            for row in scored[:3]]
+
+
+def threshold_analysis(rows, candidates):
+    golden = [row for row in rows if row["set"] == "golden"]
+    off_topic = [row for row in rows if row["set"] == "negative" and row["category"] in OFF_TOPIC_CATEGORIES]
+    targeted = [row for row in rows if row["set"] == "negative" and row["category"] in OPENERS]
+    golden_scores = [row["topRerankScore"] for row in golden if row["topRerankScore"] is not None]
+    off_topic_scores = [row["topRerankScore"] for row in off_topic if row["topRerankScore"] is not None]
+    golden_min = min(golden_scores) if golden_scores else None
+    off_topic_max = max(off_topic_scores) if off_topic_scores else None
+    recommended = {}
+    if golden_min is not None:
+        recommended["A_goldenMinMinusOne"] = floor_to_half(golden_min - 1.0)
+        recommended["C_goldenMinMinusHalf"] = floor_to_half(golden_min - 0.5)
+        if off_topic_max is not None:
+            recommended["B_midpoint"] = floor_to_half((golden_min + off_topic_max) / 2)
+    all_candidates = sorted(set(candidates) | set(recommended.values()))
+    table = []
+    for candidate in all_candidates:
+        golden_below = below(golden, candidate)
+        off_topic_below = below(off_topic, candidate)
+        targeted_below = below(targeted, candidate)
+        table.append({
+            "candidate": candidate,
+            "goldenBelow": len(golden_below),
+            "goldenBelowTexts": [row["text"] for row in golden_below],
+            "offTopicBelow": len(off_topic_below),
+            "offTopicTotal": len(off_topic_scores),
+            "offTopicNotBelowTexts": [row["text"] for row in off_topic
+                                      if row["topRerankScore"] is not None and row not in off_topic_below],
+            "targetedBelow": len(targeted_below),
+            "targetedBelowTexts": [row["text"] for row in targeted_below],
+        })
+    return {
+        "goldenLowest": scored_texts(golden, reverse=False),
+        "goldenMedian": statistics.median(golden_scores) if golden_scores else None,
+        "goldenMin": golden_min,
+        "offTopicHighest": scored_texts(off_topic, reverse=True),
+        "offTopicMax": off_topic_max,
+        "targetedScores": [{"text": row["text"], "category": row["category"],
+                            "topRerankScore": row["topRerankScore"]} for row in targeted],
+        "recommended": recommended,
+        "noScore": {
+            "golden": sum(1 for row in golden if row["topRerankScore"] is None),
+            "offTopic": sum(1 for row in off_topic if row["topRerankScore"] is None),
+            "targeted": sum(1 for row in targeted if row["topRerankScore"] is None),
+        },
+        "thresholdTable": table,
+    }
 
 
 def count_by(rows, key):
@@ -279,6 +432,8 @@ def main():
     parser.add_argument("--negatives", default="assistant-api/scripts/negative-messages.txt")
     parser.add_argument("--sets", default="golden,negative", help="comma separated: golden, negative")
     parser.add_argument("--categories", default="", help="comma separated negative categories (default: all)")
+    parser.add_argument("--threshold-candidates", default="",
+                        help="comma separated rerank score candidates, e.g. -3,-2,-1,-0.5,0 (threshold disabled run)")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
 
@@ -299,7 +454,11 @@ def main():
               f"notFound={row['notFoundAnswer']} citations={row['citations']} top={row['topRerankScore']} "
               f"error={row['errorCode']}", file=sys.stderr, flush=True)
 
-    result = {"baseUrl": args.base_url, "summary": summarize(rows), "rows": rows}
+    summary = summarize(rows)
+    candidates = [float(value) for value in args.threshold_candidates.split(",") if value.strip()]
+    if candidates:
+        summary["threshold"] = threshold_analysis(rows, candidates)
+    result = {"baseUrl": args.base_url, "summary": summary, "rows": rows}
     with open(args.out, "w", encoding="utf-8") as file:
         json.dump(result, file, ensure_ascii=False, indent=2)
     print(json.dumps(result["summary"], ensure_ascii=False, indent=2))

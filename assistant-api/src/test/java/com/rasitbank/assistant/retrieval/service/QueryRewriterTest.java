@@ -69,41 +69,67 @@ class QueryRewriterTest {
         verifyNoInteractions(chatModel);
     }
 
-    @Test
-    void givenOneHistoryTurn_whenRewriteQuery_thenSendsLabTemplateAsSingleUserMessage() {
-        modelReturns(REWRITTEN);
-
-        rewriter().rewriteQuery(QUESTION, HISTORY);
-
+    private String capturedPrompt() {
         ArgumentCaptor<Prompt> prompt = ArgumentCaptor.captor();
         verify(chatModel).stream(prompt.capture());
         assertThat(prompt.getValue().getInstructions()).hasSize(1);
         assertThat(prompt.getValue().getInstructions().get(0)).isInstanceOf(UserMessage.class);
-        assertThat(prompt.getValue().getInstructions().get(0).getText()).isEqualTo(
-                "Given the following conversation history and a follow-up query, your task is to synthesize\n"
-                        + "a concise, standalone query that incorporates the context from the history.\n"
-                        + "Ensure the standalone query is clear, specific, and maintains the user's intent.\n"
-                        + "\n"
-                        + "Conversation history:\n"
-                        + "USER: Kartımı kaybettim, ne yapmalıyım?\nASSISTANT: Kartını hemen kapat.\n"
-                        + "\n"
-                        + "Follow-up query:\n"
-                        + "Yenisi kaç günde gelir?\n"
-                        + "\n"
-                        + "Standalone query:");
+        return prompt.getValue().getInstructions().get(0).getText().stripTrailing();
     }
 
     @Test
-    void givenTwoHistoryTurns_whenRewriteQuery_thenHistoryLinesOldestFirst() {
+    void givenOneHistoryTurn_whenRewriteQuery_thenSendsTurkishTemplateAsSingleUserMessage() {
+        modelReturns(REWRITTEN);
+
+        rewriter().rewriteQuery(QUESTION, HISTORY);
+
+        assertThat(capturedPrompt()).isEqualTo(
+                "Bir bankanın dijital asistanına müşterinin yazdığı son mesajı, rehberde arama yapmak için tek başına "
+                        + "anlaşılır bir soruya çevir.\n"
+                        + "Son mesaj müşterinin önceki sorularından birine dayanıyorsa (ör. \"Peki ücretli mi\", "
+                        + "\"Ya kredi kartında\") eksik konuyu önceki sorulardan tamamla.\n"
+                        + "Son mesaj önceki sorulardan bağımsız yeni bir konuysa son mesajı hiç değiştirmeden aynen yaz.\n"
+                        + "Müşterinin niyetini koru; yeni bilgi, selamlama ya da açıklama ekleme. Sadece soruyu yaz.\n"
+                        + "\n"
+                        + "Müşterinin önceki soruları:\n"
+                        + "- Kartımı kaybettim, ne yapmalıyım?\n"
+                        + "\n"
+                        + "Son mesaj:\n"
+                        + "Yenisi kaç günde gelir?\n"
+                        + "\n"
+                        + "Arama sorusu:");
+    }
+
+    @Test
+    void givenTwoHistoryTurns_whenRewriteQuery_thenQuestionLinesOldestFirst() {
         modelReturns(REWRITTEN);
         List<HistoryTurn> history = List.of(new HistoryTurn("q1", "a1"), new HistoryTurn("q2", "a2"));
 
         rewriter().rewriteQuery(QUESTION, history);
 
-        ArgumentCaptor<Prompt> prompt = ArgumentCaptor.captor();
-        verify(chatModel).stream(prompt.capture());
-        assertThat(prompt.getValue().getInstructions().get(0).getText())
-                .contains("USER: q1\nASSISTANT: a1\nUSER: q2\nASSISTANT: a2\n");
+        assertThat(capturedPrompt()).contains("- q1\n- q2\n").doesNotContain("a1", "a2");
+    }
+
+    @Test
+    void givenHistoryWithAssistantGreeting_whenRewriteQuery_thenPromptHasOnlyPreviousQuestions() {
+        modelReturns(REWRITTEN);
+        List<HistoryTurn> history = List.of(new HistoryTurn("Ek kart nasıl alabilirim",
+                "Merhaba Ahmet, ben Raşit Bankası'nın dijital asistanıyım. Ek kartı Raşit Mobil'den alabilirsin [1]."));
+
+        rewriter().rewriteQuery("Peki ücretli mi", history);
+
+        assertThat(capturedPrompt()).contains("- Ek kart nasıl alabilirim", "Peki ücretli mi")
+                .doesNotContain("Merhaba Ahmet", "asistanıyım", "[1]", "ASSISTANT");
+    }
+
+    @Test
+    void givenFollowUp_whenRewriteQuery_thenTurkishInstructionKeepsIndependentQuestion() {
+        modelReturns(REWRITTEN);
+
+        rewriter().rewriteQuery(QUESTION, HISTORY);
+
+        assertThat(capturedPrompt()).contains("bağımsız yeni bir konuysa son mesajı hiç değiştirmeden aynen yaz",
+                "Arama sorusu:").doesNotContain("Standalone query");
     }
 
     @Test
@@ -156,7 +182,7 @@ class QueryRewriterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"  \n", "Standalone query:", "standalone query:  \n"})
+    @ValueSource(strings = {"  \n", "Standalone query:", "standalone query:  \n", "Arama sorusu:", "ARAMA SORUSU:  \n"})
     void givenBlankOrLabelOnlyOutput_whenRewriteQuery_thenEmpty(String output) {
         modelReturns(output);
 
@@ -172,7 +198,9 @@ class QueryRewriterTest {
             "Standalone query: \"Kaybolan kartın yenisi kaç günde gelir?\"\n",
             "“Kaybolan kartın\nyenisi kaç günde gelir?”",
             "  Kaybolan   kartın yenisi\tkaç günde gelir?  ",
-            "STANDALONE QUERY: Kaybolan kartın yenisi kaç günde gelir?"})
+            "STANDALONE QUERY: Kaybolan kartın yenisi kaç günde gelir?",
+            "Arama sorusu: Kaybolan kartın yenisi kaç günde gelir?",
+            "ARAMA SORUSU: Kaybolan kartın yenisi kaç günde gelir?"})
     void givenDecoratedOutput_whenRewriteQuery_thenCleanQuery(String output) {
         modelReturns(output);
 
@@ -189,6 +217,16 @@ class QueryRewriterTest {
         QueryRewriteResult result = rewriter().rewriteQuery(QUESTION, HISTORY);
 
         assertThat(result.searchQuery()).isEqualTo("\"Kart\" ücreti \"Gold\" için ne kadar?");
+    }
+
+    @Test
+    void givenOnlyEmptyQuotesOutput_whenRewriteQuery_thenEmpty() {
+        modelReturns("\"\"");
+
+        QueryRewriteResult result = rewriter().rewriteQuery(QUESTION, HISTORY);
+
+        assertThat(result.status()).isEqualTo(QueryRewriteStatus.EMPTY);
+        assertThat(result.searchQuery()).isEqualTo(QUESTION);
     }
 
     @Test

@@ -101,7 +101,14 @@ describe('toAnswerStreamEvent payload rules', () => {
     expect(done({ ...doneEvent(), ...patch })).toBeNull()
   })
 
-  it.each(['MODEL', 'EMPTY_KNOWLEDGE_BASE', 'BELOW_RERANK_THRESHOLD', 'SMALL_TALK'] as const)(
+  it('givenDoneWithNoWordsSource_whenParsed_thenAccepted', () => {
+    const event = done(doneEvent({ answer: 'Bu konuda rehberimizde bilgi bulamadım.', answerSource: 'NO_WORDS' }))
+
+    expect(event?.type).toBe('done')
+    expect(done({ ...doneEvent(), answerSource: 'OTHER' })).toBeNull()
+  })
+
+  it.each(['MODEL', 'EMPTY_KNOWLEDGE_BASE', 'BELOW_RERANK_THRESHOLD', 'SMALL_TALK', 'NO_WORDS'] as const)(
     'givenDoneWithAnswerSource_%s_whenConverted_thenNarrowedWithAnswer',
     (answerSource) => {
       expect(done(doneEvent({ answer: 'Merhaba', answerSource }))).toEqual({

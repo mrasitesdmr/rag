@@ -13,6 +13,10 @@
 > ya da eşik altında etiket) ve reranker puan eşiği (`BELOW_RERANK_THRESHOLD`) yolları; "bulamadım" cevabında `citations` her zaman `[]`; cevap "bulamadım"
 > cümlesiyle başlıyorsa cümle tamamlanana kadar `token` gönderilmez. TASK-031 düzeltme turu 1: "bulamadım"
 > tespiti "rehberimizde … bulamadım" kalıbını da kapsar; bu kalıpta metin akarken görünür, `done.answer` sabit cümledir.
+> TASK-032: selamlaşma kalıp listesi kaldırıldı. Kısa mesaj (tanım "Sıra"da) konuşmanın ilk mesajı da olsa aramadan
+> önce etiketlenir; selamlaşma turu artık arama öncesi etiketle ya da (uzun mesajda) eşik altında etiketle tanınır.
+> Olay adları ve alanlar değişmedi. TASK-032 düzeltme turu 1: `AnswerSource`'a `NO_WORDS` eklendi (harf ya da rakam
+> içermeyen mesaj; arama ve dil modeli yok, sabit "bulamadım").
 
 ## Endpoint
 
@@ -70,21 +74,28 @@ token (0 ya da daha fazla) → error (1 kez) → bağlantı kapanır
 - Bilgi bankasında aranabilir parça yoksa (retrieval boş liste döndü) dil modeli çağrılmaz: tek bir `token` olayı sabit
   "bulamadım" cümlesini taşır, ardından `sources` (`contextChunks: []`, `citations: []`) ve `done` (`notFoundAnswer: true`) gelir.
   Bu kural sadece `RAG` modundadır. `done.answerSource` `EMPTY_KNOWLEDGE_BASE`.
-- Selamlaşma, kalıp listesi (TASK-031, sadece `RAG`): mesajın tamamı selam / teşekkür / veda kalıplarından oluşuyorsa
-  yeniden yazma, retrieval, rerank ve dil modeli çağrılmaz: tek `token` hazır karşılık metni
+- Harf ya da rakam içermeyen mesaj (TASK-032 düzeltme turu 1, sadece `RAG`; ör. "???", "🙂"): öneri metinleriyle aynı
+  normalizasyondan sonra metin boşsa etiket, yeniden yazma, retrieval, rerank ve dil modeli çağrılmaz: tek `token` sabit
+  "bulamadım" cümlesi, `sources` (`generationMode` `RAG`, `retrievalStrategy` `NONE`, `candidates`/`topK`/`searchQuery`
+  `null`, `queryRewriteStatus` `DISABLED`, `contextChunks: []`, `citations: []`), `done` (`notFoundAnswer: true`,
+  `answerSource` `NO_WORDS`, model süreleri ve token'ları `null`). retrieval-api kapalıyken de böyledir. Bu kontrol
+  aşağıdaki etiket adımından önce yapılır.
+- Selamlaşma, arama öncesi etiket (TASK-032, sadece `RAG`; TASK-031'deki kalıp listesinin yerine): mesaj kısaysa,
+  konuşmanın ilk mesajı olup olmamasından ve eşikten bağımsız olarak, yeniden yazmadan ve aramadan önce dil modeline
+  müşterinin mesajı tek başına verilip sadece etiket sorulur (selam / teşekkür / veda / diğer; parça ve geçmiş verilmez,
+  model cevap yazmaz). Kısa mesaj: normalize edilmiş metin (öneri metinleriyle aynı normalizasyon) en az 1 kelime ve
+  `?` içermiyorsa en fazla 10 kelime, `?` içeriyorsa en fazla 5 kelime (onay kartı sorusu 1'e bağlı). Etiket selam,
+  teşekkür ya da vedaysa yeniden yazma, retrieval, rerank ve cevap modeli çağrılmaz: tek `token` hazır karşılık metni
   (`assistant.small-talk.*-answer`), `sources` (`generationMode` `RAG`, `retrievalStrategy` `NONE`,
   `candidates`/`topK`/`searchQuery` `null`, `queryRewriteStatus` `DISABLED`, `contextChunks: []`, `citations: []`),
-  `done` (`notFoundAnswer: false`, `answerSource` `SMALL_TALK`, model süreleri ve token'ları `null`). retrieval-api
-  kapalıyken de böyledir.
-- Selamlaşma, arama öncesi etiket (TASK-031 düzeltme turu 2, sadece `RAG`): kalıp listesi tutmadıysa, konuşmada cevabı
-  tamamlanmış ve selamlaşma olmayan önceki bir tur varsa ve mesaj kısaysa (normalize en fazla 6 kelime, `?` yok) yeniden
-  yazmadan önce dil modeline müşterinin mesajı tek başına verilip sadece etiket sorulur. Etiket selam, teşekkür ya da
-  vedaysa olaylar kalıp listesi yoluyla aynıdır (`retrievalStrategy` `NONE`, arama ve yeniden yazma yok,
-  `answerSource` `SMALL_TALK`). Etiket diğer, hata, zaman aşımı ya da tanımsız çıktıysa akış normal yoldan sürer
-  (yeniden yazma, retrieval, eşik); eşik altında etiket yeniden sorulmaz, "bulamadım" verilir.
-- Reranker puan eşiği (TASK-031, sadece `RAG` + `retrievalStrategy` `RERANK`): `assistant.retrieval.min-rerank-score`
-  doluysa ve prompt'a girecek ilk parçanın (`rerankScore` en yüksek) puanı bu değerden küçükse cevap için dil modeli
-  çağrılmaz. Önce dil modeline müşterinin mesajı tek başına verilip sadece etiket sorulur (selam / teşekkür / veda /
+  `done` (`notFoundAnswer: false`, `answerSource` `SMALL_TALK`, cevap modelinin süreleri ve token'ları `null`; etiket
+  çağrısının süresi `latencyMs`'e dahildir). retrieval-api kapalıyken de böyledir. Etiket diğer, hata, zaman aşımı ya
+  da tanımsız çıktıysa akış normal yoldan sürer (yeniden yazma, retrieval, eşik); eşik altında etiket yeniden
+  sorulmaz, "bulamadım" verilir.
+- Reranker puan eşiği (TASK-031, sadece `RAG` + `retrievalStrategy` `RERANK`; değer TASK-032'de ölçümle yeniden seçildi):
+  `assistant.retrieval.min-rerank-score` doluysa ve prompt'a girecek ilk parçanın (`rerankScore` en yüksek) puanı bu
+  değerden küçükse cevap için dil modeli çağrılmaz. Mesaj kısaysa etiket aramadan önce zaten sorulmuştur ve diğer
+  çıkmıştır: "bulamadım" verilir. Uzun mesajda önce dil modeline müşterinin mesajı tek başına verilip sadece etiket sorulur (selam / teşekkür / veda /
   diğer; parça ve geçmiş verilmez, model cevap yazmaz). Etiket selam, teşekkür ya da vedaysa tek `token` hazır karşılık
   metni ve `done.answerSource` `SMALL_TALK` (`notFoundAnswer: false`); diğer, hata, zaman aşımı ya da tanımsız çıktıda
   tek `token` sabit "bulamadım" cümlesi ve `done.answerSource` `BELOW_RERANK_THRESHOLD` (`notFoundAnswer: true`). İki
@@ -124,12 +135,12 @@ Modele giden parçalar ve cevaptaki alıntılar. Bir kez, son `token`'dan sonra.
 | Alan | Tip | Açıklama |
 |------|-----|----------|
 | `generationMode` | `GenerationMode` | Bu turun üretim modu: `RAG` ya da `LLM_ONLY` (Sadece LLM; TASK-011). Değerler `openapi.yaml` `GenerationMode` |
-| `retrievalStrategy` | `RetrievalStrategy` | Bu turda gerçekten uygulanan strateji (aşağıda); `LLM_ONLY`'de ve arama yapılmadan tanınan selamlaşma turunda (kalıp listesi ya da arama öncesi etiket) (TASK-031) her zaman `NONE` |
-| `candidates` | integer \| null | Yapılandırmadaki aday sayısı (`assistant.retrieval.candidates`, varsayılan 20). Ekrandaki "rerank 20→5" metninin ilk sayısı. `LLM_ONLY`'de ve arama yapılmadan tanınan selamlaşma turunda (kalıp listesi ya da arama öncesi etiket) `null` |
-| `topK` | integer \| null | Yapılandırmadaki prompt'a girecek parça sayısı (`assistant.retrieval.top-k`, varsayılan 5). "top-5" ve "20→5" metninin sayısı. `LLM_ONLY`'de ve arama yapılmadan tanınan selamlaşma turunda (kalıp listesi ya da arama öncesi etiket) `null` |
-| `searchQuery` | string \| null | retrieval-api'ye (ve reranker'a) giden arama sorgusu. `queryRewriteStatus` `REWRITTEN` ise modelin yazdığı bağımsız sorgu; diğer bütün `RAG` durumlarında müşterinin yazdığı soru (baştaki/sondaki boşluk silinmiş). Ekranda `· arama: "…"` (TASK-010). `LLM_ONLY`'de ve arama yapılmadan tanınan selamlaşma turunda (kalıp listesi ya da arama öncesi etiket) `null` (arama yapılmadı) |
-| `queryRewriteStatus` | `QueryRewriteStatus` | Bu turda sorgu yeniden yazmanın sonucu (aşağıda); `LLM_ONLY`'de ve arama yapılmadan tanınan selamlaşma turunda (kalıp listesi ya da arama öncesi etiket) her zaman `DISABLED` |
-| `contextChunks` | `ContextChunk[]` | Prompt'a giren parçalar, prompt'taki sırayla (`n` = 1, 2, …). En fazla `topK`; bilgi bankasında daha az parça varsa daha az; boş bilgi bankasında, eşik altında kalan turda (`BELOW_RERANK_THRESHOLD`), selamlaşma turunda (iki yoldan da) ve `LLM_ONLY`'de `[]` |
+| `retrievalStrategy` | `RetrievalStrategy` | Bu turda gerçekten uygulanan strateji (aşağıda); `LLM_ONLY`'de ve arama yapılmadan tanınan selamlaşma turunda (arama öncesi etiket) ve harf/rakamsız mesaj turunda (`NO_WORDS`) (TASK-031) her zaman `NONE` |
+| `candidates` | integer \| null | Yapılandırmadaki aday sayısı (`assistant.retrieval.candidates`, varsayılan 20). Ekrandaki "rerank 20→5" metninin ilk sayısı. `LLM_ONLY`'de ve arama yapılmadan tanınan selamlaşma turunda (arama öncesi etiket) ve harf/rakamsız mesaj turunda (`NO_WORDS`) `null` |
+| `topK` | integer \| null | Yapılandırmadaki prompt'a girecek parça sayısı (`assistant.retrieval.top-k`, varsayılan 5). "top-5" ve "20→5" metninin sayısı. `LLM_ONLY`'de ve arama yapılmadan tanınan selamlaşma turunda (arama öncesi etiket) ve harf/rakamsız mesaj turunda (`NO_WORDS`) `null` |
+| `searchQuery` | string \| null | retrieval-api'ye (ve reranker'a) giden arama sorgusu. `queryRewriteStatus` `REWRITTEN` ise modelin yazdığı bağımsız sorgu; diğer bütün `RAG` durumlarında müşterinin yazdığı soru (baştaki/sondaki boşluk silinmiş). Ekranda `· arama: "…"` (TASK-010). `LLM_ONLY`'de ve arama yapılmadan tanınan selamlaşma turunda (arama öncesi etiket) ve harf/rakamsız mesaj turunda (`NO_WORDS`) `null` (arama yapılmadı) |
+| `queryRewriteStatus` | `QueryRewriteStatus` | Bu turda sorgu yeniden yazmanın sonucu (aşağıda); `LLM_ONLY`'de ve arama yapılmadan tanınan selamlaşma turunda (arama öncesi etiket) ve harf/rakamsız mesaj turunda (`NO_WORDS`) her zaman `DISABLED` |
+| `contextChunks` | `ContextChunk[]` | Prompt'a giren parçalar, prompt'taki sırayla (`n` = 1, 2, …). En fazla `topK`; bilgi bankasında daha az parça varsa daha az; boş bilgi bankasında, eşik altında kalan turda (`BELOW_RERANK_THRESHOLD`), selamlaşma turunda (iki yoldan da), harf/rakamsız mesaj turunda (`NO_WORDS`) ve `LLM_ONLY`'de `[]` |
 | `citations` | integer[] | Cevapta geçen geçerli alıntı numaraları, cevaptaki ilk geçiş sırasıyla, tekrarsız. Sadece 1 ile `contextChunks.length` arasındaki `[n]`'ler; aralık dışı (`[0]`, `[6]`) yok sayılır. "Bulamadım" cevabında (`done.notFoundAnswer` `true`) model numara yazmış olsa da her zaman `[]` (TASK-031). `LLM_ONLY`'de alıntı ayrıştırılmaz, her zaman `[]` (cevapta `[1]` yazsa bile) |
 
 `RetrievalStrategy`:
@@ -139,7 +150,7 @@ Modele giden parçalar ve cevaptaki alıntılar. Bir kez, son `token`'dan sonra.
 - `NONE`: `generationMode` `LLM_ONLY`; retrieval yapılmadı (TASK-011). Sadece bu modda.
 
 `QueryRewriteStatus` (TASK-010):
-- `DISABLED`: `assistant.query-rewrite.enabled=false`, `generationMode` `LLM_ONLY` (arama olmadığı için yeniden yazma yapılmaz, TASK-011) ya da arama yapılmadan tanınan selamlaşma turu (TASK-031: kalıp listesi ya da arama öncesi etiket); dil modeli yeniden yazma için çağrılmadı. `RAG`'de `searchQuery` = soru (arama yapılmayan selamlaşmada `null`), `LLM_ONLY`'de `null`.
+- `DISABLED`: `assistant.query-rewrite.enabled=false`, `generationMode` `LLM_ONLY` (arama olmadığı için yeniden yazma yapılmaz, TASK-011) , arama yapılmadan tanınan selamlaşma turu (TASK-031, TASK-032: arama öncesi etiket) ya da harf/rakamsız mesaj turu (`NO_WORDS`); dil modeli yeniden yazma için çağrılmadı. `RAG`'de `searchQuery` = soru (arama yapılmayan selamlaşmada ve `NO_WORDS`'te `null`), `LLM_ONLY`'de `null`.
 - `NO_HISTORY`: konuşmada cevabı tamamlanmış (hata kodu olmayan) önceki tur yok; konuşmanın ilk turu her zaman böyledir. Model çağrılmadı. `searchQuery` = soru.
 - `REWRITTEN`: model geçmişle birlikte bağımsız bir sorgu yazdı; arama onunla yapıldı. `searchQuery` = modelin sorgusu (model soruyu aynen tekrar ettiyse soruyla aynı olabilir).
 - `FAILED`: model hata verdi, bağlanılamadı, `assistant.query-rewrite.timeout` içinde bitirmedi ya da sorgu `assistant.query-rewrite.max-length`'ten (1000) uzundu. `searchQuery` = soru.
@@ -173,8 +184,8 @@ Tur kaydedildi; akış başarıyla bitti. Son olay.
 | Alan | Tip | Açıklama |
 |------|-----|----------|
 | `turnId` | integer (int64) | Kaydedilen turun kimliği |
-| `notFoundAnswer` | boolean | Modelin cevabı sabit "Bu konuda rehberimizde bilgi bulamadım." cümlesini içeriyorsa (harf büyüklüğü ve boşluk farkı yok sayılır) ya da aynı cümle içinde önce "rehberimizde", sonra "bulamadım" geçiyorsa (ör. "Diğer bankaların EFT ücretlerini rehberimizde bulamadım. [3]"; TASK-031 düzeltme turu 1), eşik altında kalan turda ve boş bilgi bankasında `true` ("cevap yok" turu). `true` ise `answer` tam olarak bu cümledir, `sources.citations` `[]`; web "Rehber · s. N" düğmelerini göstermez. Selamlaşma turunda `false`. `LLM_ONLY`'de tespit yapılmaz, her zaman `false` |
-| `answer` | string | TASK-031. Turun kaydedilen son cevap metni. "Bulamadım" turunda sadece cümle (yapılandırmadaki yazımıyla); `RAG` model cevabında aralık dışı alıntı işaretleri (`[0]`, `[6]`; önündeki boşlukla) silinmiş ve baştaki/sondaki boşluk atılmış metin. Cevap üç sabit giriş cümlesinden biriyle başlıyorsa (`assistant.generation.*-opener`; kişisel hesap bilgisi, başka bankalar, yatırım tavsiyesi) o cümlenin içindeki ve hemen ardından gelen (arada sadece boşluk olan, bir ya da daha fazla) `[n]` işaretleri de silinir; `sources.citations` bu temizlenmiş metinden hesaplanır (TASK-031 düzeltme turu 1). Silinen numaralar akış sırasında `token`'larda görünmüş olabilir; `LLM_ONLY`'de akan metnin aynısı. Web, `done` gelince ekrandaki akan metni bununla değiştirir. Model boş cevap verdiyse `""` |
+| `notFoundAnswer` | boolean | Modelin cevabı sabit "Bu konuda rehberimizde bilgi bulamadım." cümlesini içeriyorsa (harf büyüklüğü ve boşluk farkı yok sayılır) ya da aynı cümle içinde önce "rehberimizde", sonra "bulamadım" geçiyorsa (ör. "Diğer bankaların EFT ücretlerini rehberimizde bulamadım. [3]"; TASK-031 düzeltme turu 1), eşik altında kalan turda, boş bilgi bankasında ve harf/rakamsız mesajda (`NO_WORDS`, TASK-032) `true` ("cevap yok" turu). `true` ise `answer` tam olarak bu cümledir, `sources.citations` `[]`; web "Rehber · s. N" düğmelerini göstermez. Selamlaşma turunda `false`. `LLM_ONLY`'de tespit yapılmaz, her zaman `false` |
+| `answer` | string | TASK-031. Turun kaydedilen son cevap metni. "Bulamadım" turunda sadece cümle (yapılandırmadaki yazımıyla); `RAG` model cevabında aralık dışı alıntı işaretleri (`[0]`, `[6]`; önündeki boşlukla) silinmiş ve baştaki/sondaki boşluk atılmış metin. Cevap üç sabit giriş cümlesinden biriyle başlıyorsa (`assistant.generation.*-opener`; kişisel hesap bilgisi, başka bankalar, yatırım tavsiyesi) o cümlenin içindeki ve hemen ardından gelen (arada sadece boşluk olan, bir ya da daha fazla) `[n]` işaretleri de silinir; `sources.citations` bu temizlenmiş metinden hesaplanır (TASK-031 düzeltme turu 1). Bu üç giriş cümlesinden biri cevabın ilk cümlesi değilse (cevabın ortasında ya da sonunda), o cümle arkasındaki `[n]` işaretleriyle birlikte silinir; `sources.citations` silinen cümlenin numaralarını içermez (TASK-032). Silinen numaralar ve cümleler akış sırasında `token`'larda görünmüş olabilir; `LLM_ONLY`'de akan metnin aynısı. Web, `done` gelince ekrandaki akan metni bununla değiştirir. Model boş cevap verdiyse `""` |
 | `answerSource` | `AnswerSource` | TASK-031. Cevabın hangi yoldan geldiği (aşağıda) |
 | `chatModel` | string | Cevabı üreten dil modeli (yapılandırmadaki ad, ör. `qwen3.5:9b`) |
 | `promptTokens` | integer \| null | Dil modelinin saydığı prompt token'ı; model çağrılmadıysa ya da sayı gelmediyse `null` |
@@ -196,9 +207,13 @@ Süreler milisaniyedir, tam sayıya yuvarlanır.
 - `BELOW_RERANK_THRESHOLD`: `RAG` + `RERANK`, ilk parçanın reranker puanı `assistant.retrieval.min-rerank-score`'dan
   küçük ve etiket "diğer" (ya da etiket alınamadı); cevap modeli çağrılmadı, cevap sabit "bulamadım" cümlesi,
   `contextChunks` `[]`.
-- `SMALL_TALK`: `RAG`, mesaj selamlaşma / teşekkür / veda; cevap hazır karşılık metni, `contextChunks` `[]`. Kalıp
-  listesinden ya da arama öncesi etiketle (düzeltme turu 2) tanındıysa arama yapılmadı (`retrievalStrategy` `NONE`);
-  eşik altında etiketle tanındıysa arama yapıldı (`retrievalStrategy` `RERANK`, `searchQuery` dolu).
+- `SMALL_TALK`: `RAG`, mesaj selamlaşma / teşekkür / veda; cevap hazır karşılık metni, `contextChunks` `[]`. Kısa
+  mesajda arama öncesi etiketle tanındıysa arama yapılmadı (`retrievalStrategy` `NONE`); uzun mesajda eşik altında
+  etiketle tanındıysa arama yapıldı (`retrievalStrategy` `RERANK`, `searchQuery` dolu). TASK-031'deki kalıp listesi
+  yolu TASK-032'de kaldırıldı; eski kayıtlarda o yoldan gelen turlar da `NONE` + `SMALL_TALK`'tır.
+- `NO_WORDS` (TASK-032 düzeltme turu 1): `RAG`, mesajda harf ya da rakam yok; etiket, arama ve dil modeli çağrılmadı,
+  cevap sabit "bulamadım" cümlesi (`notFoundAnswer: true`), `retrievalStrategy` `NONE`, `contextChunks` `[]`. Web
+  Önizleme'de bu turda "Son cevapta modele giden parçalar" kartını göstermez.
 
 ```
 event: done
@@ -294,22 +309,22 @@ data: {"turnId":16,"notFoundAnswer":true,"answer":"Bu konuda rehberimizde bilgi 
 
 ```
 
-Eşik altında etiketle tanınan selamlaşma (TASK-031; "Selamlar herkese" kalıp listesinde yok, puanı eşikten küçük,
-etiket selam):
+Eşik altında etiketle tanınan selamlaşma (TASK-031; uzun mesaj, kısa mesaj tanımına girmediği için aramadan önce
+etiket sorulmadı, puanı eşikten küçük, etiket selam):
 
 ```
 event: token
 data: {"text":"Merhaba, ben Raşit Bankası'nın dijital asistanıyım. Kart, hesap, kredi, transfer ve dijital bankacılıkla ilgili sorularını Ürün ve Hizmet Rehberi'ne dayanarak cevaplayabilirim. Ne sormak istersin?"}
 
 event: sources
-data: {"generationMode":"RAG","retrievalStrategy":"RERANK","candidates":20,"topK":5,"searchQuery":"Selamlar herkese","queryRewriteStatus":"NO_HISTORY","contextChunks":[],"citations":[]}
+data: {"generationMode":"RAG","retrievalStrategy":"RERANK","candidates":20,"topK":5,"searchQuery":"Merhabalar, bugün sizinle sadece biraz tanışmak ve sohbet etmek istedim efendim","queryRewriteStatus":"NO_HISTORY","contextChunks":[],"citations":[]}
 
 event: done
 data: {"turnId":18,"notFoundAnswer":false,"answer":"Merhaba, ben Raşit Bankası'nın dijital asistanıyım. Kart, hesap, kredi, transfer ve dijital bankacılıkla ilgili sorularını Ürün ve Hizmet Rehberi'ne dayanarak cevaplayabilirim. Ne sormak istersin?","answerSource":"SMALL_TALK","chatModel":"qwen3.5:9b","promptTokens":null,"completionTokens":null,"queryRewriteLatencyMs":null,"retrievalLatencyMs":80,"rerankLatencyMs":702,"generationLatencyMs":null,"timeToFirstTokenMs":null,"latencyMs":1910,"hostLabel":null}
 
 ```
 
-Selamlaşma, kalıp listesi (TASK-031; "Selam"):
+Selamlaşma, arama öncesi etiket (TASK-032; "Selam", konuşmanın ilk mesajı; `latencyMs` etiket çağrısını kapsar):
 
 ```
 event: token
@@ -319,7 +334,7 @@ event: sources
 data: {"generationMode":"RAG","retrievalStrategy":"NONE","candidates":null,"topK":null,"searchQuery":null,"queryRewriteStatus":"DISABLED","contextChunks":[],"citations":[]}
 
 event: done
-data: {"turnId":17,"notFoundAnswer":false,"answer":"Merhaba, ben Raşit Bankası'nın dijital asistanıyım. Kart, hesap, kredi, transfer ve dijital bankacılıkla ilgili sorularını Ürün ve Hizmet Rehberi'ne dayanarak cevaplayabilirim. Ne sormak istersin?","answerSource":"SMALL_TALK","chatModel":"qwen3.5:9b","promptTokens":null,"completionTokens":null,"queryRewriteLatencyMs":null,"retrievalLatencyMs":null,"rerankLatencyMs":null,"generationLatencyMs":null,"timeToFirstTokenMs":null,"latencyMs":3,"hostLabel":null}
+data: {"turnId":17,"notFoundAnswer":false,"answer":"Merhaba, ben Raşit Bankası'nın dijital asistanıyım. Kart, hesap, kredi, transfer ve dijital bankacılıkla ilgili sorularını Ürün ve Hizmet Rehberi'ne dayanarak cevaplayabilirim. Ne sormak istersin?","answerSource":"SMALL_TALK","chatModel":"qwen3.5:9b","promptTokens":null,"completionTokens":null,"queryRewriteLatencyMs":null,"retrievalLatencyMs":null,"rerankLatencyMs":null,"generationLatencyMs":null,"timeToFirstTokenMs":null,"latencyMs":840,"hostLabel":null}
 
 ```
 
@@ -334,6 +349,6 @@ data: {"turnId":17,"notFoundAnswer":false,"answer":"Merhaba, ben Raşit Bankası
 | Üretim modu | `generationMode` | `GenerationMode` (enum: `RAG`, `LLM_ONLY`) | `GenerationMode` (`GENERATION_MODES`, `shared/liveConfig/types.ts`) |
 | Retrieval stratejisi | `retrievalStrategy` | `RetrievalStrategy` (enum: `TOP_K`, `RERANK`, `RERANK_FALLBACK`, `NONE`) | `RetrievalStrategy` (`RETRIEVAL_STRATEGIES`) |
 | Bitti olayı | `done` | `DoneEvent` | `DoneEvent` |
-| Cevabın geldiği yol | `answerSource` | `AnswerSource` (enum: `MODEL`, `EMPTY_KNOWLEDGE_BASE`, `BELOW_RERANK_THRESHOLD`, `SMALL_TALK`) | `AnswerSource` (`ANSWER_SOURCES`) |
+| Cevabın geldiği yol | `answerSource` | `AnswerSource` (enum: `MODEL`, `EMPTY_KNOWLEDGE_BASE`, `BELOW_RERANK_THRESHOLD`, `SMALL_TALK`, `NO_WORDS`) | `AnswerSource` (`ANSWER_SOURCES`) |
 | Akış içi hata | `error` | `StreamErrorEvent` | `StreamErrorEvent` |
 | Olayların birleşimi | — | — | `AnswerStreamEvent` (ayrık birleşim, `type` alanı olay adı) |
