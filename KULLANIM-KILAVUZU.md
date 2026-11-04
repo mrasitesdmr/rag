@@ -1,146 +1,59 @@
-# Agent Ekibi Kullanım Kılavuzu
+# Kullanım Kılavuzu
 
-Bu kılavuz, bir task'ı agent ekibiyle (planner → coder'lar → tester → devops → qa) baştan sona nasıl yürüteceğini anlatır. Kuralların tamamı kök `CLAUDE.md` dosyasındadır; burada sadece kullanım adımları var.
+Komutlar repo kökünden (`~/Documents/rag`) çalışır. Backend'ler IntelliJ'den çalıştırılır (assistant-api 8090, retrieval-api 8080).
 
-## Kurulum (bir kez)
-
-```bash
-brew install tmux
-```
-
-Kurulu olup olmadığını `tmux -V` ile kontrol edebilirsin.
-
-Proje ayarları hazır (`.claude/settings.json`):
-- `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` ile agent ekibi açık.
-- `"teammateMode": "tmux"` ile her agent kendi tmux panelinde çalışır.
-
-## Senin rolün
-
-Akışta dört yerde sen devreye girersin:
-
-1. `TASK.md` dosyasını yazarsın.
-2. Onay kartını onaylarsın.
-3. qa bittikten sonra sonucu kabul edersin.
-4. Commit için onay verirsin.
-
-Geri kalanını lead (ana Claude oturumu) ve ekip yürütür.
-
-## 1. Task'ı hazırla
-
-`docs/tasks/_TEMPLATE.md` dosyasını `docs/tasks/TASK-XXX/TASK.md` olarak kopyala ve doldur. Teknik detay yazma, iş kurallarını yaz.
-
-Ürün `kaynaklar/rag-lab.html`'in sol yarısıdır; TASK'ta hangi ekrana ya da adıma karşılık geldiğini yaz. Etkilenen katmanlarda hangi servisi (assistant-api, retrieval-api, web) etkilediğini işaretle.
-
-## 2. Başlat
-
-1. macOS Terminal'i ya da iTerm2'yi aç. **VS Code'un dahili terminalini ya da Ghostty'yi kullanma**, tmux panelleri orada açılmaz.
-2. Şunları çalıştır:
-   ```bash
-   cd ~/Documents/rag
-   tmux new -s rag
-   claude
-   ```
-3. Açılan Claude oturumu **lead**'dir. Ona şunu yaz:
-   > `docs/tasks/TASK-XXX/TASK.md için akışı başlat`
-
-## 3. Onay kartını onayla
-
-Planner `handoff/00-onay-karti.md` dosyasını yazar, lead kartı sana gösterir.
-
-- Uygunsa açıkça **"onaylıyorum"** yaz.
-- Değişiklik istiyorsan ne istediğini yaz. Lead bunu planner'a iletir ve yeni kart gelir.
-
-Senin açık onayın olmadan kod yazılmaz.
-
-## 4. Ekibi izle
-
-Onaydan sonra akış kendiliğinden ilerler. Her agent başladığında pencere bölünür ve agent kendi panelinde çalışır. Panelleri Claude açar, senin elle bir şey açman gerekmez.
-
-İşini bitiren agent kapanmaz, boşta bekler. Paneller task kapanana kadar birikir:
-
-| Aşama | Ekranda görünenler |
-|-------|--------------------|
-| Başlangıç | lead |
-| Planlama | lead + planner |
-| Kodlama | + backend-coder (assistant-api, retrieval-api) + frontend-coder (web) (paralel) |
-| Test | + tester |
-| Deploy | + devops (Docker etkileniyorsa) |
-| Kontrol | + qa |
-
-Henüz başlamamış roller görünmez. Planner'ın bu task'ta çalışmayacak dediği roller hiç açılmaz.
-
-**Talimatları lead üzerinden ver.** Bir agent'ın paneline doğrudan da yazabilirsin, ama talimatlar lead'den geçince akışın kaydı tek yerde kalır.
-
-**Düzeltme turu:** Bir adım `NEEDS_FIX` dönerse düzeltme turu kendiliğinden başlar. Aynı adım üst üste 2 kez `NEEDS_FIX` dönerse lead durur ve sana sorar.
-
-**Lokal modeller:** Dil modeli ve embedding Ollama'da, reranker llama-server'da, Mac'te çalışır. Bir task yeni model gerektiriyorsa devops ya da lead sana hangi `ollama pull` komutunu çalıştıracağını söyler; gigabaytlarca indirmeyi ekip kendi başına başlatmaz. Kurulum ve indirme komutları `ollama.md`'dedir; sistemi baştan sona kurmak için kök `README.md`'deki "Kurulum" ve "İlk kullanım" bölümlerini izle.
-
-**İzin istemleri:** Komutların çoğu önceden izinli. `npm install` ve `git commit` her seferinde onay ister. `git push` kapalıdır.
-
-### tmux kısayolları
-
-Hepsinde önce `Ctrl+b`'ye bas, bırak, sonra ikinci tuşa bas.
-
-| Kısayol | Ne yapar |
-|---------|----------|
-| `Ctrl+b` → ok tuşları | Paneller arasında geçiş |
-| `Ctrl+b` → `z` | Seçili paneli tam ekran yapar / geri alır |
-| `Ctrl+b` → `Space` | Panel düzenini değiştirir (çok panel varken "tiled" en okunaklısı) |
-| `Ctrl+b` → `[` | Geriye kaydırma modu (`q` ile çıkılır) |
-| `Ctrl+b` → `d` | tmux'tan ayrılır, ekip arka planda çalışmaya devam eder |
-
-## 5. Task bitince çıkış
-
-1. qa bitince lead bir özet sunar. Uygunsa **"kabul ediyorum"** yaz.
-2. Lead ekibi kapatır, Docker'ı durdurur ve handoff dosyalarını `docs/tasks/TASK-XXX/handoff/` altına taşır.
-3. Lead değişiklikleri gösterir. Uygunsa **commit için onay ver**.
-4. Claude'dan çık: `/exit`
-5. tmux'tan çık: `exit`
-
-Sırada başka task varsa 4. ve 5. adımları atla, lead'e bir sonraki task'ı ver.
-
-## Yarıda bırakma
-
-**Ekip çalışmaya devam etsin, sen ayrıl:**
-- `Ctrl+b` → `d`. Terminal penceresini kapatırsan da aynı şey olur.
-- Geri dönmek için: `tmux attach -t rag`
-
-**Her şeyi durdur:**
-1. Lead'e yaz: `ekibi durdur`
-2. `/exit`
-3. `exit`
-
-## Kaldığın yerden devam etme
+## 1. Kurulum (bir kez)
 
 ```bash
-cd ~/Documents/rag
-tmux new -s rag
-claude --resume
+brew install ollama llama.cpp
+brew services start ollama
+ollama pull qwen3.5:9b
+ollama pull bge-m3
 ```
 
-Listeden önceki oturumu seç ve lead'e **"devam et"** yaz. Ekip üyeleri otomatik geri gelmez. Lead `handoff/` dosyalarındaki `STATUS` satırlarına bakar ve sadece bitmemiş rolleri yeniden başlatır.
+## 2. Modelleri çalıştır
 
-## Durumu kontrol etme
-
-Hangi adımın bittiğini görmek için:
+Üç model, iki komut. Ollama `qwen3.5:9b` (dil modeli) ve `bge-m3` (embedding) modellerini birlikte servis eder; backend ilk istediğinde belleğe alır.
 
 ```bash
-grep -H "STATUS\|ONAY" handoff/*.md
+brew services start ollama
+tail -f /opt/homebrew/var/log/ollama.log   # loglar (Ctrl+C sadece izlemeyi bırakır)
+ollama ps                                  # bellekteki modeller
+brew services stop ollama                  # kapatma
 ```
 
-| Değer | Anlamı |
-|-------|--------|
-| `ONAY: BEKLİYOR` | Onay kartı senin onayını bekliyor |
-| `ONAY: VERİLDİ` | Onayladın, kodlama başlayabilir |
-| `STATUS: DONE` | Adım tamamlandı |
-| `STATUS: NEEDS_FIX` | Adımda düzeltilecek bir şey çıktı |
-| `STATUS: STALE` | Düzeltme turu nedeniyle adım yeniden çalışacak |
+`bge-reranker-v2-m3` (reranker), ayrı terminalde, açık kalır; Ctrl+C ile durur:
 
-## Sorun giderme
+```bash
+llama-server -hf gpustack/bge-reranker-v2-m3-GGUF:Q8_0 --reranking --host 127.0.0.1 --port 8081 --ctx-size 8192 --batch-size 2048 --ubatch-size 2048 --n-gpu-layers 99
+```
 
-| Sorun | Çözüm |
-|-------|-------|
-| Paneller açılmıyor, ekip üyeleri lead'in ekranının içinde görünüyor | Claude tmux dışında başlatılmış. `/exit` ile çık, `tmux new -s rag` ile oturumu aç, `claude --resume` ile devam et. Bu sırada Shift+↓ ile ekip üyeleri arasında geçebilirsin. |
-| `sessions should be nested with care` hatası | Zaten bir tmux oturumunun içindesin. `tmux new` yazmana gerek yok, doğrudan `claude` çalıştır. |
-| `duplicate session: rag` hatası | Bu isimde bir oturum zaten var. `tmux attach -t rag` ile ona bağlan. |
-| Paneller çok küçük | Pencereyi tam ekran yap, `Ctrl+b` → `Space` ile düzeni değiştir ya da `Ctrl+b` → `z` ile tek paneli büyüt. |
+## 3. Veritabanını ayağa kaldır (compose)
+
+```bash
+docker compose -f deployment/docker-compose.dev.yml up -d
+```
+
+## 4. Backend'leri IntelliJ'den çalıştır
+
+Önce `RetrievalApplication` (8080), sonra `AssistantApplication` (8090). Ek ayar gerekmez.
+
+## 5. Web'i çalıştır
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Adres: http://localhost:5173
+
+## Kapatma
+
+```bash
+docker compose -f deployment/docker-compose.dev.yml down      # veri kalır
+docker compose -f deployment/docker-compose.dev.yml down -v   # veri de silinir
+brew services stop ollama
+```
+
+Reranker: çalıştığı terminalde Ctrl+C.
