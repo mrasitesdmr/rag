@@ -1,5 +1,9 @@
 # RAG Asistan · Kullanım Kılavuzu
 
+![Önizleme: asistanın cevabı, modele giden parçalar ve süre](images/img1.png)
+
+![Değerlendirme: golden set ile recall@5 ve MRR ölçümü](images/img2.png)
+
 Gerekenler: macOS + Homebrew, Docker Desktop, Java 26, Node 26, IntelliJ.
 
 ```bash
